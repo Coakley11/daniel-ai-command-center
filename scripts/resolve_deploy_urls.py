@@ -9,7 +9,7 @@ DEPLOY_PATHS = {
     "baseball": "coakley11/baseball-stat-app/main/streamlit_app.py",
     "nba": "coakley11/nba-playoff-companion-ai/dev/streamlit_app.py",
     "math": "coakley11/applied-mathematical-intelligence/dev/streamlit_app.py",
-    "future_lens": "coakley11/future-lens-ai-transition-simulator/main/streamlit_app.py",
+    "future_lens": "coakley11/future-lens-ai-transition-simulator/dev/streamlit_app.py",
 }
 
 for name, path in DEPLOY_PATHS.items():

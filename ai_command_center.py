@@ -26,7 +26,6 @@ APP_THEMES: dict[str, dict[str, str]] = {
     "investment": {"accent": "#0d9488", "bg": "#f0fdfa", "border": "#99f6e4", "emoji": "📊"},
     "baseball": {"accent": "#16a34a", "bg": "#f0fdf4", "border": "#bbf7d0", "emoji": "⚾"},
     "nba": {"accent": "#ea580c", "bg": "#fff7ed", "border": "#fed7aa", "emoji": "🏀"},
-    "math": {"accent": "#2563eb", "bg": "#eff6ff", "border": "#bfdbfe", "emoji": "🧮"},
     "future_lens": {"accent": "#7c3aed", "bg": "#f5f3ff", "border": "#ddd6fe", "emoji": "🔮"},
 }
 
@@ -219,12 +218,13 @@ def _render_activity_summary(snapshot: ActivitySnapshot) -> None:
     )
 
     rows = get_activity_rows(snapshot)
-    app_keys = ["music", "investment", "baseball", "nba", "math", "future_lens"]
+    app_keys = [app.key for app in APP_DEFINITIONS]
 
     for group_start in (0, 3):
         cols = st.columns(3, gap="medium")
-        for col, key in zip(cols, app_keys[group_start : group_start + 3]):
-            row = rows[app_keys.index(key)]
+        chunk_keys = app_keys[group_start : group_start + 3]
+        chunk_rows = rows[group_start : group_start + 3]
+        for col, key, row in zip(cols, chunk_keys, chunk_rows):
             theme = APP_THEMES[key]
             has_activity = row["Last activity"] != "No activity yet"
             when_color = theme["accent"] if has_activity else "#94a3b8"
@@ -258,7 +258,6 @@ def _last_active_label(snapshot: ActivitySnapshot, key: str) -> str:
         "investment": snapshot.last_portfolio_check_days_ago,
         "baseball": snapshot.last_baseball_review_days_ago,
         "nba": snapshot.last_nba_session_days_ago,
-        "math": snapshot.last_math_session_days_ago,
         "future_lens": snapshot.last_future_lens_days_ago,
     }
     days = days_map.get(key)

@@ -57,12 +57,6 @@ class ActivitySnapshot:
     last_nba_team: str = ""
     last_nba_page: str = ""
 
-    # AI Homeroom
-    last_math_session_days_ago: int | None = None
-    math_sessions_this_week: int = 0
-    math_next_lesson: str = ""
-    last_math_lesson: str = ""
-
     # Future Lens
     last_future_lens_days_ago: int | None = None
     future_simulations_this_week: int = 0
@@ -211,7 +205,6 @@ def _ingest_suite_events(snapshot: ActivitySnapshot) -> None:
         "investment": 0,
         "baseball": 0,
         "nba": 0,
-        "math": 0,
         "future_lens": 0,
         "music": 0,
     }
@@ -242,10 +235,6 @@ def _ingest_suite_events(snapshot: ActivitySnapshot) -> None:
             }:
                 week_counts[app] += 1
 
-            if app == "math" and metrics.get("next_lesson"):
-                snapshot.math_next_lesson = str(metrics["next_lesson"])
-            if app == "math" and metrics.get("lesson"):
-                snapshot.last_math_lesson = str(metrics["lesson"])
             if app == "future_lens" and metrics.get("project"):
                 snapshot.future_project = str(metrics["project"])
             if app == "future_lens" and metrics.get("simulation"):
@@ -280,8 +269,6 @@ def _ingest_suite_events(snapshot: ActivitySnapshot) -> None:
         snapshot.last_baseball_review_days_ago = _latest_days("baseball")
     if snapshot.last_nba_session_days_ago is None:
         snapshot.last_nba_session_days_ago = _latest_days("nba")
-    if snapshot.last_math_session_days_ago is None:
-        snapshot.last_math_session_days_ago = _latest_days("math")
     if snapshot.last_future_lens_days_ago is None:
         snapshot.last_future_lens_days_ago = _latest_days("future_lens")
     if snapshot.last_music_practice_days_ago is None:
@@ -290,7 +277,6 @@ def _ingest_suite_events(snapshot: ActivitySnapshot) -> None:
     snapshot.portfolio_checks_this_week = week_counts["investment"]
     snapshot.baseball_reviews_this_week = week_counts["baseball"]
     snapshot.nba_sessions_this_week = week_counts["nba"]
-    snapshot.math_sessions_this_week = week_counts["math"]
     snapshot.future_simulations_this_week = week_counts["future_lens"]
 
 
@@ -319,7 +305,6 @@ def get_activity_rows(snapshot: ActivitySnapshot) -> list[dict[str, str]]:
         "investment": "No portfolio reviews detected",
         "baseball": "No baseball reports viewed yet",
         "nba": "No basketball sessions recorded yet",
-        "math": "No AI Homeroom lessons logged yet",
         "future_lens": "No simulations run yet",
     }
 
@@ -390,14 +375,6 @@ def get_activity_rows(snapshot: ActivitySnapshot) -> list[dict[str, str]]:
                     ]
                     if p
                 ),
-            ),
-        },
-        {
-            "App": "AI Homeroom",
-            "Last activity": format_days_ago(snapshot.last_math_session_days_ago),
-            "Details": _detail(
-                "math",
-                snapshot.last_math_lesson or snapshot.math_next_lesson,
             ),
         },
         {

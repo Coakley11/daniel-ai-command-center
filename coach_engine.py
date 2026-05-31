@@ -100,25 +100,6 @@ def generate_coach_insights(snapshot: ActivitySnapshot) -> list[CoachInsight]:
             )
         )
 
-    if snapshot.math_next_lesson:
-        candidates.append(
-            CoachInsight(
-                key="math",
-                icon="🧮",
-                message=f"Complete your next AI Homeroom lesson: {snapshot.math_next_lesson}.",
-                priority=18,
-            )
-        )
-    elif snapshot.last_math_lesson and (snapshot.last_math_session_days_ago or 99) >= 2:
-        candidates.append(
-            CoachInsight(
-                key="math",
-                icon="🧮",
-                message="Resume AI Homeroom — start the next lesson in your track.",
-                priority=22,
-            )
-        )
-
     if snapshot.future_project or snapshot.last_simulation_name:
         label = snapshot.future_project or snapshot.last_simulation_name
         candidates.append(
