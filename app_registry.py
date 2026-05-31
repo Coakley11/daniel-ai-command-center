@@ -1,12 +1,11 @@
 """
-App registry and URL discovery for the Daniel AI Command Center.
+App registry for the Daniel AI Command Center.
 
 Replace verification logic later with shared activity DB + deployment API.
 """
 
 from __future__ import annotations
 
-import re
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
@@ -36,6 +35,14 @@ from app_urls import (
 
 AppStatus = Literal["Active", "Prototype", "Needs Connection", "Coming Soon"]
 
+ACCESS_BLOCKED_PHRASES = (
+    "do not have access",
+    "you do not have access",
+    "sign in to continue",
+    "please sign in",
+    "app does not exist",
+)
+
 
 @dataclass(frozen=True)
 class AppDefinition:
@@ -64,11 +71,11 @@ APP_DEFINITIONS: tuple[AppDefinition, ...] = (
         main_file="streamlit_music_practice_app.py",
         description="Your AI practice buddy — songs, chords, and progress tracking.",
         why_it_matters="Keeps your creative skills sharp and makes practice fun.",
-        button_label="Go to Music App",
+        button_label="Go to App",
     ),
     AppDefinition(
         key="investment",
-        name="Investment Portfolio Analyzer",
+        name="Investment Analytics",
         icon="📊",
         status="Active",
         branch=APP_BRANCH["investment"],
@@ -77,7 +84,7 @@ APP_DEFINITIONS: tuple[AppDefinition, ...] = (
         main_file="streamlit_app.py",
         description="See how your money is doing — risk, allocation, and smart next steps.",
         why_it_matters="Stay confident about financial decisions without overthinking.",
-        button_label="Go to Investment App",
+        button_label="Go to App",
     ),
     AppDefinition(
         key="baseball",
@@ -90,11 +97,11 @@ APP_DEFINITIONS: tuple[AppDefinition, ...] = (
         main_file="streamlit_app.py",
         description="Lineups, start/sit picks, and stats when you need an edge.",
         why_it_matters="Win more fantasy weeks with data-backed lineup calls.",
-        button_label="Go to Baseball App",
+        button_label="Go to App",
     ),
     AppDefinition(
         key="nba",
-        name="NBA Playoff Companion",
+        name="Basketball Companion",
         icon="🏀",
         status="Active",
         branch=APP_BRANCH["nba"],
@@ -103,11 +110,11 @@ APP_DEFINITIONS: tuple[AppDefinition, ...] = (
         main_file="streamlit_app.py",
         description="Matchups, injuries, and live game insights for basketball fans.",
         why_it_matters="Walk into game day knowing who's playing and who to watch.",
-        button_label="Go to NBA App",
+        button_label="Go to App",
     ),
     AppDefinition(
         key="math",
-        name="Advanced Math Intelligence",
+        name="AI Homeroom",
         icon="🧮",
         status="Prototype",
         branch=APP_BRANCH["math"],
@@ -116,11 +123,11 @@ APP_DEFINITIONS: tuple[AppDefinition, ...] = (
         main_file="streamlit_app.py",
         description="Build and test applied math ideas — simulations, puzzles, and reasoning.",
         why_it_matters="Strengthens how you think through real-world quantitative problems.",
-        button_label="Go to Math App",
+        button_label="Go to App",
     ),
     AppDefinition(
         key="future_lens",
-        name="Future Lens",
+        name="AI Future Simulator",
         icon="🔮",
         status="Active",
         branch=APP_BRANCH["future_lens"],
@@ -129,7 +136,7 @@ APP_DEFINITIONS: tuple[AppDefinition, ...] = (
         main_file="streamlit_app.py",
         description="Explore how AI might reshape music, money, sports, and teaching.",
         why_it_matters="Helps you adapt early instead of reacting late.",
-        button_label="Go to Future Lens",
+        button_label="Go to App",
     ),
 )
 
@@ -148,8 +155,17 @@ class ConnectionStatus:
     last_verified: str
 
 
+def _is_viewer_url(url: str) -> bool:
+    cleaned = url.strip().lower()
+    if not cleaned.startswith("https://"):
+        return False
+    if "share.streamlit.io" in cleaned:
+        return False
+    return ".streamlit.app" in cleaned
+
+
 def _url_is_live(url: str) -> bool:
-    if not url.strip():
+    if not _is_viewer_url(url):
         return False
     headers = {"User-Agent": "DanielAICommandCenter/1.0"}
     try:
@@ -164,44 +180,37 @@ def _url_is_live(url: str) -> bool:
                 if response.status != 200:
                     return False
                 body = response.read(12000).decode("utf-8", errors="ignore").lower()
-        blocked = any(
-            phrase in body
-            for phrase in ("do not have access", "you do not have access", "app does not exist")
-        )
-        return not blocked
+        return not any(phrase in body for phrase in ACCESS_BLOCKED_PHRASES)
     except (urllib.error.URLError, TimeoutError, ValueError, OSError):
         return False
 
 
-def _github_valid(url: str) -> bool:
-    return bool(re.match(r"https://github\.com/Coakley11/\S+", url or ""))
-
-
-def resolve_open_url(app: AppDefinition, streamlit_live: bool) -> str:
-    if streamlit_live and app.streamlit_url.strip():
-        return app.streamlit_url.strip()
-    if _github_valid(app.github_url):
-        return app.github_url
+def get_app_url(key: str, connections: list[ConnectionStatus] | None = None) -> str:
+    """Return the public Streamlit viewer URL for navigation buttons."""
+    for app in APP_DEFINITIONS:
+        if app.key == key:
+            return app.streamlit_url.strip()
     return ""
 
 
 def verify_connections() -> list[ConnectionStatus]:
+    """Check deployment URLs for the Connected Apps Status panel only."""
     verified_at = datetime.now().strftime("%b %d, %Y · %I:%M %p")
     rows: list[ConnectionStatus] = []
 
     for app in APP_DEFINITIONS:
-        streamlit_live = _url_is_live(app.streamlit_url) if app.streamlit_url else False
-        open_url = resolve_open_url(app, streamlit_live)
-        url_connected = streamlit_live or _github_valid(app.github_url)
-        button_works = bool(open_url)
+        streamlit_url = app.streamlit_url.strip()
+        streamlit_live = _url_is_live(streamlit_url) if streamlit_url else False
+        url_connected = bool(streamlit_url) and _is_viewer_url(streamlit_url)
+        button_works = url_connected and streamlit_live
 
         rows.append(
             ConnectionStatus(
                 key=app.key,
                 name=app.name,
                 branch=app.branch,
-                open_url=open_url,
-                streamlit_url=app.streamlit_url,
+                open_url=streamlit_url,
+                streamlit_url=streamlit_url,
                 github_url=app.github_url,
                 streamlit_live=streamlit_live,
                 url_connected=url_connected,
@@ -210,15 +219,3 @@ def verify_connections() -> list[ConnectionStatus]:
             )
         )
     return rows
-
-
-def get_app_url(key: str, connections: list[ConnectionStatus] | None = None) -> str:
-    if connections:
-        for row in connections:
-            if row.key == key and row.open_url:
-                return row.open_url
-    for app in APP_DEFINITIONS:
-        if app.key == key:
-            streamlit_live = _url_is_live(app.streamlit_url) if app.streamlit_url else False
-            return resolve_open_url(app, streamlit_live)
-    return ""

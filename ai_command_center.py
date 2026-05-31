@@ -1,80 +1,34 @@
 """
-Daniel AI Command Center — friendly home hub for the Daniel AI Suite.
+Daniel AI Command Center — personal dashboard for the Daniel AI Suite.
 
-Standalone Streamlit prototype. Does not modify or import from sibling apps.
-
-Future integration points (wire up when ready):
-  - Shared activity database (SQLite/Postgres): last_used, session counts, weekly hours
-  - Shared AI recommendation engine: Today's Briefing, Coach Summary, cross-app tips
-  - Cross-app reports: weekly digest PDF/email, portfolio + practice + sports rollup
-  - Notifications and reminders: push, email, in-dashboard alerts by app priority
-  - Usage tracking: per-app open events, time-on-task, streaks, goal completion
+Single-page layout:
+  1. Coach Insights — what should I do next?
+  2. Activity Summary — what have I been doing recently?
+  3. App Directory — launch any app
+  4. Projects — suite overview (no duplicate recommendations)
 
 Run: streamlit run ai_command_center.py
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import html
 from datetime import datetime
 
 import streamlit as st
 
-# ── App URL constants — edit deployed links here ────────────────────────────
-MUSIC_APP_URL = (
-    "https://share.streamlit.io/Coakley11/ai-music-practice-coach/dev/streamlit_music_practice_app.py"
-)
-INVESTMENT_APP_URL = (
-    "https://share.streamlit.io/Coakley11/investment-portfolio-analyzer/dev/streamlit_app.py"
-)
-BASEBALL_APP_URL = (
-    "https://share.streamlit.io/Coakley11/baseball-stat-app/main/streamlit_app.py"
-)
-NBA_APP_URL = (
-    "https://share.streamlit.io/Coakley11/nba-playoff-companion-ai/dev/streamlit_app.py"
-)
-MATH_APP_URL = (
-    "https://share.streamlit.io/Coakley11/Applied-mathematical-intelligence/dev/streamlit_app.py"
-)
-FUTURE_LENS_URL = (
-    "https://share.streamlit.io/Coakley11/future-lens-ai-transition-simulator/main/streamlit_app.py"
-)
+from activity_store import ActivitySnapshot, format_days_ago, load_activity_snapshot
+from app_registry import APP_DEFINITIONS, get_app_url, verify_connections
+from coach_engine import CoachInsight, generate_coach_insights
 
-# Keep app_registry in sync when constants above are edited
-import app_urls as _app_urls
-
-_app_urls.MUSIC_APP_URL = MUSIC_APP_URL
-_app_urls.INVESTMENT_APP_URL = INVESTMENT_APP_URL
-_app_urls.BASEBALL_APP_URL = BASEBALL_APP_URL
-_app_urls.NBA_APP_URL = NBA_APP_URL
-_app_urls.MATH_APP_URL = MATH_APP_URL
-_app_urls.FUTURE_LENS_URL = FUTURE_LENS_URL
-
-from app_registry import (
-    APP_DEFINITIONS,
-    AppStatus,
-    ConnectionStatus,
-    get_app_url,
-    verify_connections,
-)
-
-APP_THEMES: dict[str, dict[str, str]] = {
-    "music": {"accent": "#a855f7", "bg": "#faf5ff", "border": "#e9d5ff", "emoji": "🎵"},
-    "investment": {"accent": "#0d9488", "bg": "#f0fdfa", "border": "#99f6e4", "emoji": "📊"},
-    "baseball": {"accent": "#16a34a", "bg": "#f0fdf4", "border": "#bbf7d0", "emoji": "⚾"},
-    "nba": {"accent": "#ea580c", "bg": "#fff7ed", "border": "#fed7aa", "emoji": "🏀"},
-    "math": {"accent": "#2563eb", "bg": "#eff6ff", "border": "#bfdbfe", "emoji": "🧮"},
-    "future_lens": {"accent": "#7c3aed", "bg": "#f5f3ff", "border": "#ddd6fe", "emoji": "🔮"},
+APP_ICONS: dict[str, str] = {
+    "music": "🎵",
+    "investment": "📊",
+    "baseball": "⚾",
+    "nba": "🏀",
+    "math": "🧮",
+    "future_lens": "🔮",
 }
-
-STATUS_STYLES: dict[AppStatus, dict[str, str]] = {
-    "Active": {"bg": "#dcfce7", "text": "#166534", "border": "#86efac"},
-    "Prototype": {"bg": "#dbeafe", "text": "#1e40af", "border": "#93c5fd"},
-    "Needs Connection": {"bg": "#fef9c3", "text": "#854d0e", "border": "#fde047"},
-    "Coming Soon": {"bg": "#f1f5f9", "text": "#475569", "border": "#cbd5e1"},
-}
-
-# ── Page config ───────────────────────────────────────────────────────────────
 
 st.set_page_config(
     page_title="Daniel AI Command Center",
@@ -83,261 +37,92 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-# ── Styles ────────────────────────────────────────────────────────────────────
-
 st.markdown(
     """
     <style>
-    :root {
-        --cc-text: #1e293b;
-        --cc-muted: #64748b;
-        --cc-bg: #f8fafc;
-    }
-    .stApp {
-        background: linear-gradient(180deg, #fff7ed 0%, #f8fafc 18%, #f0f9ff 100%);
-    }
-    .block-container {
-        padding-top: 1rem;
-        padding-bottom: 2.5rem;
-        max-width: 1200px;
-    }
+    .stApp { background: #f8fafc; }
+    .block-container { padding-top: 1rem; padding-bottom: 2rem; max-width: 980px; }
     #MainMenu, footer { visibility: hidden; }
     header[data-testid="stHeader"] { background: transparent; }
 
     .cc-hero {
-        background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 45%, #ec4899 100%);
-        border-radius: 24px;
-        padding: 2rem 2.2rem;
-        margin-bottom: 1.25rem;
+        background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+        border-radius: 18px;
+        padding: 1.5rem 1.75rem;
+        margin-bottom: 1.5rem;
         color: white;
-        box-shadow: 0 16px 40px rgba(99, 102, 241, 0.25);
     }
-    .cc-hero h1 {
-        margin: 0 0 0.35rem 0;
-        font-size: 2.2rem;
-        font-weight: 800;
-        letter-spacing: -0.02em;
-    }
-    .cc-hero p {
-        margin: 0;
-        font-size: 1.05rem;
-        line-height: 1.55;
-        opacity: 0.95;
-        max-width: 720px;
-    }
-    .cc-hero-tag {
-        display: inline-block;
-        background: rgba(255,255,255,0.2);
-        border: 1px solid rgba(255,255,255,0.35);
-        border-radius: 999px;
-        padding: 0.25rem 0.75rem;
-        font-size: 0.78rem;
-        font-weight: 600;
-        margin-bottom: 0.75rem;
-    }
-
-    .cc-start-here {
-        background: white;
-        border: 2px solid #c4b5fd;
-        border-radius: 20px;
-        padding: 1.35rem 1.5rem;
-        margin-bottom: 1rem;
-        box-shadow: 0 8px 24px rgba(99, 102, 241, 0.1);
-    }
-    .cc-start-title {
-        font-size: 1.45rem;
-        font-weight: 800;
-        color: #4c1d95;
-        margin-bottom: 0.25rem;
-    }
-    .cc-start-sub {
-        color: #64748b;
-        font-size: 0.95rem;
-        margin-bottom: 0.75rem;
-    }
-
-    .cc-action-card {
-        background: white;
-        border-radius: 16px;
-        padding: 1rem 1.1rem;
-        margin-bottom: 0.65rem;
-        border-left: 5px solid;
-        box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06);
-        height: 100%;
-    }
-    .cc-action-icon { font-size: 1.5rem; margin-bottom: 0.25rem; }
-    .cc-action-title {
-        font-size: 1rem;
-        font-weight: 700;
-        color: #1e293b;
-        margin-bottom: 0.25rem;
-    }
-    .cc-action-why {
-        font-size: 0.88rem;
-        color: #64748b;
-        line-height: 1.45;
-        margin: 0;
-    }
-
-    .cc-coach-bubble {
-        background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
-        border: 1px solid #fcd34d;
-        border-radius: 18px;
-        padding: 1.1rem 1.25rem;
-        margin-bottom: 1rem;
-        color: #78350f;
-        font-size: 1rem;
-        line-height: 1.55;
-    }
-    .cc-coach-label {
-        font-size: 0.72rem;
-        font-weight: 700;
-        text-transform: uppercase;
-        letter-spacing: 0.06em;
-        color: #b45309;
-        margin-bottom: 0.35rem;
-    }
-
-    .cc-app-card {
-        border-radius: 18px;
-        padding: 1.15rem 1.2rem 0.25rem;
-        height: 100%;
-        min-height: 320px;
-        box-shadow: 0 6px 20px rgba(15, 23, 42, 0.07);
-        border: 1px solid;
-    }
-    .cc-app-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-start;
-        gap: 0.5rem;
-        margin-bottom: 0.35rem;
-    }
-    .cc-app-icon { font-size: 2rem; }
-    .cc-status-badge {
-        font-size: 0.65rem;
-        font-weight: 700;
-        text-transform: uppercase;
-        letter-spacing: 0.04em;
-        border-radius: 999px;
-        padding: 0.2rem 0.55rem;
-        border: 1px solid;
-        white-space: nowrap;
-    }
-    .cc-app-name {
-        font-size: 1.05rem;
-        font-weight: 800;
-        color: #1e293b;
-        margin-bottom: 0.3rem;
-    }
-    .cc-app-desc {
-        color: #64748b;
-        font-size: 0.88rem;
-        line-height: 1.45;
-        margin-bottom: 0.55rem;
-    }
-    .cc-meta {
-        font-size: 0.78rem;
-        color: #94a3b8;
-        margin-bottom: 0.15rem;
-    }
-    .cc-why-box {
-        border-radius: 10px;
-        padding: 0.55rem 0.7rem;
-        margin: 0.5rem 0 0.65rem;
-        font-size: 0.82rem;
-        line-height: 1.4;
-    }
-    .cc-why-label {
-        font-size: 0.68rem;
-        font-weight: 700;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-        margin-bottom: 0.15rem;
-    }
-    .cc-next-box {
-        border-radius: 10px;
-        padding: 0.55rem 0.7rem;
-        margin-bottom: 0.5rem;
-        font-size: 0.84rem;
-        line-height: 1.4;
-        font-weight: 600;
-    }
+    .cc-hero h1 { margin: 0 0 0.25rem 0; font-size: 1.75rem; font-weight: 800; }
+    .cc-hero p { margin: 0; opacity: 0.92; font-size: 0.95rem; line-height: 1.5; }
 
     .cc-section-title {
-        font-size: 1.35rem;
+        font-size: 1.2rem;
         font-weight: 800;
-        color: #1e293b;
-        margin: 0.5rem 0 0.35rem 0;
+        color: #0f172a;
+        margin: 1.5rem 0 0.35rem 0;
     }
     .cc-section-sub {
         color: #64748b;
-        font-size: 0.92rem;
-        margin-bottom: 1rem;
-    }
-    .cc-vision-card {
-        background: white;
-        border: 1px solid #e2e8f0;
-        border-radius: 16px;
-        padding: 1.25rem 1.4rem;
-        margin-bottom: 0.75rem;
-    }
-    .cc-vision-grid {
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 0.6rem;
-    }
-    @media (max-width: 768px) {
-        .cc-vision-grid { grid-template-columns: 1fr 1fr; }
-    }
-    .cc-vision-item {
-        background: #f8fafc;
-        border: 1px solid #e2e8f0;
-        border-radius: 12px;
-        padding: 0.65rem 0.8rem;
         font-size: 0.88rem;
-        color: #334155;
-        font-weight: 600;
+        margin-bottom: 0.85rem;
     }
-    .cc-week-chip {
-        display: inline-block;
+
+    .cc-insight {
         background: white;
         border: 1px solid #e2e8f0;
+        border-left: 4px solid #6366f1;
         border-radius: 12px;
-        padding: 0.65rem 0.9rem;
-        margin: 0 0.5rem 0.5rem 0;
-        font-size: 0.88rem;
-        color: #334155;
-    }
-    div[data-testid="stMetric"] {
-        background: white;
-        border: 1px solid #e2e8f0;
-        border-radius: 14px;
-        padding: 0.65rem 0.85rem;
-        box-shadow: 0 2px 8px rgba(15,23,42,0.04);
-    }
-    .stTabs [data-baseweb="tab-list"] { gap: 0.5rem; }
-    .stTabs [data-baseweb="tab"] {
-        border-radius: 12px 12px 0 0;
-        padding: 0.6rem 1.1rem;
-        font-weight: 600;
-    }
-    .cc-launch-row {
-        background: white;
-        border: 1px solid #e2e8f0;
-        border-radius: 14px;
         padding: 0.85rem 1rem;
         margin-bottom: 0.55rem;
         display: flex;
         align-items: center;
         justify-content: space-between;
-        gap: 0.75rem;
+        gap: 1rem;
     }
-    .cc-launch-text {
-        font-size: 0.95rem;
-        color: #1e293b;
+    .cc-insight-text { color: #1e293b; font-size: 0.92rem; line-height: 1.45; flex: 1; }
+
+    .cc-directory-row {
+        background: white;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 0.85rem 1rem;
+        margin-bottom: 0.5rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+    }
+    .cc-directory-name { font-weight: 700; color: #0f172a; font-size: 0.95rem; }
+    .cc-directory-desc { color: #64748b; font-size: 0.82rem; margin-top: 0.1rem; }
+
+    .cc-project-row {
+        background: white;
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        padding: 0.65rem 0.85rem;
+        margin-bottom: 0.4rem;
+        font-size: 0.88rem;
+        color: #334155;
+    }
+
+    .cc-go-button {
+        display: inline-block;
+        padding: 0.4rem 0.85rem;
+        background: #ef4444;
+        color: white !important;
+        border-radius: 8px;
+        text-decoration: none;
         font-weight: 600;
-        line-height: 1.4;
+        font-size: 0.82rem;
+        white-space: nowrap;
+    }
+    .cc-go-button:hover { background: #dc2626; }
+
+    div[data-testid="stMetric"] {
+        background: white;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 0.55rem 0.75rem;
     }
     </style>
     """,
@@ -345,623 +130,153 @@ st.markdown(
 )
 
 
-# ── Placeholder activity snapshot (replace via shared activity DB later) ──────
+def _render_go_link(label: str, url: str, key: str) -> None:
+    cleaned = url.strip()
+    if not cleaned:
+        st.caption("Not connected")
+        return
+    st.link_button(label, cleaned, use_container_width=True, key=key)
 
 
-@dataclass
-class ActivitySnapshot:
-    """Demo fields that drive cross-app recommendations."""
-
-    last_music_practice_days_ago: int = 3
-    last_portfolio_check_days_ago: int = 7
-    is_sunday_lineup_day: bool = datetime.now().weekday() == 6
-    last_baseball_review_days_ago: int = 2
-    nba_game_today: bool = True
-    nba_playoffs_active: bool = True
-    math_build_sessions_this_week: int = 2
-    last_future_lens_days_ago: int = 9
-    music_hours_this_week: float = 4.0
-
-
-@dataclass(frozen=True)
-class ActionItem:
-    key: str
-    icon: str
-    title: str
-    reason: str
-    url: str
-    priority: int
-
-
-@dataclass(frozen=True)
-class AppCard:
-    key: str
-    name: str
-    icon: str
-    description: str
-    url: str
-    status: AppStatus
-    last_checked: str
-    next_action: str
-    why_it_matters: str
-    button_label: str
-
-
-@dataclass(frozen=True)
-class CoachMessage:
-    text: str
-
-
-def _effective_status(app: AppCard) -> AppStatus:
-    if app.status == "Coming Soon":
-        return "Coming Soon"
-    if not app.url.strip():
-        return "Needs Connection"
-    return app.status
-
-
-def _status_badge_html(status: AppStatus) -> str:
-    style = STATUS_STYLES[status]
-    return (
-        f'<span class="cc-status-badge" style="background:{style["bg"]};'
-        f'color:{style["text"]};border-color:{style["border"]};">{status}</span>'
-    )
-
-
-def _url_for_key(key: str, connections: list[ConnectionStatus] | None = None) -> str:
-    return get_app_url(key, connections)
-
-
-def generate_recommendations(
-    snapshot: ActivitySnapshot,
-    connections: list[ConnectionStatus] | None = None,
-) -> list[ActionItem]:
-    """
-    Cross-app coordination logic using placeholder activity fields.
-    Replace with shared AI recommendation engine + activity DB later.
-    """
-    items: list[ActionItem] = []
-
-    if snapshot.is_sunday_lineup_day:
-        items.append(ActionItem(
-            key="baseball",
-            icon="⚾",
-            title="Review fantasy baseball lineups",
-            reason="It's Sunday — lineups may need a last-minute swap before games start.",
-            url=_url_for_key("baseball", connections),
-            priority=1,
-        ))
-
-    if snapshot.last_portfolio_check_days_ago >= 5:
-        items.append(ActionItem(
-            key="investment",
-            icon="📊",
-            title="Review portfolio health",
-            reason=(
-                f"Your portfolio hasn't been checked in {snapshot.last_portfolio_check_days_ago} days. "
-                "A quick risk review keeps you on track."
-            ),
-            url=_url_for_key("investment", connections),
-            priority=2,
-        ))
-
-    if snapshot.last_music_practice_days_ago >= 2:
-        items.append(ActionItem(
-            key="music",
-            icon="🎵",
-            title="Practice Piano Man for 20 minutes",
-            reason=(
-                f"You haven't practiced in {snapshot.last_music_practice_days_ago} days. "
-                "Even 20 minutes keeps your momentum going!"
-            ),
-            url=_url_for_key("music", connections),
-            priority=3,
-        ))
-
-    if snapshot.nba_game_today or snapshot.nba_playoffs_active:
-        nba_reason = (
-            "Knicks game today — check matchups, injuries, and the live game center."
-            if snapshot.nba_game_today
-            else "NBA playoffs are active — check the Live Game Center."
-        )
-        items.append(ActionItem(
-            key="nba",
-            icon="🏀",
-            title="Check Knicks / NBA matchup",
-            reason=nba_reason,
-            url=_url_for_key("nba", connections),
-            priority=4,
-        ))
-
-    if snapshot.math_build_sessions_this_week < 3:
-        items.append(ActionItem(
-            key="math",
-            icon="🧮",
-            title="Test one new Math Intelligence feature",
-            reason=(
-                f"You've logged {snapshot.math_build_sessions_this_week} math sessions this week. "
-                "Try adding one new applied problem."
-            ),
-            url=_url_for_key("math", connections),
-            priority=5,
-        ))
-
-    if snapshot.last_future_lens_days_ago >= 7:
-        items.append(ActionItem(
-            key="future_lens",
-            icon="🔮",
-            title="Explore one Future Lens scenario",
-            reason="It's been a while since you looked ahead — explore how AI may change your world.",
-            url=_url_for_key("future_lens", connections),
-            priority=6,
-        ))
-
-    items.sort(key=lambda x: x.priority)
-    return items[:5]
-
-
-def generate_coach_messages(snapshot: ActivitySnapshot) -> list[CoachMessage]:
-    """Daily Coach voice — friendly assistant nudges from placeholder data."""
-    messages: list[CoachMessage] = []
-
-    if snapshot.last_music_practice_days_ago >= 2:
-        messages.append(CoachMessage(
-            text=f"🎵 You haven't practiced music in {snapshot.last_music_practice_days_ago} days — "
-            "how about one quick song today?"
-        ))
-    if snapshot.is_sunday_lineup_day:
-        messages.append(CoachMessage(
-            text="⚾ It's Sunday, so fantasy baseball lineups may need attention before first pitch."
-        ))
-    if snapshot.last_portfolio_check_days_ago >= 5:
-        messages.append(CoachMessage(
-            text="📊 Your portfolio has not been checked recently — a 10-minute review goes a long way."
-        ))
-    if snapshot.nba_game_today:
-        messages.append(CoachMessage(
-            text="🏀 Knicks game today! Peek at matchups and injuries before tip-off."
-        ))
-    elif snapshot.nba_playoffs_active:
-        messages.append(CoachMessage(
-            text="🏀 NBA playoffs are active — open the Live Game Center for matchup context."
-        ))
-    messages.append(CoachMessage(
-        text="✨ Pick one small task below and complete it today — that's a win!"
-    ))
-    return messages
-
-
-NEXT_ACTIONS: dict[str, str] = {
-    "music": "Play Piano Man for 20 minutes.",
-    "investment": "Run a quick portfolio health check.",
-    "baseball": "Review Sunday lineups and swap any risky starters.",
-    "nba": "Check today's Knicks matchup and injury report.",
-    "math": "Add or test one new applied problem.",
-    "future_lens": "Preview one 10-year AI scenario.",
-}
-
-LAST_CHECKED: dict[str, str] = {
-    "music": "3 days ago",
-    "investment": "7 days ago",
-    "baseball": "2 days ago",
-    "nba": "4 days ago",
-    "math": "1 day ago",
-    "future_lens": "9 days ago",
-}
-
-
-def _build_app_cards(connections: list[ConnectionStatus]) -> list[AppCard]:
-    cards: list[AppCard] = []
-    for app in APP_DEFINITIONS:
-        cards.append(
-            AppCard(
-                key=app.key,
-                name=app.name,
-                icon=app.icon,
-                description=app.description,
-                url=get_app_url(app.key, connections),
-                status=app.status,
-                last_checked=LAST_CHECKED.get(app.key, "—"),
-                next_action=NEXT_ACTIONS.get(app.key, "Open the app and take one small step."),
-                why_it_matters=app.why_it_matters,
-                button_label=app.button_label,
-            )
-        )
-    return cards
-
-
-def _render_go_button(label: str, url: str, key: str) -> None:
-    if url.strip():
-        st.link_button(label, url, use_container_width=True, key=key)
-    else:
-        st.button(label, disabled=True, use_container_width=True, key=key)
-        st.caption("Link not connected yet.")
-
-
-OPEN_LABELS: dict[str, str] = {
-    "music": "Open Music App",
-    "investment": "Open Investment App",
-    "baseball": "Open Baseball App",
-    "nba": "Open NBA App",
-    "math": "Open Math App",
-    "future_lens": "Open Future Lens",
-}
-
-
-def _render_action_card(action: ActionItem, accent: str, col_key: str) -> None:
+def _render_hero(snapshot: ActivitySnapshot) -> None:
+    source = "live activity" if snapshot.has_real_data else "waiting for activity logs"
     st.markdown(
         f"""
-        <div class="cc-action-card" style="border-left-color:{accent};">
-            <div class="cc-action-icon">{action.icon}</div>
-            <div class="cc-action-title">{action.title}</div>
-            <p class="cc-action-why">{action.reason}</p>
+        <div class="cc-hero">
+            <h1>Daniel AI Command Center</h1>
+            <p>Your personal dashboard — coach insights, recent activity, and app launchers. Data source: {source}.</p>
         </div>
         """,
         unsafe_allow_html=True,
     )
-    open_label = OPEN_LABELS.get(action.key, "Go to app →")
-    _render_go_button(open_label, action.url, f"go_{col_key}")
 
 
-def _render_app_card(app: AppCard) -> None:
-    theme = APP_THEMES[app.key]
-    status = _effective_status(app)
+def _render_coach_insights(insights: list[CoachInsight]) -> None:
+    st.markdown('<div class="cc-section-title">Coach Insights</div>', unsafe_allow_html=True)
     st.markdown(
-        f"""
-        <div class="cc-app-card" style="background:{theme['bg']};border-color:{theme['border']};">
-            <div class="cc-app-header">
-                <div class="cc-app-icon">{app.icon}</div>
-                {_status_badge_html(status)}
-            </div>
-            <div class="cc-app-name">{app.name}</div>
-            <div class="cc-app-desc">{app.description}</div>
-            <div class="cc-meta">Last checked · {app.last_checked}</div>
-            <div class="cc-why-box" style="background:white;border:1px solid {theme['border']};color:#475569;">
-                <div class="cc-why-label" style="color:{theme['accent']};">Why it matters</div>
-                {app.why_it_matters}
-            </div>
-            <div class="cc-next-box" style="background:white;border:1px solid {theme['border']};color:{theme['accent']};">
-                👉 {app.next_action}
-            </div>
-        </div>
-        """,
+        '<div class="cc-section-sub">What should you do next? One suggestion per app — no repeats.</div>',
         unsafe_allow_html=True,
     )
-    _render_go_button(app.button_label, app.url, f"app_{app.key}")
-
-
-def _render_launch_workspace(actions: list[ActionItem]) -> None:
-    st.markdown(
-        '<div class="cc-section-title">🚀 Launch Workspace</div>',
-        unsafe_allow_html=True,
-    )
-    st.markdown(
-        '<div class="cc-section-sub">Today\'s recommended actions — pick one and jump straight into the app.</div>',
-        unsafe_allow_html=True,
-    )
-    st.markdown("**Today's Recommended Actions**")
-
-    for i, action in enumerate(actions[:6]):
-        cols = st.columns([5, 1], gap="small")
+    for insight in insights:
+        icon = APP_ICONS.get(insight.key, insight.icon)
+        safe_msg = html.escape(insight.message)
+        cols = st.columns([6, 1], gap="small")
         with cols[0]:
             st.markdown(
-                f'<div class="cc-launch-text">{action.icon} {action.title}</div>',
+                f'<div class="cc-insight"><div class="cc-insight-text">{icon} {safe_msg}</div></div>',
                 unsafe_allow_html=True,
             )
         with cols[1]:
-            open_label = f"→ {OPEN_LABELS.get(action.key, 'Open')}"
-            _render_go_button(open_label, action.url, f"launch_{action.key}_{i}")
+            _render_go_link("Go", insight.url, f"coach_{insight.key}")
 
 
-def _render_connected_apps_status(connections: list[ConnectionStatus]) -> None:
+def _render_activity_summary(snapshot: ActivitySnapshot) -> None:
+    st.markdown('<div class="cc-section-title">Activity Summary</div>', unsafe_allow_html=True)
     st.markdown(
-        '<div class="cc-section-title">🔗 Connected Apps Status</div>',
-        unsafe_allow_html=True,
-    )
-    st.markdown(
-        '<div class="cc-section-sub">Live check of Streamlit deployments — DEV or MAIN per app.</div>',
+        '<div class="cc-section-sub">What you have been doing recently — facts only, no recommendations.</div>',
         unsafe_allow_html=True,
     )
 
-    rows = [
-        {
-            "App": conn.name,
-            "Branch": conn.branch,
-            "URL connected": "Yes" if conn.url_connected else "No",
-            "Button works": "Yes" if conn.button_works else "No",
-            "Opens via": "Streamlit" if conn.streamlit_live else ("GitHub" if conn.open_url else "—"),
-        }
-        for conn in connections
-    ]
-    st.dataframe(rows, use_container_width=True, hide_index=True)
+    music_hours = snapshot.music_minutes_this_week / 60.0
+    c1, c2, c3 = st.columns(3)
+    c4, c5, c6 = st.columns(3)
 
-    with st.expander("View full URLs"):
-        for conn in connections:
-            st.markdown(f"**{conn.name}** ({conn.branch})")
-            if conn.streamlit_url:
-                st.caption(f"Streamlit: {conn.streamlit_url}")
-            if conn.github_url:
-                st.caption(f"GitHub fallback: {conn.github_url}")
-            if conn.open_url:
-                st.caption(f"Button opens: {conn.open_url}")
-            else:
-                st.caption("Button opens: Link not connected yet.")
-            st.caption(f"Last verified: {conn.last_verified}")
-            st.divider()
+    with c1:
+        st.metric("Music (hrs this week)", f"{music_hours:.1f}" if snapshot.has_real_data else "—")
+        st.caption(format_days_ago(snapshot.last_music_practice_days_ago))
+    with c2:
+        st.metric("Portfolio checks", snapshot.portfolio_checks_this_week or "—")
+        st.caption(format_days_ago(snapshot.last_portfolio_check_days_ago))
+    with c3:
+        st.metric("Baseball reviews", snapshot.baseball_reviews_this_week or "—")
+        st.caption(format_days_ago(snapshot.last_baseball_review_days_ago))
+    with c4:
+        st.metric("Basketball sessions", snapshot.nba_sessions_this_week or "—")
+        st.caption(format_days_ago(snapshot.last_nba_session_days_ago))
+    with c5:
+        st.metric("AI Homeroom sessions", snapshot.math_sessions_this_week or "—")
+        st.caption(format_days_ago(snapshot.last_math_session_days_ago))
+    with c6:
+        st.metric("Future simulations", snapshot.future_simulations_this_week or "—")
+        st.caption(format_days_ago(snapshot.last_future_lens_days_ago))
+
+    if snapshot.last_song:
+        st.caption(f"Last song practiced: **{snapshot.last_song}**")
+    if not snapshot.has_real_data:
+        st.info(
+            "No cross-app activity logged yet. Use your apps normally — "
+            "the Music app writes practice logs automatically; other apps will feed this hub as tracking is added."
+        )
 
 
-def _render_cross_app_nudges(snapshot: ActivitySnapshot) -> None:
+def _render_app_directory() -> None:
+    st.markdown('<div class="cc-section-title">App Directory</div>', unsafe_allow_html=True)
     st.markdown(
-        '<div class="cc-section-title">💡 Cross-App Coach Nudges</div>',
-        unsafe_allow_html=True,
-    )
-    nudges: list[str] = []
-    if snapshot.is_sunday_lineup_day:
-        nudges.append("⚾ It's Sunday — fantasy baseball lineups may need attention.")
-    if snapshot.last_music_practice_days_ago >= 2:
-        nudges.append("🎵 Practice one song today — you haven't played in a few days.")
-    if snapshot.last_portfolio_check_days_ago >= 5:
-        nudges.append("📊 Review portfolio health — the Investment App hasn't been visited recently.")
-    if snapshot.nba_playoffs_active:
-        nudges.append("🏀 NBA playoffs are active — check the Live Game Center.")
-    if snapshot.math_build_sessions_this_week < 3:
-        nudges.append("🧮 Build or test one math idea to keep your reasoning lab growing.")
-    if snapshot.last_future_lens_days_ago >= 7:
-        nudges.append("🔮 Explore one Future Lens scenario about how AI may change your work.")
-    for nudge in nudges:
-        st.info(nudge)
-
-
-def _render_hero(connected_count: int) -> None:
-    st.markdown(
-        """
-        <div class="cc-hero">
-            <div class="cc-hero-tag">👋 Welcome back · Daniel AI Suite</div>
-            <h1>🏠 Daniel AI Command Center</h1>
-            <p>Your homepage for the entire Daniel AI Suite — see what to do today, which app to open,
-            and what needs attention. {connected_count} apps connected right now.</p>
-        </div>
-        """,
+        '<div class="cc-section-sub">Launch any app. Navigation only — no recommendations here.</div>',
         unsafe_allow_html=True,
     )
 
+    for app in APP_DEFINITIONS:
+        url = get_app_url(app.key)
+        icon = APP_ICONS.get(app.key, app.icon)
+        safe_name = html.escape(app.name)
+        safe_desc = html.escape(app.description)
+        cols = st.columns([5, 1], gap="small")
+        with cols[0]:
+            st.markdown(
+                f"""
+                <div class="cc-directory-row">
+                    <div>
+                        <div class="cc-directory-name">{icon} {safe_name}</div>
+                        <div class="cc-directory-desc">{safe_desc} · {app.branch}</div>
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+        with cols[1]:
+            _render_go_link("Go to App", url, f"app_{app.key}")
 
-def _render_start_here(actions: list[ActionItem], coach_msgs: list[CoachMessage]) -> None:
+
+def _render_projects() -> None:
+    st.markdown('<div class="cc-section-title">Portfolio / Projects</div>', unsafe_allow_html=True)
     st.markdown(
-        """
-        <div class="cc-start-here">
-            <div class="cc-start-title">✅ What should I do now?</div>
-            <div class="cc-start-sub">Pick one action below — your AI coach picked these based on your week.</div>
-        </div>
-        """,
+        '<div class="cc-section-sub">Apps in the Daniel AI Suite — status overview, not a marketing page.</div>',
         unsafe_allow_html=True,
     )
-
-    for msg in coach_msgs[:3]:
+    for app in APP_DEFINITIONS:
         st.markdown(
-            f"""
-            <div class="cc-coach-bubble">
-                <div class="cc-coach-label">Daily Coach</div>
-                {msg.text}
-            </div>
-            """,
+            f'<div class="cc-project-row">{APP_ICONS.get(app.key, app.icon)} '
+            f"<strong>{html.escape(app.name)}</strong> · {app.status} · {app.branch} branch</div>",
             unsafe_allow_html=True,
         )
 
-    if not actions:
-        st.info("You're all caught up! Explore an app below or check back tomorrow.")
-        return
-
-    cols = st.columns(min(len(actions), 3), gap="medium")
-    for col, action in zip(cols, actions[:3]):
-        with col:
-            accent = APP_THEMES.get(action.key, {}).get("accent", "#6366f1")
-            _render_action_card(action, accent, f"top_{action.key}")
-
-    if len(actions) > 3:
-        st.markdown("**More ideas for today**")
-        extra_cols = st.columns(min(len(actions) - 3, 2), gap="medium")
-        for col, action in zip(extra_cols, actions[3:]):
-            with col:
-                accent = APP_THEMES.get(action.key, {}).get("accent", "#6366f1")
-                _render_action_card(action, accent, f"extra_{action.key}")
-
-
-def _render_home_tab(
-    snapshot: ActivitySnapshot,
-    actions: list[ActionItem],
-    coach_msgs: list[CoachMessage],
-    connections: list[ConnectionStatus],
-) -> None:
-    _render_start_here(actions, coach_msgs)
-    _render_launch_workspace(actions)
-    _render_cross_app_nudges(snapshot)
-    _render_connected_apps_status(connections)
-
-    st.markdown(
-        '<div class="cc-section-title">🌈 One personal AI system</div>',
-        unsafe_allow_html=True,
-    )
-    st.markdown(
-        """
-        <div class="cc-section-sub">
-        Your AI Command Center connects your creative, financial, sports, and intellectual work
-        into one weekly operating system — not six separate projects, but one helpful coach.
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    quick_cols = st.columns(3, gap="medium")
-    highlights = [
-        ("🎵", "Music", f"{snapshot.music_hours_this_week:.0f} hrs this week"),
-        ("⚾", "Baseball", f"Last review {snapshot.last_baseball_review_days_ago}d ago"),
-        ("📊", "Portfolio", f"Last check {snapshot.last_portfolio_check_days_ago}d ago"),
-    ]
-    for col, (emoji, label, detail) in zip(quick_cols, highlights):
-        with col:
-            st.markdown(
-                f"""
-                <div class="cc-vision-card" style="text-align:center;">
-                    <div style="font-size:2rem;">{emoji}</div>
-                    <div style="font-weight:700;color:#1e293b;">{label}</div>
-                    <div style="font-size:0.85rem;color:#64748b;">{detail}</div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-
-
-def _render_apps_tab(apps: list[AppCard]) -> None:
-    st.markdown('<div class="cc-section-title">📱 Your Apps</div>', unsafe_allow_html=True)
-    st.markdown(
-        '<div class="cc-section-sub">Tap an app to jump in — each one has a suggested next step waiting for you.</div>',
-        unsafe_allow_html=True,
-    )
-    for row in (apps[:3], apps[3:]):
-        cols = st.columns(3, gap="medium")
-        for col, app in zip(cols, row):
-            with col:
-                _render_app_card(app)
-
-
-def _render_weekly_coach_tab(snapshot: ActivitySnapshot, actions: list[ActionItem]) -> None:
-    st.markdown('<div class="cc-section-title">🧠 Weekly AI Coach</div>', unsafe_allow_html=True)
-    st.markdown(
-        '<div class="cc-section-sub">Your personal advisor for the week — powered by placeholder data for now.</div>',
-        unsafe_allow_html=True,
-    )
-
-    st.markdown(
-        f"""
-        <div class="cc-coach-bubble">
-            <div class="cc-coach-label">This week's vibe</div>
-            Hey! You're doing great on baseball ({snapshot.last_baseball_review_days_ago} days since last review)
-            but your portfolio check is {snapshot.last_portfolio_check_days_ago} days overdue.
-            Music is at {snapshot.music_hours_this_week:.0f} hours this week — nice!
-            Pick one small win today and you'll feel on top of everything. 💪
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    c1, c2 = st.columns(2, gap="medium")
-    with c1:
-        st.markdown("**Needs attention**")
-        attention = []
-        if snapshot.last_portfolio_check_days_ago >= 5:
-            attention.append("📊 Portfolio — overdue for a check-in")
-        if snapshot.last_music_practice_days_ago >= 3:
-            attention.append(f"🎵 Music — {snapshot.last_music_practice_days_ago} days since practice")
-        if snapshot.is_sunday_lineup_day:
-            attention.append("⚾ Baseball — Sunday lineup day")
-        for item in attention or ["✅ Nothing urgent — keep your streak going!"]:
-            st.warning(item)
-
-    with c2:
-        st.markdown("**Suggested this week**")
-        for i, action in enumerate(actions[:4], start=1):
-            st.success(f"{i}. {action.icon} {action.title}")
-
-    st.markdown("**Activity this week**")
-    m1, m2, m3, m4, m5, m6 = st.columns(6)
-    metrics = [
-        (m1, "Music (hrs)", f"{snapshot.music_hours_this_week:.1f}"),
-        (m2, "Portfolio checks", "1"),
-        (m3, "Baseball reviews", "5"),
-        (m4, "NBA sessions", "3"),
-        (m5, "Math builds", str(snapshot.math_build_sessions_this_week)),
-        (m6, "Future Lens", "1"),
-    ]
-    for col, label, val in metrics:
-        with col:
-            st.metric(label, val)
-
-
-def _render_vision_tab() -> None:
-    st.markdown('<div class="cc-section-title">🔭 Platform Vision</div>', unsafe_allow_html=True)
-    st.markdown(
-        """
-        <div class="cc-vision-card">
-            <p style="color:#475569;line-height:1.65;margin:0 0 1rem 0;">
-            The <strong>Daniel AI Suite</strong> is one integrated AI ecosystem — six specialized apps
-            connected by this Command Center. Music, money, sports, math, and future-thinking all
-            feed into one weekly operating system that helps you decide what matters most today.
-            </p>
-            <div class="cc-vision-grid">
-                <div class="cc-vision-item">🎵 Music Practice Coach</div>
-                <div class="cc-vision-item">📊 Investment Portfolio Analyzer</div>
-                <div class="cc-vision-item">⚾ Baseball Analytics</div>
-                <div class="cc-vision-item">🏀 NBA Playoff Companion</div>
-                <div class="cc-vision-item">🧮 Advanced Math Intelligence</div>
-                <div class="cc-vision-item">🔮 Future Lens</div>
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    st.markdown("**How it fits together**")
-    pillars = [
-        ("🎨 Creative", "Music App — practice, learn, perform"),
-        ("💰 Financial", "Investment App — track, analyze, decide"),
-        ("🏆 Sports", "Baseball + NBA — lineups, matchups, live insights"),
-        ("🧠 Intellectual", "Math App — build reasoning skills"),
-        ("🚀 Future", "Future Lens — explore what's coming next"),
-    ]
-    pcols = st.columns(5, gap="small")
-    for col, (title, desc) in zip(pcols, pillars):
-        with col:
-            st.markdown(
-                f"""
-                <div class="cc-vision-card" style="text-align:center;padding:0.9rem;">
-                    <div style="font-weight:800;color:#1e293b;margin-bottom:0.25rem;">{title}</div>
-                    <div style="font-size:0.78rem;color:#64748b;">{desc}</div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-
-    st.caption(
-        "Future: shared activity database · AI recommendation engine · cross-app reports · "
-        "notifications · usage tracking"
-    )
-
-
-# ── Main layout ───────────────────────────────────────────────────────────────
-
 
 @st.cache_data(ttl=300, show_spinner=False)
-def _cached_connections() -> list[ConnectionStatus]:
+def _cached_connections():
     return verify_connections()
 
 
+snapshot = load_activity_snapshot()
+insights = generate_coach_insights(snapshot)
 connections = _cached_connections()
-snapshot = ActivitySnapshot()
-apps = _build_app_cards(connections)
-actions = generate_recommendations(snapshot, connections)
-coach_msgs = generate_coach_messages(snapshot)
-connected_count = sum(1 for c in connections if c.button_works)
 
-_render_hero(connected_count)
+_render_hero(snapshot)
+_render_coach_insights(insights)
+_render_activity_summary(snapshot)
+_render_app_directory()
+_render_projects()
 
-tab_home, tab_apps, tab_coach, tab_vision = st.tabs(
-    ["🏠 Home / Today", "📱 Apps", "🧠 Weekly Coach", "🔭 Platform Vision"]
-)
-
-with tab_home:
-    _render_home_tab(snapshot, actions, coach_msgs, connections)
-
-with tab_apps:
-    _render_apps_tab(apps)
-
-with tab_coach:
-    _render_weekly_coach_tab(snapshot, actions)
-
-with tab_vision:
-    _render_vision_tab()
+with st.expander("Deployment status (admin)"):
+    for conn in connections:
+        st.markdown(f"**{conn.name}** — {conn.branch}")
+        st.caption(conn.open_url or "Not connected")
+        st.caption(
+            f"Live: {'Yes' if conn.streamlit_live else 'No'} · "
+            f"Verified: {conn.last_verified}"
+        )
 
 st.caption(
-    f"Daniel AI Command Center · Daniel AI Suite · {datetime.now().strftime('%B %d, %Y')} · "
-    "activity data is demo/placeholder · app links auto-discovered from GitHub + Streamlit Cloud."
+    f"Daniel AI Command Center · {datetime.now().strftime('%B %d, %Y')} · "
+    f"{'Real activity' if snapshot.has_real_data else 'Activity tracking initializing'}"
 )
