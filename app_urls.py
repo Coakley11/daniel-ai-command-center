@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-BUILD_VERSION = "2026-05-31-v6"
+BUILD_VERSION = "2026-05-31-v7"
 
 # GitHub deploy paths (lowercase owner) for Streamlit disambiguate API.
 DEPLOY_PATHS: dict[str, str] = {
@@ -12,6 +12,7 @@ DEPLOY_PATHS: dict[str, str] = {
     "investment": "coakley11/investment-portfolio-analyzer/dev/streamlit_app.py",
     "baseball": "coakley11/baseball-stat-app/main/streamlit_app.py",
     "nba": "coakley11/nba-playoff-companion-ai/dev/streamlit_app.py",
+    "applied_intelligence": "coakley11/applied-mathematical-intelligence/dev/streamlit_app.py",
     "future_lens": "coakley11/future-lens-ai-transition-simulator/dev/streamlit_app.py",
 }
 
@@ -20,6 +21,7 @@ MUSIC_APP_URL = "https://ai-music-practice-coach-6szqxqxqrqxdmryyewk8sq.streamli
 INVESTMENT_APP_URL = "https://investment-portfolio-analyzer-ty2sbzumvxsqwbqhkvf6rz.streamlit.app"
 BASEBALL_APP_URL = "https://baseball-stat-app-bwx4bawvayxbsbxqbqmfws.streamlit.app"
 NBA_APP_URL = "https://nba-playoff-companion-ai-gd4sx677quejdfkvappv6o.streamlit.app"
+APPLIED_INTELLIGENCE_URL = "https://applied-mathematical-intelligence-8l8bqrzpp6fghaj7xuig53.streamlit.app"
 FUTURE_LENS_URL = "https://future-lens-ai-transition-simulator-m6n4kaku28ztzlxfts2xt6.streamlit.app"
 FUTURE_LENS_PRODUCTION_URL = "https://future-lens-ai-transition-simulator-8qfgube5tezjjaxruppnuo.streamlit.app"
 
@@ -31,6 +33,7 @@ MUSIC_GITHUB_URL = "https://github.com/Coakley11/ai-music-practice-coach/tree/de
 INVESTMENT_GITHUB_URL = "https://github.com/Coakley11/investment-portfolio-analyzer/tree/dev"
 BASEBALL_GITHUB_URL = "https://github.com/Coakley11/baseball-stat-app/tree/main"
 NBA_GITHUB_URL = "https://github.com/Coakley11/nba-playoff-companion-ai/tree/dev"
+APPLIED_INTELLIGENCE_GITHUB_URL = "https://github.com/Coakley11/Applied-mathematical-intelligence/tree/dev"
 FUTURE_LENS_GITHUB_URL = "https://github.com/Coakley11/future-lens-ai-transition-simulator/tree/dev"
 
 APP_BRANCH: dict[str, str] = {
@@ -38,6 +41,7 @@ APP_BRANCH: dict[str, str] = {
     "investment": "DEV",
     "baseball": "MAIN",
     "nba": "DEV",
+    "applied_intelligence": "DEV",
     "future_lens": "DEV",
 }
 
@@ -46,5 +50,6 @@ APP_URLS: dict[str, str] = {
     "investment": INVESTMENT_APP_URL,
     "baseball": BASEBALL_APP_URL,
     "nba": NBA_APP_URL,
+    "applied_intelligence": APPLIED_INTELLIGENCE_URL,
     "future_lens": FUTURE_LENS_URL,
 }

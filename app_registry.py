@@ -19,6 +19,8 @@ except ImportError:  # pragma: no cover
 
 from app_urls import (
     APP_BRANCH,
+    APPLIED_INTELLIGENCE_GITHUB_URL,
+    APPLIED_INTELLIGENCE_URL,
     BASEBALL_APP_URL,
     BASEBALL_GITHUB_URL,
     FUTURE_LENS_GITHUB_URL,
@@ -108,6 +110,22 @@ APP_DEFINITIONS: tuple[AppDefinition, ...] = (
         main_file="streamlit_app.py",
         description="Matchups, injuries, and live game insights for basketball fans.",
         why_it_matters="Walk into game day knowing who's playing and who to watch.",
+        button_label="Go to App",
+    ),
+    AppDefinition(
+        key="applied_intelligence",
+        name="Applied Intelligence",
+        icon="🧠",
+        status="Active",
+        branch=APP_BRANCH["applied_intelligence"],
+        github_url=APPLIED_INTELLIGENCE_GITHUB_URL,
+        streamlit_url=APPLIED_INTELLIGENCE_URL,
+        main_file="streamlit_app.py",
+        description=(
+            "Explore applied mathematics, quantitative reasoning, problem solving, modeling, "
+            "decision-making, and AI-assisted analytical thinking."
+        ),
+        why_it_matters="Build sharper analytical instincts for school, work, and everyday decisions.",
         button_label="Go to App",
     ),
     AppDefinition(

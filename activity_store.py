@@ -17,6 +17,12 @@ from typing import Any
 DATA_DIR = Path(__file__).resolve().parent / "data"
 ACTIVITY_FILE = DATA_DIR / "suite_activity.json"
 
+# Legacy suite event keys mapped to current homepage app keys.
+ACTIVITY_APP_ALIASES: dict[str, str] = {
+    "math": "applied_intelligence",
+    "applied_intelligence": "applied_intelligence",
+}
+
 # Optional local paths to sibling-app logs (first match wins).
 MUSIC_LOG_CANDIDATES = (
     Path(__file__).resolve().parent.parent / "ai-music-practice-coach" / "practice_history.json",
@@ -56,6 +62,14 @@ class ActivitySnapshot:
     nba_sessions_this_week: int = 0
     last_nba_team: str = ""
     last_nba_page: str = ""
+
+    # Applied Intelligence
+    last_applied_intelligence_days_ago: int | None = None
+    applied_intelligence_sessions_this_week: int = 0
+    last_applied_intelligence_page: str = ""
+    last_applied_intelligence_analysis: str = ""
+    last_applied_intelligence_lesson: str = ""
+    applied_intelligence_next_lesson: str = ""
 
     # Future Lens
     last_future_lens_days_ago: int | None = None
@@ -205,12 +219,14 @@ def _ingest_suite_events(snapshot: ActivitySnapshot) -> None:
         "investment": 0,
         "baseball": 0,
         "nba": 0,
+        "applied_intelligence": 0,
         "future_lens": 0,
         "music": 0,
     }
 
     for event in events:
-        app = str(event.get("app", "")).strip()
+        raw_app = str(event.get("app", "")).strip()
+        app = ACTIVITY_APP_ALIASES.get(raw_app, raw_app)
         if not app:
             continue
         ts_raw = str(event.get("timestamp", ""))
@@ -239,6 +255,14 @@ def _ingest_suite_events(snapshot: ActivitySnapshot) -> None:
                 snapshot.future_project = str(metrics["project"])
             if app == "future_lens" and metrics.get("simulation"):
                 snapshot.last_simulation_name = str(metrics["simulation"])
+            if app == "applied_intelligence" and metrics.get("next_lesson"):
+                snapshot.applied_intelligence_next_lesson = str(metrics["next_lesson"])
+            if app == "applied_intelligence" and metrics.get("lesson"):
+                snapshot.last_applied_intelligence_lesson = str(metrics["lesson"])
+            if app == "applied_intelligence" and metrics.get("analysis"):
+                snapshot.last_applied_intelligence_analysis = str(metrics["analysis"])
+            if app == "applied_intelligence" and event.get("page"):
+                snapshot.last_applied_intelligence_page = str(event.get("page") or "")
             if app == "investment" and metrics.get("review_type"):
                 snapshot.last_portfolio_review = str(metrics["review_type"])
             if app == "baseball" and metrics.get("report"):
@@ -269,6 +293,8 @@ def _ingest_suite_events(snapshot: ActivitySnapshot) -> None:
         snapshot.last_baseball_review_days_ago = _latest_days("baseball")
     if snapshot.last_nba_session_days_ago is None:
         snapshot.last_nba_session_days_ago = _latest_days("nba")
+    if snapshot.last_applied_intelligence_days_ago is None:
+        snapshot.last_applied_intelligence_days_ago = _latest_days("applied_intelligence")
     if snapshot.last_future_lens_days_ago is None:
         snapshot.last_future_lens_days_ago = _latest_days("future_lens")
     if snapshot.last_music_practice_days_ago is None:
@@ -277,6 +303,7 @@ def _ingest_suite_events(snapshot: ActivitySnapshot) -> None:
     snapshot.portfolio_checks_this_week = week_counts["investment"]
     snapshot.baseball_reviews_this_week = week_counts["baseball"]
     snapshot.nba_sessions_this_week = week_counts["nba"]
+    snapshot.applied_intelligence_sessions_this_week = week_counts["applied_intelligence"]
     snapshot.future_simulations_this_week = week_counts["future_lens"]
 
 
@@ -305,6 +332,7 @@ def get_activity_rows(snapshot: ActivitySnapshot) -> list[dict[str, str]]:
         "investment": "No portfolio reviews detected",
         "baseball": "No baseball reports viewed yet",
         "nba": "No basketball sessions recorded yet",
+        "applied_intelligence": "No activity recorded yet",
         "future_lens": "No simulations run yet",
     }
 
@@ -372,6 +400,30 @@ def get_activity_rows(snapshot: ActivitySnapshot) -> list[dict[str, str]]:
                     for p in [
                         f"Last team: {snapshot.last_nba_team}" if snapshot.last_nba_team else "",
                         f"Last page: {snapshot.last_nba_page}" if snapshot.last_nba_page else "",
+                    ]
+                    if p
+                ),
+            ),
+        },
+        {
+            "App": "Applied Intelligence",
+            "Last activity": format_days_ago(snapshot.last_applied_intelligence_days_ago),
+            "Details": _detail(
+                "applied_intelligence",
+                " · ".join(
+                    p
+                    for p in [
+                        f"Last opened: {snapshot.last_applied_intelligence_page}"
+                        if snapshot.last_applied_intelligence_page
+                        else "",
+                        f"{snapshot.applied_intelligence_sessions_this_week} sessions this week"
+                        if snapshot.applied_intelligence_sessions_this_week
+                        else "",
+                        f"Last analysis: {snapshot.last_applied_intelligence_analysis}"
+                        if snapshot.last_applied_intelligence_analysis
+                        else "",
+                        snapshot.last_applied_intelligence_lesson
+                        or snapshot.applied_intelligence_next_lesson,
                     ]
                     if p
                 ),

@@ -100,6 +100,34 @@ def generate_coach_insights(snapshot: ActivitySnapshot) -> list[CoachInsight]:
             )
         )
 
+    if snapshot.applied_intelligence_next_lesson:
+        candidates.append(
+            CoachInsight(
+                key="applied_intelligence",
+                icon="🧠",
+                message=f"Continue Applied Intelligence: {snapshot.applied_intelligence_next_lesson}.",
+                priority=18,
+            )
+        )
+    elif snapshot.last_applied_intelligence_lesson and (snapshot.last_applied_intelligence_days_ago or 99) >= 2:
+        candidates.append(
+            CoachInsight(
+                key="applied_intelligence",
+                icon="🧠",
+                message="Return to Applied Intelligence — pick up your next modeling or reasoning exercise.",
+                priority=22,
+            )
+        )
+    elif snapshot.last_applied_intelligence_days_ago is not None and snapshot.last_applied_intelligence_days_ago >= 5:
+        candidates.append(
+            CoachInsight(
+                key="applied_intelligence",
+                icon="🧠",
+                message="Block time for one Applied Intelligence analysis or problem-solving session.",
+                priority=24,
+            )
+        )
+
     if snapshot.future_project or snapshot.last_simulation_name:
         label = snapshot.future_project or snapshot.last_simulation_name
         candidates.append(

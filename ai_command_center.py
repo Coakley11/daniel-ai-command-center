@@ -26,6 +26,7 @@ APP_THEMES: dict[str, dict[str, str]] = {
     "investment": {"accent": "#0d9488", "bg": "#f0fdfa", "border": "#99f6e4", "emoji": "📊"},
     "baseball": {"accent": "#16a34a", "bg": "#f0fdf4", "border": "#bbf7d0", "emoji": "⚾"},
     "nba": {"accent": "#ea580c", "bg": "#fff7ed", "border": "#fed7aa", "emoji": "🏀"},
+    "applied_intelligence": {"accent": "#2563eb", "bg": "#eff6ff", "border": "#bfdbfe", "emoji": "🧠"},
     "future_lens": {"accent": "#7c3aed", "bg": "#f5f3ff", "border": "#ddd6fe", "emoji": "🔮"},
 }
 
@@ -258,6 +259,7 @@ def _last_active_label(snapshot: ActivitySnapshot, key: str) -> str:
         "investment": snapshot.last_portfolio_check_days_ago,
         "baseball": snapshot.last_baseball_review_days_ago,
         "nba": snapshot.last_nba_session_days_ago,
+        "applied_intelligence": snapshot.last_applied_intelligence_days_ago,
         "future_lens": snapshot.last_future_lens_days_ago,
     }
     days = days_map.get(key)

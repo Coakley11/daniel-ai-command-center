@@ -1,6 +1,6 @@
 # Daniel AI Suite â€” Streamlit Deployments
 
-Last verified: 2026-05-31 (build 2026-05-31-v6 on branch `dev`)
+Last verified: 2026-05-31 (build 2026-05-31-v7 on branch `dev`)
 
 ## Homepage deployments
 
@@ -28,6 +28,7 @@ Streamlit Cloud does not allow creating apps via git push alone. One-time setup:
 | Investment Analytics | DEV | https://investment-portfolio-analyzer-ty2sbzumvxsqwbqhkvf6rz.streamlit.app |
 | Baseball Analytics | MAIN | https://baseball-stat-app-bwx4bawvayxbsbxqbqmfws.streamlit.app |
 | Basketball Companion | DEV | https://nba-playoff-companion-ai-gd4sx677quejdfkvappv6o.streamlit.app |
+| Applied Intelligence | DEV | https://applied-mathematical-intelligence-8l8bqrzpp6fghaj7xuig53.streamlit.app |
 | AI Future Simulator | DEV | https://future-lens-ai-transition-simulator-m6n4kaku28ztzlxfts2xt6.streamlit.app |
 
 ## Why links were broken on Production
@@ -38,7 +39,7 @@ The fix (public `*.streamlit.app` URLs) lives on branch **`dev`**. Merge `dev` â
 
 ## Verify deployed build
 
-The homepage footer shows `build 2026-05-31-v6`. If you see an older build or `share.streamlit.io` links, Production has not redeployed yet.
+The homepage footer shows `build 2026-05-31-v7`. If you see an older build or `share.streamlit.io` links, Production has not redeployed yet.
 
 Check Homepage Dev status:
 
