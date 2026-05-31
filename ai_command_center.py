@@ -20,34 +20,43 @@ from datetime import datetime
 
 import streamlit as st
 
+# ── App URL constants — edit deployed links here ────────────────────────────
+MUSIC_APP_URL = (
+    "https://share.streamlit.io/Coakley11/ai-music-practice-coach/dev/streamlit_music_practice_app.py"
+)
+INVESTMENT_APP_URL = (
+    "https://share.streamlit.io/Coakley11/investment-portfolio-analyzer/dev/streamlit_app.py"
+)
+BASEBALL_APP_URL = (
+    "https://share.streamlit.io/Coakley11/baseball-stat-app/main/streamlit_app.py"
+)
+NBA_APP_URL = (
+    "https://share.streamlit.io/Coakley11/nba-playoff-companion-ai/dev/streamlit_app.py"
+)
+MATH_APP_URL = (
+    "https://share.streamlit.io/Coakley11/Applied-mathematical-intelligence/dev/streamlit_app.py"
+)
+FUTURE_LENS_URL = (
+    "https://share.streamlit.io/Coakley11/future-lens-ai-transition-simulator/main/streamlit_app.py"
+)
+
+# Keep app_registry in sync when constants above are edited
+import app_urls as _app_urls
+
+_app_urls.MUSIC_APP_URL = MUSIC_APP_URL
+_app_urls.INVESTMENT_APP_URL = INVESTMENT_APP_URL
+_app_urls.BASEBALL_APP_URL = BASEBALL_APP_URL
+_app_urls.NBA_APP_URL = NBA_APP_URL
+_app_urls.MATH_APP_URL = MATH_APP_URL
+_app_urls.FUTURE_LENS_URL = FUTURE_LENS_URL
+
 from app_registry import (
     APP_DEFINITIONS,
-    BASEBALL_APP_URL,
-    BASEBALL_GITHUB_URL,
-    BASEBALL_STREAMLIT_URL,
-    FUTURE_LENS_APP_URL,
-    FUTURE_LENS_GITHUB_URL,
-    FUTURE_LENS_STREAMLIT_URL,
-    INVESTMENT_APP_URL,
-    INVESTMENT_GITHUB_URL,
-    INVESTMENT_STREAMLIT_URL,
-    MATH_APP_URL,
-    MATH_GITHUB_URL,
-    MATH_STREAMLIT_URL,
-    MUSIC_APP_URL,
-    MUSIC_GITHUB_URL,
-    MUSIC_STREAMLIT_URL,
-    NBA_APP_URL,
-    NBA_GITHUB_URL,
-    NBA_STREAMLIT_URL,
     AppStatus,
     ConnectionStatus,
     get_app_url,
     verify_connections,
 )
-
-# Re-export for easy editing in one place (app_registry.py)
-FUTURE_LENS_URL = FUTURE_LENS_APP_URL
 
 APP_THEMES: dict[str, dict[str, str]] = {
     "music": {"accent": "#a855f7", "bg": "#faf5ff", "border": "#e9d5ff", "emoji": "🎵"},
@@ -561,12 +570,12 @@ def _build_app_cards(connections: list[ConnectionStatus]) -> list[AppCard]:
     return cards
 
 
-def _render_go_button(label: str, url: str, key: str, coming_soon: bool = False) -> None:
-    if url.strip() and not coming_soon:
+def _render_go_button(label: str, url: str, key: str) -> None:
+    if url.strip():
         st.link_button(label, url, use_container_width=True, key=key)
     else:
         st.button(label, disabled=True, use_container_width=True, key=key)
-        st.caption("Link not connected yet." if not coming_soon else "Coming soon!")
+        st.caption("Link not connected yet.")
 
 
 OPEN_LABELS: dict[str, str] = {
@@ -590,9 +599,8 @@ def _render_action_card(action: ActionItem, accent: str, col_key: str) -> None:
         """,
         unsafe_allow_html=True,
     )
-    coming_soon = action.key == "future_lens"
     open_label = OPEN_LABELS.get(action.key, "Go to app →")
-    _render_go_button(open_label, action.url, f"go_{col_key}", coming_soon=coming_soon)
+    _render_go_button(open_label, action.url, f"go_{col_key}")
 
 
 def _render_app_card(app: AppCard) -> None:
@@ -619,8 +627,7 @@ def _render_app_card(app: AppCard) -> None:
         """,
         unsafe_allow_html=True,
     )
-    coming_soon = status == "Coming Soon"
-    _render_go_button(app.button_label, app.url, f"app_{app.key}", coming_soon=coming_soon)
+    _render_go_button(app.button_label, app.url, f"app_{app.key}")
 
 
 def _render_launch_workspace(actions: list[ActionItem]) -> None:
@@ -643,8 +650,7 @@ def _render_launch_workspace(actions: list[ActionItem]) -> None:
             )
         with cols[1]:
             open_label = f"→ {OPEN_LABELS.get(action.key, 'Open')}"
-            coming_soon = action.key == "future_lens"
-            _render_go_button(open_label, action.url, f"launch_{action.key}_{i}", coming_soon=coming_soon)
+            _render_go_button(open_label, action.url, f"launch_{action.key}_{i}")
 
 
 def _render_connected_apps_status(connections: list[ConnectionStatus]) -> None:
@@ -653,32 +659,34 @@ def _render_connected_apps_status(connections: list[ConnectionStatus]) -> None:
         unsafe_allow_html=True,
     )
     st.markdown(
-        '<div class="cc-section-sub">Auto-discovered from your GitHub repos and Streamlit Cloud deployments.</div>',
+        '<div class="cc-section-sub">Live check of Streamlit deployments — DEV or MAIN per app.</div>',
         unsafe_allow_html=True,
     )
 
-    rows = []
-    for conn in connections:
-        rows.append(
-            {
-                "App": conn.name,
-                "Connected": "Yes" if conn.connected else "No",
-                "Streamlit URL found?": "Yes" if conn.streamlit_found else "No",
-                "GitHub URL found?": "Yes" if conn.github_found else "No",
-                "Last verified": conn.last_verified,
-            }
-        )
+    rows = [
+        {
+            "App": conn.name,
+            "Branch": conn.branch,
+            "URL connected": "Yes" if conn.url_connected else "No",
+            "Button works": "Yes" if conn.button_works else "No",
+            "Opens via": "Streamlit" if conn.streamlit_live else ("GitHub" if conn.open_url else "—"),
+        }
+        for conn in connections
+    ]
     st.dataframe(rows, use_container_width=True, hide_index=True)
 
     with st.expander("View full URLs"):
         for conn in connections:
-            st.markdown(f"**{conn.name}**")
+            st.markdown(f"**{conn.name}** ({conn.branch})")
             if conn.streamlit_url:
                 st.caption(f"Streamlit: {conn.streamlit_url}")
             if conn.github_url:
-                st.caption(f"GitHub: {conn.github_url}")
+                st.caption(f"GitHub fallback: {conn.github_url}")
             if conn.open_url:
-                st.caption(f"Opens: {conn.open_url}")
+                st.caption(f"Button opens: {conn.open_url}")
+            else:
+                st.caption("Button opens: Link not connected yet.")
+            st.caption(f"Last verified: {conn.last_verified}")
             st.divider()
 
 
@@ -933,7 +941,7 @@ snapshot = ActivitySnapshot()
 apps = _build_app_cards(connections)
 actions = generate_recommendations(snapshot, connections)
 coach_msgs = generate_coach_messages(snapshot)
-connected_count = sum(1 for c in connections if c.connected)
+connected_count = sum(1 for c in connections if c.button_works)
 
 _render_hero(connected_count)
 
