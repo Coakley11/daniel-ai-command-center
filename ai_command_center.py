@@ -15,21 +15,39 @@ Run: streamlit run ai_command_center.py
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
-from typing import Literal
 
 import streamlit as st
 
-# ── App URL placeholders — fill in when each app is deployed ─────────────────
-MUSIC_APP_URL = ""
-INVESTMENT_APP_URL = ""
-BASEBALL_APP_URL = ""
-NBA_APP_URL = ""
-MATH_APP_URL = ""
-FUTURE_LENS_URL = ""
+from app_registry import (
+    APP_DEFINITIONS,
+    BASEBALL_APP_URL,
+    BASEBALL_GITHUB_URL,
+    BASEBALL_STREAMLIT_URL,
+    FUTURE_LENS_APP_URL,
+    FUTURE_LENS_GITHUB_URL,
+    FUTURE_LENS_STREAMLIT_URL,
+    INVESTMENT_APP_URL,
+    INVESTMENT_GITHUB_URL,
+    INVESTMENT_STREAMLIT_URL,
+    MATH_APP_URL,
+    MATH_GITHUB_URL,
+    MATH_STREAMLIT_URL,
+    MUSIC_APP_URL,
+    MUSIC_GITHUB_URL,
+    MUSIC_STREAMLIT_URL,
+    NBA_APP_URL,
+    NBA_GITHUB_URL,
+    NBA_STREAMLIT_URL,
+    AppStatus,
+    ConnectionStatus,
+    get_app_url,
+    verify_connections,
+)
 
-AppStatus = Literal["Active", "Prototype", "Needs Connection", "Coming Soon"]
+# Re-export for easy editing in one place (app_registry.py)
+FUTURE_LENS_URL = FUTURE_LENS_APP_URL
 
 APP_THEMES: dict[str, dict[str, str]] = {
     "music": {"accent": "#a855f7", "bg": "#faf5ff", "border": "#e9d5ff", "emoji": "🎵"},
@@ -295,6 +313,23 @@ st.markdown(
         padding: 0.6rem 1.1rem;
         font-weight: 600;
     }
+    .cc-launch-row {
+        background: white;
+        border: 1px solid #e2e8f0;
+        border-radius: 14px;
+        padding: 0.85rem 1rem;
+        margin-bottom: 0.55rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem;
+    }
+    .cc-launch-text {
+        font-size: 0.95rem;
+        color: #1e293b;
+        font-weight: 600;
+        line-height: 1.4;
+    }
     </style>
     """,
     unsafe_allow_html=True,
@@ -310,9 +345,10 @@ class ActivitySnapshot:
 
     last_music_practice_days_ago: int = 3
     last_portfolio_check_days_ago: int = 7
-    is_sunday_lineup_day: bool = True
+    is_sunday_lineup_day: bool = datetime.now().weekday() == 6
     last_baseball_review_days_ago: int = 2
     nba_game_today: bool = True
+    nba_playoffs_active: bool = True
     math_build_sessions_this_week: int = 2
     last_future_lens_days_ago: int = 9
     music_hours_this_week: float = 4.0
@@ -363,18 +399,14 @@ def _status_badge_html(status: AppStatus) -> str:
     )
 
 
-def _url_for_key(key: str) -> str:
-    return {
-        "music": MUSIC_APP_URL,
-        "investment": INVESTMENT_APP_URL,
-        "baseball": BASEBALL_APP_URL,
-        "nba": NBA_APP_URL,
-        "math": MATH_APP_URL,
-        "future_lens": FUTURE_LENS_URL,
-    }.get(key, "")
+def _url_for_key(key: str, connections: list[ConnectionStatus] | None = None) -> str:
+    return get_app_url(key, connections)
 
 
-def generate_recommendations(snapshot: ActivitySnapshot) -> list[ActionItem]:
+def generate_recommendations(
+    snapshot: ActivitySnapshot,
+    connections: list[ConnectionStatus] | None = None,
+) -> list[ActionItem]:
     """
     Cross-app coordination logic using placeholder activity fields.
     Replace with shared AI recommendation engine + activity DB later.
@@ -387,7 +419,7 @@ def generate_recommendations(snapshot: ActivitySnapshot) -> list[ActionItem]:
             icon="⚾",
             title="Review fantasy baseball lineups",
             reason="It's Sunday — lineups may need a last-minute swap before games start.",
-            url=BASEBALL_APP_URL,
+            url=_url_for_key("baseball", connections),
             priority=1,
         ))
 
@@ -395,12 +427,12 @@ def generate_recommendations(snapshot: ActivitySnapshot) -> list[ActionItem]:
         items.append(ActionItem(
             key="investment",
             icon="📊",
-            title="Check portfolio health",
+            title="Review portfolio health",
             reason=(
                 f"Your portfolio hasn't been checked in {snapshot.last_portfolio_check_days_ago} days. "
                 "A quick risk review keeps you on track."
             ),
-            url=INVESTMENT_APP_URL,
+            url=_url_for_key("investment", connections),
             priority=2,
         ))
 
@@ -408,22 +440,27 @@ def generate_recommendations(snapshot: ActivitySnapshot) -> list[ActionItem]:
         items.append(ActionItem(
             key="music",
             icon="🎵",
-            title="Practice one song",
+            title="Practice Piano Man for 20 minutes",
             reason=(
                 f"You haven't practiced in {snapshot.last_music_practice_days_ago} days. "
                 "Even 20 minutes keeps your momentum going!"
             ),
-            url=MUSIC_APP_URL,
+            url=_url_for_key("music", connections),
             priority=3,
         ))
 
-    if snapshot.nba_game_today:
+    if snapshot.nba_game_today or snapshot.nba_playoffs_active:
+        nba_reason = (
+            "Knicks game today — check matchups, injuries, and the live game center."
+            if snapshot.nba_game_today
+            else "NBA playoffs are active — check the Live Game Center."
+        )
         items.append(ActionItem(
             key="nba",
             icon="🏀",
-            title="Review Knicks / NBA matchup",
-            reason="There's a game on today — check matchups, injuries, and the live game center.",
-            url=NBA_APP_URL,
+            title="Check Knicks / NBA matchup",
+            reason=nba_reason,
+            url=_url_for_key("nba", connections),
             priority=4,
         ))
 
@@ -431,12 +468,12 @@ def generate_recommendations(snapshot: ActivitySnapshot) -> list[ActionItem]:
         items.append(ActionItem(
             key="math",
             icon="🧮",
-            title="Build or test one math idea",
+            title="Test one new Math Intelligence feature",
             reason=(
                 f"You've logged {snapshot.math_build_sessions_this_week} math sessions this week. "
                 "Try adding one new applied problem."
             ),
-            url=MATH_APP_URL,
+            url=_url_for_key("math", connections),
             priority=5,
         ))
 
@@ -446,7 +483,7 @@ def generate_recommendations(snapshot: ActivitySnapshot) -> list[ActionItem]:
             icon="🔮",
             title="Explore one Future Lens scenario",
             reason="It's been a while since you looked ahead — explore how AI may change your world.",
-            url=FUTURE_LENS_URL,
+            url=_url_for_key("future_lens", connections),
             priority=6,
         ))
 
@@ -475,87 +512,53 @@ def generate_coach_messages(snapshot: ActivitySnapshot) -> list[CoachMessage]:
         messages.append(CoachMessage(
             text="🏀 Knicks game today! Peek at matchups and injuries before tip-off."
         ))
+    elif snapshot.nba_playoffs_active:
+        messages.append(CoachMessage(
+            text="🏀 NBA playoffs are active — open the Live Game Center for matchup context."
+        ))
     messages.append(CoachMessage(
         text="✨ Pick one small task below and complete it today — that's a win!"
     ))
     return messages
 
 
-def _placeholder_apps() -> list[AppCard]:
-    return [
-        AppCard(
-            key="music",
-            name="Music Practice Coach",
-            icon="🎵",
-            description="Your AI practice buddy — songs, chords, and progress tracking.",
-            url=MUSIC_APP_URL,
-            status="Active",
-            last_checked="3 days ago",
-            next_action="Play Piano Man for 20 minutes.",
-            why_it_matters="Keeps your creative skills sharp and makes practice fun.",
-            button_label="Go to Music App",
-        ),
-        AppCard(
-            key="investment",
-            name="Investment Portfolio Analyzer",
-            icon="📊",
-            description="See how your money is doing — risk, allocation, and smart next steps.",
-            url=INVESTMENT_APP_URL,
-            status="Active",
-            last_checked="7 days ago",
-            next_action="Run a quick portfolio health check.",
-            why_it_matters="Stay confident about your financial decisions without overthinking.",
-            button_label="Go to Investment App",
-        ),
-        AppCard(
-            key="baseball",
-            name="Fantasy Baseball",
-            icon="⚾",
-            description="Lineups, start/sit picks, and stats when you need an edge.",
-            url=BASEBALL_APP_URL,
-            status="Active",
-            last_checked="2 days ago",
-            next_action="Review Sunday lineups and swap any risky starters.",
-            why_it_matters="Win more fantasy weeks with data-backed lineup calls.",
-            button_label="Go to Baseball App",
-        ),
-        AppCard(
-            key="nba",
-            name="NBA Playoff Companion",
-            icon="🏀",
-            description="Matchups, injuries, and live game insights for basketball fans.",
-            url=NBA_APP_URL,
-            status="Active",
-            last_checked="4 days ago",
-            next_action="Check today's Knicks matchup and injury report.",
-            why_it_matters="Walk into game day knowing who's playing and who to watch.",
-            button_label="Go to NBA App",
-        ),
-        AppCard(
-            key="math",
-            name="Advanced Math Intelligence",
-            icon="🧮",
-            description="Build and test applied math ideas — simulations, puzzles, and reasoning.",
-            url=MATH_APP_URL,
-            status="Prototype",
-            last_checked="1 day ago",
-            next_action="Add or test one new applied problem.",
-            why_it_matters="Strengthens how you think through real-world quantitative problems.",
-            button_label="Go to Math App",
-        ),
-        AppCard(
-            key="future_lens",
-            name="Future Lens",
-            icon="🔮",
-            description="Explore how AI might reshape music, money, sports, and teaching.",
-            url=FUTURE_LENS_URL,
-            status="Coming Soon",
-            last_checked="9 days ago",
-            next_action="Preview one 10-year AI scenario.",
-            why_it_matters="Helps you adapt early instead of reacting late.",
-            button_label="Go to Future Lens",
-        ),
-    ]
+NEXT_ACTIONS: dict[str, str] = {
+    "music": "Play Piano Man for 20 minutes.",
+    "investment": "Run a quick portfolio health check.",
+    "baseball": "Review Sunday lineups and swap any risky starters.",
+    "nba": "Check today's Knicks matchup and injury report.",
+    "math": "Add or test one new applied problem.",
+    "future_lens": "Preview one 10-year AI scenario.",
+}
+
+LAST_CHECKED: dict[str, str] = {
+    "music": "3 days ago",
+    "investment": "7 days ago",
+    "baseball": "2 days ago",
+    "nba": "4 days ago",
+    "math": "1 day ago",
+    "future_lens": "9 days ago",
+}
+
+
+def _build_app_cards(connections: list[ConnectionStatus]) -> list[AppCard]:
+    cards: list[AppCard] = []
+    for app in APP_DEFINITIONS:
+        cards.append(
+            AppCard(
+                key=app.key,
+                name=app.name,
+                icon=app.icon,
+                description=app.description,
+                url=get_app_url(app.key, connections),
+                status=app.status,
+                last_checked=LAST_CHECKED.get(app.key, "—"),
+                next_action=NEXT_ACTIONS.get(app.key, "Open the app and take one small step."),
+                why_it_matters=app.why_it_matters,
+                button_label=app.button_label,
+            )
+        )
+    return cards
 
 
 def _render_go_button(label: str, url: str, key: str, coming_soon: bool = False) -> None:
@@ -564,6 +567,16 @@ def _render_go_button(label: str, url: str, key: str, coming_soon: bool = False)
     else:
         st.button(label, disabled=True, use_container_width=True, key=key)
         st.caption("Link not connected yet." if not coming_soon else "Coming soon!")
+
+
+OPEN_LABELS: dict[str, str] = {
+    "music": "Open Music App",
+    "investment": "Open Investment App",
+    "baseball": "Open Baseball App",
+    "nba": "Open NBA App",
+    "math": "Open Math App",
+    "future_lens": "Open Future Lens",
+}
 
 
 def _render_action_card(action: ActionItem, accent: str, col_key: str) -> None:
@@ -578,7 +591,8 @@ def _render_action_card(action: ActionItem, accent: str, col_key: str) -> None:
         unsafe_allow_html=True,
     )
     coming_soon = action.key == "future_lens"
-    _render_go_button("Go to app →", action.url, f"go_{col_key}", coming_soon=coming_soon)
+    open_label = OPEN_LABELS.get(action.key, "Go to app →")
+    _render_go_button(open_label, action.url, f"go_{col_key}", coming_soon=coming_soon)
 
 
 def _render_app_card(app: AppCard) -> None:
@@ -609,14 +623,95 @@ def _render_app_card(app: AppCard) -> None:
     _render_go_button(app.button_label, app.url, f"app_{app.key}", coming_soon=coming_soon)
 
 
-def _render_hero() -> None:
+def _render_launch_workspace(actions: list[ActionItem]) -> None:
+    st.markdown(
+        '<div class="cc-section-title">🚀 Launch Workspace</div>',
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        '<div class="cc-section-sub">Today\'s recommended actions — pick one and jump straight into the app.</div>',
+        unsafe_allow_html=True,
+    )
+    st.markdown("**Today's Recommended Actions**")
+
+    for i, action in enumerate(actions[:6]):
+        cols = st.columns([5, 1], gap="small")
+        with cols[0]:
+            st.markdown(
+                f'<div class="cc-launch-text">{action.icon} {action.title}</div>',
+                unsafe_allow_html=True,
+            )
+        with cols[1]:
+            open_label = f"→ {OPEN_LABELS.get(action.key, 'Open')}"
+            coming_soon = action.key == "future_lens"
+            _render_go_button(open_label, action.url, f"launch_{action.key}_{i}", coming_soon=coming_soon)
+
+
+def _render_connected_apps_status(connections: list[ConnectionStatus]) -> None:
+    st.markdown(
+        '<div class="cc-section-title">🔗 Connected Apps Status</div>',
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        '<div class="cc-section-sub">Auto-discovered from your GitHub repos and Streamlit Cloud deployments.</div>',
+        unsafe_allow_html=True,
+    )
+
+    rows = []
+    for conn in connections:
+        rows.append(
+            {
+                "App": conn.name,
+                "Connected": "Yes" if conn.connected else "No",
+                "Streamlit URL found?": "Yes" if conn.streamlit_found else "No",
+                "GitHub URL found?": "Yes" if conn.github_found else "No",
+                "Last verified": conn.last_verified,
+            }
+        )
+    st.dataframe(rows, use_container_width=True, hide_index=True)
+
+    with st.expander("View full URLs"):
+        for conn in connections:
+            st.markdown(f"**{conn.name}**")
+            if conn.streamlit_url:
+                st.caption(f"Streamlit: {conn.streamlit_url}")
+            if conn.github_url:
+                st.caption(f"GitHub: {conn.github_url}")
+            if conn.open_url:
+                st.caption(f"Opens: {conn.open_url}")
+            st.divider()
+
+
+def _render_cross_app_nudges(snapshot: ActivitySnapshot) -> None:
+    st.markdown(
+        '<div class="cc-section-title">💡 Cross-App Coach Nudges</div>',
+        unsafe_allow_html=True,
+    )
+    nudges: list[str] = []
+    if snapshot.is_sunday_lineup_day:
+        nudges.append("⚾ It's Sunday — fantasy baseball lineups may need attention.")
+    if snapshot.last_music_practice_days_ago >= 2:
+        nudges.append("🎵 Practice one song today — you haven't played in a few days.")
+    if snapshot.last_portfolio_check_days_ago >= 5:
+        nudges.append("📊 Review portfolio health — the Investment App hasn't been visited recently.")
+    if snapshot.nba_playoffs_active:
+        nudges.append("🏀 NBA playoffs are active — check the Live Game Center.")
+    if snapshot.math_build_sessions_this_week < 3:
+        nudges.append("🧮 Build or test one math idea to keep your reasoning lab growing.")
+    if snapshot.last_future_lens_days_ago >= 7:
+        nudges.append("🔮 Explore one Future Lens scenario about how AI may change your work.")
+    for nudge in nudges:
+        st.info(nudge)
+
+
+def _render_hero(connected_count: int) -> None:
     st.markdown(
         """
         <div class="cc-hero">
-            <div class="cc-hero-tag">👋 Welcome back!</div>
+            <div class="cc-hero-tag">👋 Welcome back · Daniel AI Suite</div>
             <h1>🏠 Daniel AI Command Center</h1>
-            <p>Your friendly AI home base — one place to see what to do next across music,
-            investing, sports, math, and the future.</p>
+            <p>Your homepage for the entire Daniel AI Suite — see what to do today, which app to open,
+            and what needs attention. {connected_count} apps connected right now.</p>
         </div>
         """,
         unsafe_allow_html=True,
@@ -664,8 +759,16 @@ def _render_start_here(actions: list[ActionItem], coach_msgs: list[CoachMessage]
                 _render_action_card(action, accent, f"extra_{action.key}")
 
 
-def _render_home_tab(snapshot: ActivitySnapshot, actions: list[ActionItem], coach_msgs: list[CoachMessage]) -> None:
+def _render_home_tab(
+    snapshot: ActivitySnapshot,
+    actions: list[ActionItem],
+    coach_msgs: list[CoachMessage],
+    connections: list[ConnectionStatus],
+) -> None:
     _render_start_here(actions, coach_msgs)
+    _render_launch_workspace(actions)
+    _render_cross_app_nudges(snapshot)
+    _render_connected_apps_status(connections)
 
     st.markdown(
         '<div class="cc-section-title">🌈 One personal AI system</div>',
@@ -819,19 +922,27 @@ def _render_vision_tab() -> None:
 
 # ── Main layout ───────────────────────────────────────────────────────────────
 
-snapshot = ActivitySnapshot()
-apps = _placeholder_apps()
-actions = generate_recommendations(snapshot)
-coach_msgs = generate_coach_messages(snapshot)
 
-_render_hero()
+@st.cache_data(ttl=300, show_spinner=False)
+def _cached_connections() -> list[ConnectionStatus]:
+    return verify_connections()
+
+
+connections = _cached_connections()
+snapshot = ActivitySnapshot()
+apps = _build_app_cards(connections)
+actions = generate_recommendations(snapshot, connections)
+coach_msgs = generate_coach_messages(snapshot)
+connected_count = sum(1 for c in connections if c.connected)
+
+_render_hero(connected_count)
 
 tab_home, tab_apps, tab_coach, tab_vision = st.tabs(
     ["🏠 Home / Today", "📱 Apps", "🧠 Weekly Coach", "🔭 Platform Vision"]
 )
 
 with tab_home:
-    _render_home_tab(snapshot, actions, coach_msgs)
+    _render_home_tab(snapshot, actions, coach_msgs, connections)
 
 with tab_apps:
     _render_apps_tab(apps)
@@ -843,6 +954,6 @@ with tab_vision:
     _render_vision_tab()
 
 st.caption(
-    f"Daniel AI Command Center · demo data · {datetime.now().strftime('%B %d, %Y')} · "
-    "connect app URLs at the top of this file when ready."
+    f"Daniel AI Command Center · Daniel AI Suite · {datetime.now().strftime('%B %d, %Y')} · "
+    "activity data is demo/placeholder · app links auto-discovered from GitHub + Streamlit Cloud."
 )
