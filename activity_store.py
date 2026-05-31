@@ -37,29 +37,37 @@ class ActivitySnapshot:
     last_song_focus: str = ""
     music_minutes_this_week: float = 0.0
     songs_practiced_this_week: int = 0
+    music_streak_days: int = 0
 
     # Investment
     last_portfolio_check_days_ago: int | None = None
     portfolio_checks_this_week: int = 0
+    last_portfolio_review: str = ""
 
     # Baseball
     last_baseball_review_days_ago: int | None = None
     baseball_reviews_this_week: int = 0
+    last_baseball_report: str = ""
+    last_baseball_projection: str = ""
     is_sunday_lineup_day: bool = False
 
     # Basketball
     last_nba_session_days_ago: int | None = None
     nba_sessions_this_week: int = 0
+    last_nba_team: str = ""
+    last_nba_page: str = ""
 
     # AI Homeroom
     last_math_session_days_ago: int | None = None
     math_sessions_this_week: int = 0
     math_next_lesson: str = ""
+    last_math_lesson: str = ""
 
     # Future Lens
     last_future_lens_days_ago: int | None = None
     future_simulations_this_week: int = 0
     future_project: str = ""
+    last_simulation_name: str = ""
 
     # Meta
     last_opened_app: str = ""
@@ -174,6 +182,18 @@ def _ingest_music_logs(snapshot: ActivitySnapshot) -> None:
 
         snapshot.music_minutes_this_week = week_minutes
         snapshot.songs_practiced_this_week = len(week_songs)
+
+        # Practice streak: consecutive calendar days with a log entry
+        practice_dates = sorted({d for d, _ in dated}, reverse=True)
+        streak = 0
+        expected = date.today()
+        for d in practice_dates:
+            if d == expected or d == expected - timedelta(days=1):
+                streak += 1
+                expected = d - timedelta(days=1)
+            else:
+                break
+        snapshot.music_streak_days = streak
         return
 
 
@@ -224,8 +244,22 @@ def _ingest_suite_events(snapshot: ActivitySnapshot) -> None:
 
             if app == "math" and metrics.get("next_lesson"):
                 snapshot.math_next_lesson = str(metrics["next_lesson"])
+            if app == "math" and metrics.get("lesson"):
+                snapshot.last_math_lesson = str(metrics["lesson"])
             if app == "future_lens" and metrics.get("project"):
                 snapshot.future_project = str(metrics["project"])
+            if app == "future_lens" and metrics.get("simulation"):
+                snapshot.last_simulation_name = str(metrics["simulation"])
+            if app == "investment" and metrics.get("review_type"):
+                snapshot.last_portfolio_review = str(metrics["review_type"])
+            if app == "baseball" and metrics.get("report"):
+                snapshot.last_baseball_report = str(metrics["report"])
+            if app == "baseball" and metrics.get("projection"):
+                snapshot.last_baseball_projection = str(metrics["projection"])
+            if app == "nba" and metrics.get("team"):
+                snapshot.last_nba_team = str(metrics["team"])
+            if app == "nba" and metrics.get("page"):
+                snapshot.last_nba_page = str(metrics["page"])
             if app == "music" and not snapshot.last_song and metrics.get("song"):
                 snapshot.last_song = str(metrics["song"])
 
@@ -275,3 +309,95 @@ def format_days_ago(days: int | None) -> str:
     if days == 1:
         return "Yesterday"
     return f"{days} days ago"
+
+
+def get_activity_rows(snapshot: ActivitySnapshot) -> list[dict[str, str]]:
+    """Factual recent-activity rows for the Activity Summary section."""
+
+    def _detail(app: str, real: str, empty: str = "No data logged yet") -> str:
+        return real if real else empty
+
+    rows = [
+        {
+            "App": "Music Practice Coach",
+            "Last activity": format_days_ago(snapshot.last_music_practice_days_ago),
+            "Details": _detail(
+                "music",
+                " · ".join(
+                    p
+                    for p in [
+                        f"Last song: {snapshot.last_song}" if snapshot.last_song else "",
+                        f"{snapshot.music_minutes_this_week:.0f} min this week"
+                        if snapshot.music_minutes_this_week
+                        else "",
+                        f"{snapshot.music_streak_days}-day streak"
+                        if snapshot.music_streak_days
+                        else "",
+                    ]
+                    if p
+                ),
+            ),
+        },
+        {
+            "App": "Investment Analytics",
+            "Last activity": format_days_ago(snapshot.last_portfolio_check_days_ago),
+            "Details": _detail(
+                "investment",
+                snapshot.last_portfolio_review
+                or (
+                    f"{snapshot.portfolio_checks_this_week} checks this week"
+                    if snapshot.portfolio_checks_this_week
+                    else ""
+                ),
+            ),
+        },
+        {
+            "App": "Baseball Analytics",
+            "Last activity": format_days_ago(snapshot.last_baseball_review_days_ago),
+            "Details": _detail(
+                "baseball",
+                " · ".join(
+                    p
+                    for p in [
+                        f"Last report: {snapshot.last_baseball_report}" if snapshot.last_baseball_report else "",
+                        f"Last projection: {snapshot.last_baseball_projection}"
+                        if snapshot.last_baseball_projection
+                        else "",
+                    ]
+                    if p
+                ),
+            ),
+        },
+        {
+            "App": "Basketball Companion",
+            "Last activity": format_days_ago(snapshot.last_nba_session_days_ago),
+            "Details": _detail(
+                "nba",
+                " · ".join(
+                    p
+                    for p in [
+                        f"Last team: {snapshot.last_nba_team}" if snapshot.last_nba_team else "",
+                        f"Last page: {snapshot.last_nba_page}" if snapshot.last_nba_page else "",
+                    ]
+                    if p
+                ),
+            ),
+        },
+        {
+            "App": "AI Homeroom",
+            "Last activity": format_days_ago(snapshot.last_math_session_days_ago),
+            "Details": _detail(
+                "math",
+                snapshot.last_math_lesson or snapshot.math_next_lesson,
+            ),
+        },
+        {
+            "App": "AI Future Simulator",
+            "Last activity": format_days_ago(snapshot.last_future_lens_days_ago),
+            "Details": _detail(
+                "future_lens",
+                snapshot.last_simulation_name or snapshot.future_project,
+            ),
+        },
+    ]
+    return rows
