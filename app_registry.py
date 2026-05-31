@@ -88,7 +88,7 @@ APP_DEFINITIONS: tuple[AppDefinition, ...] = (
     ),
     AppDefinition(
         key="baseball",
-        name="Fantasy Baseball",
+        name="Baseball Analytics",
         icon="⚾",
         status="Active",
         branch=APP_BRANCH["baseball"],
