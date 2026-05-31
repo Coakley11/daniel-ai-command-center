@@ -314,8 +314,17 @@ def format_days_ago(days: int | None) -> str:
 def get_activity_rows(snapshot: ActivitySnapshot) -> list[dict[str, str]]:
     """Factual recent-activity rows for the Activity Summary section."""
 
-    def _detail(app: str, real: str, empty: str = "No data logged yet") -> str:
-        return real if real else empty
+    EMPTY_DETAILS: dict[str, str] = {
+        "music": "No recent music practice detected",
+        "investment": "No portfolio reviews detected",
+        "baseball": "No baseball reports viewed yet",
+        "nba": "No basketball sessions recorded yet",
+        "math": "No AI Homeroom lessons logged yet",
+        "future_lens": "No simulations run yet",
+    }
+
+    def _detail(app: str, real: str) -> str:
+        return real if real else EMPTY_DETAILS.get(app, "No activity recorded yet")
 
     rows = [
         {
