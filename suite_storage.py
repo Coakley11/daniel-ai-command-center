@@ -1,13 +1,9 @@
 """
-SQLite persistence for the Daniel AI suite.
+Suite activity persistence — Supabase (shared cloud) with SQLite fallback (local).
 
-Three layers:
-  - activity_events  — append-only history log
-  - app_current_state — latest snapshot per app (what exists now)
-  - resume_items — active "continue" cards (valid=1 only on dashboard)
-
-Designed for local/shared-disk use today; swap backend for Supabase/Firebase later
-by replacing this module's public functions without changing activity_store callers.
+Public API is unchanged for activity_store and suite_activity_client callers.
+When ``SUITE_SUPABASE_URL`` + ``SUITE_SUPABASE_KEY`` (or Streamlit ``[suite_activity]``)
+are set, all reads/writes use the same Supabase project across local, dev, and production.
 """
 
 from __future__ import annotations
@@ -19,6 +15,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Iterator
+
+from suite_storage_config import cloud_storage_enabled, get_cloud_config
 
 DATA_DIR = Path(__file__).resolve().parent / "data"
 DB_PATH = DATA_DIR / "suite_activity.db"
@@ -49,6 +47,20 @@ class ResumeItem:
 
 def _now_iso() -> str:
     return datetime.now().isoformat(timespec="seconds")
+
+
+def normalize_app_key(app: str) -> str:
+    cleaned = str(app or "").strip()
+    if cleaned == "math":
+        return "applied_intelligence"
+    return cleaned
+
+
+def _use_cloud() -> bool:
+    return cloud_storage_enabled()
+
+
+# --- SQLite (fallback / local mirror) -------------------------------------------------
 
 
 @contextmanager
@@ -101,6 +113,8 @@ def _init_db(conn: sqlite3.Connection) -> None:
 
 
 def ensure_storage() -> None:
+    if _use_cloud():
+        return
     with _connect() as conn:
         _init_db(conn)
         _migrate_legacy_json(conn)
@@ -136,14 +150,7 @@ def _migrate_legacy_json(conn: sqlite3.Connection) -> None:
         )
 
 
-def normalize_app_key(app: str) -> str:
-    cleaned = str(app or "").strip()
-    if cleaned == "math":
-        return "applied_intelligence"
-    return cleaned
-
-
-def append_event(
+def _sqlite_append_event(
     app: str,
     event: str,
     *,
@@ -170,7 +177,7 @@ def append_event(
         )
 
 
-def save_current_state(
+def _sqlite_save_current_state(
     app: str,
     *,
     page: str = "",
@@ -197,7 +204,7 @@ def save_current_state(
         )
 
 
-def upsert_resume_item(
+def _sqlite_upsert_resume_item(
     app: str,
     item_key: str,
     *,
@@ -230,7 +237,7 @@ def upsert_resume_item(
         )
 
 
-def invalidate_resume_item(app: str, item_key: str) -> None:
+def _sqlite_invalidate_resume_item(app: str, item_key: str) -> None:
     app_key = normalize_app_key(app)
     key = str(item_key or "").strip()
     if not app_key or not key:
@@ -243,7 +250,7 @@ def invalidate_resume_item(app: str, item_key: str) -> None:
         )
 
 
-def invalidate_app_resume_items(app: str) -> None:
+def _sqlite_invalidate_app_resume_items(app: str) -> None:
     app_key = normalize_app_key(app)
     if not app_key:
         return
@@ -255,7 +262,7 @@ def invalidate_app_resume_items(app: str) -> None:
         )
 
 
-def load_events(limit: int = MAX_EVENTS) -> list[dict[str, Any]]:
+def _sqlite_load_events(limit: int = MAX_EVENTS) -> list[dict[str, Any]]:
     ensure_storage()
     with _connect() as conn:
         rows = conn.execute(
@@ -285,7 +292,7 @@ def load_events(limit: int = MAX_EVENTS) -> list[dict[str, Any]]:
     return out
 
 
-def load_current_states() -> dict[str, dict[str, Any]]:
+def _sqlite_load_current_states() -> dict[str, dict[str, Any]]:
     ensure_storage()
     with _connect() as conn:
         rows = conn.execute(
@@ -309,7 +316,7 @@ def load_current_states() -> dict[str, dict[str, Any]]:
     return out
 
 
-def load_active_resume_items(limit: int = 8) -> list[ResumeItem]:
+def _sqlite_load_active_resume_items(limit: int = 8) -> list[ResumeItem]:
     ensure_storage()
     with _connect() as conn:
         rows = conn.execute(
@@ -335,6 +342,169 @@ def load_active_resume_items(limit: int = 8) -> list[ResumeItem]:
     ]
 
 
+def _mirror_sqlite_write(
+    app: str,
+    event: str,
+    *,
+    page: str = "",
+    metrics: dict[str, Any] | None = None,
+    summary: str = "",
+    resume_key: str = "",
+    resume_title: str = "",
+    resume_subtitle: str = "",
+    action_url: str = "",
+) -> None:
+    """Optional local cache when cloud is primary (offline dev without credentials)."""
+    try:
+        _sqlite_append_event(app, event, page=page, metrics=metrics)
+        if summary or page or metrics:
+            _sqlite_save_current_state(app, page=page, summary=summary, metrics=metrics)
+        if resume_key and resume_title:
+            _sqlite_upsert_resume_item(
+                app,
+                resume_key,
+                title=resume_title,
+                subtitle=resume_subtitle,
+                action_url=action_url,
+            )
+    except OSError:
+        pass
+
+
+# --- Public API -----------------------------------------------------------------------
+
+
+def append_event(
+    app: str,
+    event: str,
+    *,
+    page: str = "",
+    metrics: dict[str, Any] | None = None,
+) -> None:
+    if _use_cloud():
+        import suite_storage_supabase as cloud
+
+        cloud.append_event(app, event, page=page, metrics=metrics)
+        _mirror_sqlite_write(app, event, page=page, metrics=metrics)
+        return
+    _sqlite_append_event(app, event, page=page, metrics=metrics)
+
+
+def save_current_state(
+    app: str,
+    *,
+    page: str = "",
+    summary: str = "",
+    metrics: dict[str, Any] | None = None,
+) -> None:
+    if _use_cloud():
+        import suite_storage_supabase as cloud
+
+        cloud.save_current_state(app, page=page, summary=summary, metrics=metrics)
+        try:
+            _sqlite_save_current_state(app, page=page, summary=summary, metrics=metrics)
+        except OSError:
+            pass
+        return
+    _sqlite_save_current_state(app, page=page, summary=summary, metrics=metrics)
+
+
+def upsert_resume_item(
+    app: str,
+    item_key: str,
+    *,
+    title: str,
+    subtitle: str = "",
+    action_url: str = "",
+) -> None:
+    if _use_cloud():
+        import suite_storage_supabase as cloud
+
+        cloud.upsert_resume_item(
+            app, item_key, title=title, subtitle=subtitle, action_url=action_url
+        )
+        try:
+            _sqlite_upsert_resume_item(
+                app, item_key, title=title, subtitle=subtitle, action_url=action_url
+            )
+        except OSError:
+            pass
+        return
+    _sqlite_upsert_resume_item(
+        app, item_key, title=title, subtitle=subtitle, action_url=action_url
+    )
+
+
+def invalidate_resume_item(app: str, item_key: str) -> None:
+    if _use_cloud():
+        import suite_storage_supabase as cloud
+
+        cloud.invalidate_resume_item(app, item_key)
+        try:
+            _sqlite_invalidate_resume_item(app, item_key)
+        except OSError:
+            pass
+        return
+    _sqlite_invalidate_resume_item(app, item_key)
+
+
+def invalidate_app_resume_items(app: str) -> None:
+    if _use_cloud():
+        import suite_storage_supabase as cloud
+
+        cloud.invalidate_app_resume_items(app)
+        try:
+            _sqlite_invalidate_app_resume_items(app)
+        except OSError:
+            pass
+        return
+    _sqlite_invalidate_app_resume_items(app)
+
+
+def load_events(limit: int = MAX_EVENTS) -> list[dict[str, Any]]:
+    if _use_cloud():
+        import suite_storage_supabase as cloud
+
+        try:
+            return cloud.load_events(limit=limit)
+        except Exception:
+            return _sqlite_load_events(limit=limit)
+    return _sqlite_load_events(limit=limit)
+
+
+def load_current_states() -> dict[str, dict[str, Any]]:
+    if _use_cloud():
+        import suite_storage_supabase as cloud
+
+        try:
+            return cloud.load_current_states()
+        except Exception:
+            return _sqlite_load_current_states()
+    return _sqlite_load_current_states()
+
+
+def load_active_resume_items(limit: int = 8) -> list[ResumeItem]:
+    if _use_cloud():
+        import suite_storage_supabase as cloud
+
+        try:
+            rows = cloud.load_active_resume_items(limit=limit)
+            return [
+                ResumeItem(
+                    app=str(r["app"]),
+                    item_key=str(r["item_key"]),
+                    title=str(r["title"]),
+                    subtitle=str(r["subtitle"]),
+                    action_url=str(r["action_url"]),
+                    updated_at=str(r["updated_at"]),
+                )
+                for r in rows
+            ]
+        except Exception:
+            return _sqlite_load_active_resume_items(limit=limit)
+    return _sqlite_load_active_resume_items(limit=limit)
+
+
 def record_activity(
     app: str,
     event: str,
@@ -347,7 +517,32 @@ def record_activity(
     resume_subtitle: str = "",
     action_url: str = "",
 ) -> None:
-    """Log history, refresh current state, and optionally upsert a resume card."""
+    if _use_cloud():
+        import suite_storage_supabase as cloud
+
+        cloud.record_activity(
+            app,
+            event,
+            page=page,
+            metrics=metrics,
+            summary=summary,
+            resume_key=resume_key,
+            resume_title=resume_title,
+            resume_subtitle=resume_subtitle,
+            action_url=action_url,
+        )
+        _mirror_sqlite_write(
+            app,
+            event,
+            page=page,
+            metrics=metrics,
+            summary=summary,
+            resume_key=resume_key,
+            resume_title=resume_title,
+            resume_subtitle=resume_subtitle,
+            action_url=action_url,
+        )
+        return
     append_event(app, event, page=page, metrics=metrics)
     if summary or page or metrics:
         save_current_state(app, page=page, summary=summary, metrics=metrics)
@@ -359,3 +554,11 @@ def record_activity(
             subtitle=resume_subtitle,
             action_url=action_url,
         )
+
+
+def cloud_ping() -> bool:
+    if not _use_cloud():
+        return False
+    import suite_storage_supabase as cloud
+
+    return cloud.ping()

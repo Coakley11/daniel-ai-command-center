@@ -485,6 +485,31 @@ _render_weekly_summary(snapshot)
 _render_app_directory(snapshot)
 
 with st.expander("Deployment & link audit (admin)"):
+    from activity_diagnostics import run_activity_diagnostics
+
+    diag = run_activity_diagnostics()
+    st.markdown("#### Cross-app activity trace (Music → Command Center)")
+    st.markdown(
+        f"| Check | Result |\n|---|---|\n"
+        f"| Deployment mode | `{diag.deployment_mode}` |\n"
+        f"| Supabase configured | {diag.cloud_storage_configured} |\n"
+        f"| Supabase reachable | {diag.cloud_storage_reachable} |\n"
+        f"| Failing step | **{diag.failure_step}** |\n"
+        f"| CC SQLite exists | {diag.command_center_db_exists} |\n"
+        f"| Music events in CC DB | {diag.sqlite_music_event_count} "
+        f"(verified: {diag.sqlite_verified_count}, lyrics: {diag.sqlite_lyrics_count}) |\n"
+        f"| Last music event in CC DB | {diag.last_music_event} |\n"
+        f"| Last verified/lyrics in CC DB | {diag.last_verified_event} |\n"
+        f"| Music fallback file found | {diag.music_fallback_found or '—'} |\n"
+        f"| Verified/lyrics in fallback | {diag.music_fallback_verified_count} |\n"
+        f"| Sibling repos on disk | {diag.sibling_repos_reachable} |\n"
+        f"| CC can see verified saves | {diag.can_command_center_see_music_verified} |"
+    )
+    st.info(diag.recommendation)
+    with st.expander("Fallback paths checked"):
+        for p in diag.music_fallback_paths_checked:
+            st.code(p)
+    st.divider()
     st.markdown(f"**Homepage Production:** {HOMEPAGE_PRODUCTION_URL} · branch `main`")
     dev_line = HOMEPAGE_DEV_URL or "Not deployed yet — create on Streamlit Cloud from branch `dev`"
     st.markdown(f"**Homepage Dev:** {dev_line}")

@@ -172,9 +172,30 @@ def format_activity_message(event: dict[str, Any]) -> str | None:
     return None
 
 
+def _feed_priority(event: dict[str, Any]) -> int:
+    """Higher = prefer in Recent Activity over noisy opens."""
+    app = str(event.get("app") or "")
+    event_type = str(event.get("event") or "")
+    if app == "music" and event_type in {
+        "verified_chart_saved",
+        "lyrics_saved",
+        "chart_save",
+        "chord_save",
+        "practice",
+        "backing_track",
+        "song_added",
+    }:
+        return 3
+    if app == "music" and event_type == "song_selected":
+        return 0
+    if event_type == "page_view":
+        return 0
+    return 2
+
+
 def build_activity_feed(events: list[dict[str, Any]], *, limit: int = 20) -> list[ActivityFeedItem]:
-    items: list[ActivityFeedItem] = []
-    for event in reversed(events):
+    items: list[tuple[int, datetime, ActivityFeedItem]] = []
+    for event in events:
         message = format_activity_message(event)
         if not message:
             continue
@@ -184,16 +205,19 @@ def build_activity_feed(events: list[dict[str, Any]], *, limit: int = 20) -> lis
             sort_key = datetime.fromisoformat(ts_raw)
         except ValueError:
             sort_key = datetime.min
+        priority = _feed_priority(event)
         items.append(
-            ActivityFeedItem(
-                app=app,
-                app_label=APP_LABELS.get(app, app.replace("_", " ").title()),
-                timestamp=ts_raw,
-                message=message,
-                sort_key=sort_key,
+            (
+                priority,
+                sort_key,
+                ActivityFeedItem(
+                    app=app,
+                    app_label=APP_LABELS.get(app, app.replace("_", " ").title()),
+                    timestamp=ts_raw,
+                    message=message,
+                    sort_key=sort_key,
+                ),
             )
         )
-        if len(items) >= limit:
-            break
-    items.sort(key=lambda x: x.sort_key, reverse=True)
-    return items[:limit]
+    items.sort(key=lambda row: (row[0], row[1]), reverse=True)
+    return [row[2] for row in items[:limit]]

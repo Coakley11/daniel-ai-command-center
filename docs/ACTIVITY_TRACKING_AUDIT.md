@@ -60,7 +60,22 @@ Each app runs in an **isolated container** with its own filesystem.
 | Per-app `*_activity_fallback.json` | Written when SQLite unavailable | Stays **inside that app’s** container only |
 | Resume items / events in CC SQLite | Yes on one machine | Only events recorded **from the Command Center process** |
 
-**Bottom line:** Full cross-app dashboard sync on Streamlit Cloud requires a **cloud backend** (Supabase, Firebase, S3 + API, etc.). `suite_storage.py` is designed so the public API can be swapped without changing app call sites.
+**Bottom line:** Streamlit Cloud requires the **shared Supabase backend** (see `docs/SUITE_CLOUD_ACTIVITY.md`). Set identical `[suite_activity]` secrets on every app deployment.
+
+### End-to-end trace: Save as user verified → Command Center
+
+| Step | What happens | Streamlit Cloud | Local sibling repos |
+|------|----------------|-----------------|---------------------|
+| 1 | Music `record_verified_user_activity()` → `verified_chart_saved` or `lyrics_saved` | Yes, if save succeeds | Yes |
+| 2 | `suite_activity_client.record_activity("music", …)` | Yes | Yes |
+| 3a | Write `daniel-ai-command-center/data/suite_activity.db` | **No** — CC repo not on disk | Yes, when CC path resolves |
+| 3b | Write `ai-music-practice-coach/data/music_activity_fallback.json` | Yes, inside **Music container only** | Yes (always mirrored for music) |
+| 4 | CC `load_activity_snapshot()` → `_import_sibling_fallback_events()` | **No** — cannot read Music container | Yes, imports sibling fallback into CC DB |
+| 5 | UI: Recent Activity (`activity_feed`), App Directory card (`get_app_directory_card`), Continue (`resume_items`) | Only if step 3a/4 ran on **CC’s** disk | Full |
+
+**If verified saves are missing on Cloud, the failing step is 4 (isolation), not the Command Center display code.**
+
+Use **Deployment & link audit (admin)** → *Cross-app activity trace* in Command Center to see which step failed on the running deployment.
 
 **Current best fallback on Cloud:** each app logs to its local fallback JSON + local `app_state.json`; Command Center shows whatever was written into **its own** DB when the CC app itself records events, plus any data you manually sync. Local dev with repos in `~/Documents/GitHub/*` gets the full experience.
 

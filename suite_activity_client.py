@@ -1,9 +1,9 @@
 """
 Portable client for Daniel AI suite persistence.
 
-Sibling Streamlit apps import this module (via path resolution) to write shared
-activity history + current state. Falls back to a local JSON file when the shared
-SQLite store is unavailable (e.g. isolated Streamlit Cloud containers).
+Cloud-first: when Supabase is configured (same secrets on every Streamlit app),
+writes go to the shared store even on isolated Streamlit Cloud containers.
+Falls back to sibling Command Center SQLite, then per-app JSON fallback.
 """
 
 from __future__ import annotations
@@ -35,6 +35,42 @@ def _load_storage_module():
 
         return suite_storage
     return None
+
+
+def _record_via_cloud(
+    app: str,
+    event: str,
+    *,
+    page: str = "",
+    metrics: dict[str, Any] | None = None,
+    summary: str = "",
+    resume_key: str = "",
+    resume_title: str = "",
+    resume_subtitle: str = "",
+    action_url: str = "",
+) -> bool:
+    try:
+        from suite_storage_config import cloud_storage_enabled
+        from suite_storage_supabase import record_activity as cloud_record
+    except ImportError:
+        return False
+    if not cloud_storage_enabled():
+        return False
+    try:
+        cloud_record(
+            app,
+            event,
+            page=page,
+            metrics=metrics or {},
+            summary=summary,
+            resume_key=resume_key,
+            resume_title=resume_title,
+            resume_subtitle=resume_subtitle,
+            action_url=action_url,
+        )
+        return True
+    except Exception:
+        return False
 
 
 def _fallback_path(app: str) -> Path:
@@ -112,6 +148,21 @@ def record_activity(
     local_state: dict[str, Any] | None = None,
 ) -> None:
     metrics = metrics or {}
+    if _record_via_cloud(
+        app,
+        event,
+        page=page,
+        metrics=metrics,
+        summary=summary,
+        resume_key=resume_key,
+        resume_title=resume_title,
+        resume_subtitle=resume_subtitle,
+        action_url=action_url,
+    ):
+        if local_state is not None:
+            save_local_app_state(app, local_state)
+        return
+
     storage = _load_storage_module()
     if storage is not None:
         try:
@@ -131,6 +182,9 @@ def record_activity(
     else:
         _fallback_append(app, event, page, metrics, summary)
 
+    if app == "music":
+        _fallback_append(app, event, page, metrics, summary)
+
     if local_state is not None:
         save_local_app_state(app, local_state)
 
@@ -140,6 +194,18 @@ def log_event(app: str, event: str, *, page: str = "", metrics: dict[str, Any] |
 
 
 def invalidate_resume_item(app: str, item_key: str) -> None:
+    try:
+        from suite_storage_config import cloud_storage_enabled
+        from suite_storage_supabase import invalidate_resume_item as cloud_invalidate
+
+        if cloud_storage_enabled():
+            cloud_invalidate(app, item_key)
+            return
+    except ImportError:
+        pass
+    except Exception:
+        pass
+
     storage = _load_storage_module()
     if storage is not None:
         try:
