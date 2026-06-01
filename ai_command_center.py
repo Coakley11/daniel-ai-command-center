@@ -20,6 +20,7 @@ from activity_store import ActivitySnapshot, format_days_ago, get_activity_rows,
 from app_registry import APP_DEFINITIONS, AppStatus, get_app_url, verify_connections
 from app_urls import BUILD_VERSION, HOMEPAGE_DEV_URL, HOMEPAGE_PRODUCTION_URL
 from coach_engine import CoachInsight, generate_coach_insights
+from continue_dashboard import ContinueCard, build_continue_cards, recently_used_apps
 
 APP_THEMES: dict[str, dict[str, str]] = {
     "music": {"accent": "#a855f7", "bg": "#faf5ff", "border": "#e9d5ff", "emoji": "🎵"},
@@ -41,6 +42,7 @@ SECTION_ICONS = {
     "coach": "💡",
     "activity": "📋",
     "apps": "📱",
+    "continue": "⏯",
 }
 
 st.set_page_config(
@@ -126,6 +128,14 @@ st.markdown(
         background: white; border: 1px dashed #cbd5e1; border-radius: 16px;
         padding: 1.25rem 1.5rem; color: #64748b; font-size: 0.92rem; line-height: 1.5;
     }
+    .cc-continue-card {
+        background: white; border-radius: 16px; padding: 1rem 1.1rem; height: 100%;
+        border: 1px solid #e2e8f0; box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06);
+    }
+    .cc-continue-app { font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
+        letter-spacing: 0.05em; color: #64748b; margin-bottom: 0.25rem; }
+    .cc-continue-title { font-size: 0.98rem; font-weight: 800; color: #1e293b; margin-bottom: 0.2rem; }
+    .cc-continue-sub { font-size: 0.84rem; color: #64748b; line-height: 1.45; margin: 0 0 0.65rem 0; }
     </style>
     """,
     unsafe_allow_html=True,
@@ -162,6 +172,58 @@ def _render_hero(snapshot: ActivitySnapshot) -> None:
         """,
         unsafe_allow_html=True,
     )
+
+
+def _render_continue_section(snapshot: ActivitySnapshot, cards: list[ContinueCard]) -> None:
+    st.markdown(
+        f'<div class="cc-section-title">{SECTION_ICONS["continue"]} Continue where you left off</div>',
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        '<div class="cc-section-sub">Active projects and recent work pulled from saved app state — no placeholder data.</div>',
+        unsafe_allow_html=True,
+    )
+
+    if snapshot.last_opened_app:
+        app_name = next(
+            (a.name for a in APP_DEFINITIONS if a.key == snapshot.last_opened_app),
+            snapshot.last_opened_app,
+        )
+        page_bit = f" · {snapshot.last_opened_page}" if snapshot.last_opened_page else ""
+        st.caption(f"Last opened: **{app_name}**{page_bit}")
+
+    recent = recently_used_apps(limit=4)
+    if recent:
+        chips = " · ".join(name for _, name, _ in recent)
+        st.caption(f"Recently used: {chips}")
+
+    if not cards:
+        st.markdown(
+            '<div class="cc-empty-box">No saved continue items yet. As you use the suite apps, '
+            "your current songs, analyses, and simulations will appear here.</div>",
+            unsafe_allow_html=True,
+        )
+        return
+
+    for group_start in (0, 3):
+        chunk = cards[group_start : group_start + 3]
+        if not chunk:
+            break
+        cols = st.columns(3, gap="medium")
+        for idx, card in enumerate(chunk):
+            theme = APP_THEMES.get(card.app_key, {"accent": "#6366f1", "emoji": card.emoji})
+            with cols[idx]:
+                st.markdown(
+                    f"""
+                    <div class="cc-continue-card" style="border-left: 4px solid {theme['accent']};">
+                        <div class="cc-continue-app">{html.escape(card.app_name)}</div>
+                        <div class="cc-continue-title">{theme.get('emoji', card.emoji)} {html.escape(card.title)}</div>
+                        <p class="cc-continue-sub">{html.escape(card.subtitle)}</p>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+                _render_go_button("Continue", card.action_url, f"continue_{card.app_key}_{idx}_{group_start}")
 
 
 def _render_coach_insights(insights: list[CoachInsight]) -> None:
@@ -320,9 +382,11 @@ def _cached_connections():
 
 snapshot = load_activity_snapshot()
 insights = generate_coach_insights(snapshot)
+continue_cards = build_continue_cards()
 connections = _cached_connections()
 
 _render_hero(snapshot)
+_render_continue_section(snapshot, continue_cards)
 _render_coach_insights(insights)
 _render_activity_summary(snapshot)
 _render_app_directory(snapshot)

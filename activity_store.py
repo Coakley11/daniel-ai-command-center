@@ -1,18 +1,25 @@
 """
 Cross-app activity store for the Daniel AI Command Center.
 
-Reads a shared JSON event log plus optional sibling-app data files (e.g. music
-practice_history.json). Apps can append events via log_event() over time.
+SQLite-backed history + current state (see suite_storage.py), optional sibling-app
+files (practice_history.json, per-app app_state.json), and resume items for the
+Continue dashboard.
 """
 
 from __future__ import annotations
 
 import json
-import os
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any
+
+from suite_storage import (
+    load_active_resume_items,
+    load_current_states,
+    load_events as _load_db_events,
+    record_activity as _record_activity,
+)
 
 DATA_DIR = Path(__file__).resolve().parent / "data"
 ACTIVITY_FILE = DATA_DIR / "suite_activity.json"
@@ -28,6 +35,29 @@ MUSIC_LOG_CANDIDATES = (
     Path(__file__).resolve().parent.parent / "ai-music-practice-coach" / "practice_history.json",
     Path.home() / "Documents" / "GitHub" / "ai-music-practice-coach" / "practice_history.json",
 )
+
+APP_STATE_CANDIDATES: dict[str, tuple[Path, ...]] = {
+    "music": (
+        Path(__file__).resolve().parent.parent / "ai-music-practice-coach" / "data" / "app_state.json",
+        Path.home() / "Documents" / "GitHub" / "ai-music-practice-coach" / "data" / "app_state.json",
+    ),
+    "baseball": (
+        Path(__file__).resolve().parent.parent / "baseball-stat-app" / "data" / "app_state.json",
+        Path.home() / "Documents" / "GitHub" / "baseball-stat-app" / "data" / "app_state.json",
+    ),
+    "investment": (
+        Path(__file__).resolve().parent.parent / "investment-portfolio-analyzer" / "data" / "app_state.json",
+        Path.home() / "Documents" / "GitHub" / "investment-portfolio-analyzer" / "data" / "app_state.json",
+    ),
+    "applied_intelligence": (
+        Path(__file__).resolve().parent.parent / "Applied-mathematical-intelligence" / "data" / "app_state.json",
+        Path.home() / "Documents" / "GitHub" / "Applied-mathematical-intelligence" / "data" / "app_state.json",
+    ),
+    "future_lens": (
+        Path(__file__).resolve().parent.parent / "future-lens-ai-transition-simulator" / "data" / "app_state.json",
+        Path.home() / "Documents" / "GitHub" / "future-lens-ai-transition-simulator" / "data" / "app_state.json",
+    ),
+}
 
 
 @dataclass
@@ -119,15 +149,18 @@ def _load_json(path: Path) -> list[dict[str, Any]]:
     return []
 
 
-def _ensure_activity_file() -> None:
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
-    if not ACTIVITY_FILE.is_file():
-        ACTIVITY_FILE.write_text("[]", encoding="utf-8")
+def _load_json_dict(path: Path) -> dict[str, Any]:
+    if not path.is_file():
+        return {}
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return raw if isinstance(raw, dict) else {}
 
 
 def load_events() -> list[dict[str, Any]]:
-    _ensure_activity_file()
-    return _load_json(ACTIVITY_FILE)
+    return _load_db_events()
 
 
 def log_event(
@@ -137,19 +170,49 @@ def log_event(
     page: str = "",
     metrics: dict[str, Any] | None = None,
 ) -> None:
-    """Append one activity event to the shared log."""
-    _ensure_activity_file()
-    events = load_events()
-    events.append(
-        {
-            "app": app,
-            "event": event,
-            "page": page,
-            "timestamp": datetime.now().isoformat(timespec="seconds"),
-            "metrics": metrics or {},
-        }
-    )
-    ACTIVITY_FILE.write_text(json.dumps(events[-500:], indent=2), encoding="utf-8")
+    """Append one activity event to the shared store."""
+    _record_activity(app, event, page=page, metrics=metrics)
+
+
+def _ingest_app_state_files(snapshot: ActivitySnapshot) -> None:
+    """Merge per-app local state files when the shared DB has not been populated yet."""
+    for app_key, candidates in APP_STATE_CANDIDATES.items():
+        block: dict[str, Any] | None = None
+        for path in candidates:
+            raw = _load_json_dict(path)
+            candidate = raw.get(app_key)
+            if isinstance(candidate, dict) and candidate:
+                block = candidate
+                snapshot.has_real_data = True
+                break
+        if not block:
+            continue
+        page = str(block.get("page") or block.get("studio_page") or block.get("active_page") or "")
+        summary = str(block.get("summary") or block.get("song") or block.get("title") or "")
+        if app_key == "music":
+            if block.get("song"):
+                snapshot.last_song = str(block["song"])
+            if block.get("focus"):
+                snapshot.last_song_focus = str(block["focus"])
+        if app_key == "baseball" and block.get("player"):
+            snapshot.last_baseball_report = str(block["player"])
+        if app_key == "investment" and block.get("review_type"):
+            snapshot.last_portfolio_review = str(block["review_type"])
+        if app_key == "applied_intelligence":
+            if page:
+                snapshot.last_applied_intelligence_page = page
+            if block.get("lesson"):
+                snapshot.last_applied_intelligence_lesson = str(block["lesson"])
+        if app_key == "future_lens":
+            if block.get("project"):
+                snapshot.future_project = str(block["project"])
+            if block.get("simulation"):
+                snapshot.last_simulation_name = str(block["simulation"])
+        if page and not snapshot.last_opened_page:
+            snapshot.last_opened_app = app_key
+            snapshot.last_opened_page = page
+        if summary and app_key == snapshot.last_opened_app:
+            pass  # summary consumed by continue cards via storage layer
 
 
 def _ingest_music_logs(snapshot: ActivitySnapshot) -> None:
@@ -223,6 +286,7 @@ def _ingest_suite_events(snapshot: ActivitySnapshot) -> None:
         "future_lens": 0,
         "music": 0,
     }
+    last_opened: tuple[str, str, datetime] | None = None
 
     for event in events:
         raw_app = str(event.get("app", "")).strip()
@@ -275,11 +339,33 @@ def _ingest_suite_events(snapshot: ActivitySnapshot) -> None:
                 snapshot.last_nba_page = str(metrics["page"])
             if app == "music" and not snapshot.last_song and metrics.get("song"):
                 snapshot.last_song = str(metrics["song"])
+            if app == "music" and metrics.get("focus"):
+                snapshot.last_song_focus = str(metrics["focus"])
 
-        if app == snapshot.last_opened_app or not snapshot.last_opened_app:
-            if not snapshot.last_opened_app or ts >= by_app.get(snapshot.last_opened_app, [datetime.min])[-1]:
-                snapshot.last_opened_app = app
-                snapshot.last_opened_page = str(event.get("page") or "")
+        if last_opened is None or ts >= last_opened[2]:
+            last_opened = (app, str(event.get("page") or ""), ts)
+
+    if last_opened:
+        snapshot.last_opened_app = last_opened[0]
+        snapshot.last_opened_page = last_opened[1]
+
+    current_states = load_current_states()
+    newest_state: tuple[str, str, str] | None = None
+    for app_key, state in current_states.items():
+        page = str(state.get("page") or "")
+        metrics = state.get("metrics") or {}
+        updated_at = str(state.get("updated_at") or "")
+        if app_key == "music" and metrics.get("song"):
+            snapshot.last_song = str(metrics["song"])
+        if app_key == "applied_intelligence" and page:
+            snapshot.last_applied_intelligence_page = page
+        if app_key == "future_lens" and metrics.get("project"):
+            snapshot.future_project = str(metrics["project"])
+        if updated_at and (newest_state is None or updated_at >= newest_state[2]):
+            newest_state = (app_key, page, updated_at)
+    if newest_state and newest_state[2] >= (last_opened[2].isoformat() if last_opened else ""):
+        snapshot.last_opened_app = newest_state[0]
+        snapshot.last_opened_page = newest_state[1]
 
     def _latest_days(app: str) -> int | None:
         times = by_app.get(app)
@@ -311,7 +397,12 @@ def load_activity_snapshot() -> ActivitySnapshot:
     snapshot = ActivitySnapshot(is_sunday_lineup_day=date.today().weekday() == 6)
     _ingest_music_logs(snapshot)
     _ingest_suite_events(snapshot)
+    _ingest_app_state_files(snapshot)
     return snapshot
+
+
+def get_resume_item_count() -> int:
+    return len(load_active_resume_items(limit=20))
 
 
 def format_days_ago(days: int | None) -> str:
