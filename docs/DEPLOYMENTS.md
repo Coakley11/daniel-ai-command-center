@@ -7,7 +7,7 @@ Last verified: 2026-05-31 (build 2026-05-31-v7 on branch `dev`)
 | Environment | URL | Git branch | Status |
 |---|---|---|---|
 | **Production** | https://daniel-ai-command-center-dexxnd7bf8jalxzqbyq55i.streamlit.app | `main` | Deployed |
-| **Dev** | *(not created yet)* | `dev` | **Missing — create manually** |
+| **Dev** | https://daniel-ai-command-center-ion4vh2cvo7bgdnkuktrb3.streamlit.app | `dev` | Deployed |
 
 ### Create Homepage Dev deployment
 

@@ -29,7 +29,7 @@ FUTURE_LENS_PRODUCTION_URL = "https://future-lens-ai-transition-simulator-8qfgub
 
 HOMEPAGE_PRODUCTION_URL = "https://daniel-ai-command-center-dexxnd7bf8jalxzqbyq55i.streamlit.app"
 # Created manually on Streamlit Cloud — see docs/DEPLOYMENTS.md
-HOMEPAGE_DEV_URL = ""
+HOMEPAGE_DEV_URL = "https://daniel-ai-command-center-ion4vh2cvo7bgdnkuktrb3.streamlit.app"
 
 MUSIC_GITHUB_URL = "https://github.com/Coakley11/ai-music-practice-coach/tree/dev"
 INVESTMENT_GITHUB_URL = "https://github.com/Coakley11/investment-portfolio-analyzer/tree/dev"
