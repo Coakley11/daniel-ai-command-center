@@ -2,8 +2,8 @@
 Cross-app activity store for the Daniel AI Command Center.
 
 SQLite-backed history + current state (see suite_storage.py), optional sibling-app
-files (practice_history.json, per-app app_state.json), and resume items for the
-Continue dashboard.
+files (practice_history.json, per-app ``*_user_state.json``, legacy app_state.json),
+and resume items for the Continue dashboard.
 """
 
 from __future__ import annotations
@@ -14,11 +14,14 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+from app_registry import get_app_url
 from suite_storage import (
     load_active_resume_items,
     load_current_states,
     load_events as _load_db_events,
     record_activity as _record_activity,
+    save_current_state,
+    upsert_resume_item,
 )
 
 DATA_DIR = Path(__file__).resolve().parent / "data"
@@ -44,6 +47,18 @@ APP_REPO_DIRS: dict[str, str] = {
     "applied_intelligence": "Applied-mathematical-intelligence",
     "future_lens": "future-lens-ai-transition-simulator",
 }
+
+def _user_state_paths(app_key: str) -> tuple[Path, ...]:
+    """Per-app ``data/{app}_user_state.json`` written by suite persistence."""
+    repo = APP_REPO_DIRS.get(app_key, "")
+    fname = f"{app_key}_user_state.json"
+    if not repo:
+        return ()
+    return (
+        Path(__file__).resolve().parent.parent / repo / "data" / fname,
+        Path.home() / "Documents" / "GitHub" / repo / "data" / fname,
+    )
+
 
 APP_STATE_CANDIDATES: dict[str, tuple[Path, ...]] = {
     "music": (
@@ -248,58 +263,240 @@ def log_event(
     _record_activity(app, event, page=page, metrics=metrics)
 
 
-def _ingest_app_state_files(snapshot: ActivitySnapshot) -> None:
-    """Merge per-app local state files when the shared DB has not been populated yet."""
-    for app_key, candidates in APP_STATE_CANDIDATES.items():
-        block: dict[str, Any] | None = None
-        for path in candidates:
-            raw = _load_json_dict(path)
-            candidate = raw.get(app_key)
-            if isinstance(candidate, dict) and candidate:
-                block = candidate
-                snapshot.has_real_data = True
-                break
+def _flatten_user_state_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    """Unwrap ``{version, state: {core, session}}`` or flat ``state`` into one dict."""
+    state = payload.get("state")
+    if isinstance(state, dict):
+        flat: dict[str, Any] = {}
+        core = state.get("core")
+        session = state.get("session")
+        if isinstance(core, dict):
+            flat.update(core)
+        if isinstance(session, dict):
+            flat.update(session)
+        if flat:
+            return flat
+        return dict(state)
+    if isinstance(payload.get("core"), dict) or isinstance(payload.get("session"), dict):
+        flat = {}
+        if isinstance(payload.get("core"), dict):
+            flat.update(payload["core"])
+        if isinstance(payload.get("session"), dict):
+            flat.update(payload["session"])
+        return flat
+    return payload
+
+
+def load_app_user_state_block(app_key: str) -> dict[str, Any]:
+    """Load persisted session state from per-app user_state JSON (preferred) or legacy app_state."""
+    for path in _user_state_paths(app_key):
+        raw = _load_json_dict(path)
+        flat = _flatten_user_state_payload(raw)
+        if flat:
+            return flat
+    for path in APP_STATE_CANDIDATES.get(app_key, ()):
+        raw = _load_json_dict(path)
+        candidate = raw.get(app_key)
+        if isinstance(candidate, dict) and candidate:
+            return _flatten_user_state_payload(candidate)
+    return {}
+
+
+def _apply_block_to_snapshot(app_key: str, block: dict[str, Any], snapshot: ActivitySnapshot) -> None:
+    page = str(block.get("page") or block.get("studio_page") or block.get("active_page") or "")
+    if app_key == "music":
+        if block.get("song"):
+            snapshot.last_song = str(block["song"])
+        if block.get("focus"):
+            snapshot.last_song_focus = str(block["focus"])
+        if block.get("instrument"):
+            snapshot.last_instrument = str(block["instrument"])
+        if block.get("display_key"):
+            snapshot.last_display_key = str(block["display_key"])
+        if block.get("practice_focus_section"):
+            snapshot.last_song_focus = str(block["practice_focus_section"])
+        if page and snapshot.last_music_practice_days_ago is None:
+            snapshot.last_music_practice_days_ago = 0
+    if app_key == "baseball" and block.get("player"):
+        snapshot.last_baseball_player = str(block["player"])
+    if app_key == "baseball" and block.get("report"):
+        snapshot.last_baseball_report = str(block["report"])
+    if app_key == "investment":
+        review = str(block.get("review_type") or block.get("health_active_tab") or "").strip()
+        if review:
+            snapshot.last_portfolio_review = review
+        if snapshot.last_portfolio_check_days_ago is None and (
+            block.get("holdings_df") or block.get("sidebar_portfolio_value")
+        ):
+            snapshot.last_portfolio_check_days_ago = 0
+    if app_key == "applied_intelligence":
+        if page:
+            snapshot.last_applied_intelligence_page = page
+        if block.get("lesson"):
+            snapshot.last_applied_intelligence_lesson = str(block["lesson"])
+    if app_key == "future_lens":
+        if block.get("project"):
+            snapshot.future_project = str(block["project"])
+        if block.get("simulation"):
+            snapshot.last_simulation_name = str(block["simulation"])
+    if app_key == "nba":
+        team = str(
+            block.get("team")
+            or block.get("favorite_team")
+            or block.get("favorite_team_sidebar")
+            or ""
+        ).strip()
+        if team:
+            snapshot.last_nba_team = team
+        nba_page = str(block.get("page_label") or block.get("page_label_last") or block.get("page_override") or "")
+        if nba_page:
+            snapshot.last_nba_page = nba_page
+        if snapshot.last_nba_session_days_ago is None and (team or nba_page):
+            snapshot.last_nba_session_days_ago = 0
+    if page and not snapshot.last_opened_page:
+        snapshot.last_opened_app = app_key
+        snapshot.last_opened_page = page
+
+
+def _disk_resume_from_block(app_key: str, block: dict[str, Any]) -> tuple[str, str, str, str, str, dict[str, Any]] | None:
+    """Return page, summary, resume_key, title, subtitle, metrics — or None if nothing to show."""
+    page = str(
+        block.get("page")
+        or block.get("studio_page")
+        or block.get("active_page")
+        or block.get("health_active_tab")
+        or block.get("page_label_last")
+        or block.get("page_override")
+        or ""
+    ).strip()
+    metrics: dict[str, Any] = {}
+
+    if app_key == "music":
+        song = str(block.get("song") or "").strip()
+        if not song:
+            return None
+        artist = str(block.get("artist") or "").strip()
+        pick_key = str(block.get("pick_key") or song).strip()
+        metrics = {
+            "song": song,
+            "artist": artist,
+            "instrument": str(block.get("instrument") or ""),
+            "focus": str(block.get("focus") or block.get("practice_focus_section") or ""),
+            "display_key": str(block.get("display_key") or ""),
+        }
+        subtitle = " · ".join(p for p in [artist, page] if p)
+        return (
+            page,
+            f"Practice {song}",
+            f"song:{pick_key}",
+            f"Continue: {song}",
+            subtitle,
+            metrics,
+        )
+
+    if app_key == "investment":
+        holdings = block.get("holdings_df")
+        n_holdings = len(holdings) if isinstance(holdings, list) else 0
+        exp = str(block.get("experience") or "").strip()
+        val = block.get("sidebar_portfolio_value")
+        parts = [p for p in [exp, page or str(block.get("health_active_tab") or "")] if p]
+        if isinstance(val, (int, float)) and val:
+            parts.append(f"${float(val):,.0f}")
+        if n_holdings:
+            parts.append(f"{n_holdings} holdings")
+        if not parts and not page:
+            return None
+        metrics = {"review_type": page or exp, "holdings": n_holdings}
+        return (
+            page or "Portfolio Health",
+            "Portfolio review",
+            "portfolio:main",
+            "Continue portfolio review",
+            " · ".join(parts),
+            metrics,
+        )
+
+    if app_key == "baseball":
+        active = page or str(block.get("active_page") or "").strip()
+        if not active:
+            return None
+        return (
+            active,
+            active,
+            f"page:{active}",
+            f"Return to {active}",
+            "",
+            {"page": active},
+        )
+
+    if app_key == "nba":
+        team = str(
+            block.get("team")
+            or block.get("favorite_team")
+            or block.get("favorite_team_sidebar")
+            or ""
+        ).strip()
+        nba_page = str(block.get("page_label_last") or block.get("page_override") or page or "").strip()
+        if not team and not nba_page:
+            return None
+        metrics = {"team": team, "page": nba_page}
+        title = f"Continue: {team}" if team else f"Return to {nba_page}"
+        subtitle = nba_page if team and nba_page else team or nba_page
+        return (
+            nba_page or page,
+            team or nba_page,
+            f"nba:{team or nba_page}",
+            title,
+            subtitle if subtitle != title else "",
+            metrics,
+        )
+
+    if app_key == "applied_intelligence":
+        lesson = str(block.get("lesson") or block.get("next_lesson") or "").strip()
+        if not lesson and not page:
+            return None
+        metrics = {"lesson": lesson} if lesson else {}
+        title = f"Continue: {lesson}" if lesson else f"Return to {page}"
+        return (page, lesson or page, f"lesson:{lesson or page}", title, page, metrics)
+
+    if app_key == "future_lens":
+        sim = str(block.get("simulation") or block.get("project") or "").strip()
+        if not sim:
+            return None
+        metrics = {"simulation": sim, "project": str(block.get("project") or "")}
+        return (page, sim, f"sim:{sim}", f"Continue: {sim}", page, metrics)
+
+    return None
+
+
+def _sync_disk_user_states_to_storage() -> None:
+    """Mirror sibling-app ``*_user_state.json`` files into SQLite for Continue + highlights."""
+    for app_key in APP_REPO_DIRS:
+        block = load_app_user_state_block(app_key)
         if not block:
             continue
-        page = str(block.get("page") or block.get("studio_page") or block.get("active_page") or "")
-        summary = str(block.get("summary") or block.get("song") or block.get("title") or "")
-        if app_key == "music":
-            if block.get("song"):
-                snapshot.last_song = str(block["song"])
-            if block.get("focus"):
-                snapshot.last_song_focus = str(block["focus"])
-            if block.get("instrument"):
-                snapshot.last_instrument = str(block["instrument"])
-            if block.get("display_key"):
-                snapshot.last_display_key = str(block["display_key"])
-            if block.get("practice_focus_section"):
-                snapshot.last_song_focus = str(block["practice_focus_section"])
-        if app_key == "baseball" and block.get("player"):
-            snapshot.last_baseball_player = str(block["player"])
-        if app_key == "baseball" and block.get("report"):
-            snapshot.last_baseball_report = str(block["report"])
-        if app_key == "investment" and block.get("review_type"):
-            snapshot.last_portfolio_review = str(block["review_type"])
-        if app_key == "applied_intelligence":
-            if page:
-                snapshot.last_applied_intelligence_page = page
-            if block.get("lesson"):
-                snapshot.last_applied_intelligence_lesson = str(block["lesson"])
-        if app_key == "future_lens":
-            if block.get("project"):
-                snapshot.future_project = str(block["project"])
-            if block.get("simulation"):
-                snapshot.last_simulation_name = str(block["simulation"])
-        if app_key == "nba":
-            if block.get("team"):
-                snapshot.last_nba_team = str(block["team"])
-            if block.get("page") or block.get("page_label"):
-                snapshot.last_nba_page = str(block.get("page_label") or block.get("page") or "")
-        if page and not snapshot.last_opened_page:
-            snapshot.last_opened_app = app_key
-            snapshot.last_opened_page = page
-        if summary and app_key == snapshot.last_opened_app:
-            pass  # summary consumed by continue cards via storage layer
+        payload = _disk_resume_from_block(app_key, block)
+        if not payload:
+            continue
+        page, summary, resume_key, title, subtitle, metrics = payload
+        save_current_state(app_key, page=page, summary=summary, metrics=metrics)
+        upsert_resume_item(
+            app_key,
+            resume_key,
+            title=title,
+            subtitle=subtitle,
+            action_url=get_app_url(app_key),
+        )
+
+
+def _ingest_app_state_files(snapshot: ActivitySnapshot) -> None:
+    """Merge per-app persisted session files into the activity snapshot."""
+    for app_key in APP_STATE_CANDIDATES:
+        block = load_app_user_state_block(app_key)
+        if not block:
+            continue
+        snapshot.has_real_data = True
+        _apply_block_to_snapshot(app_key, block, snapshot)
 
 
 def _ingest_music_logs(snapshot: ActivitySnapshot) -> None:
@@ -539,6 +736,7 @@ def _ingest_suite_events(snapshot: ActivitySnapshot) -> None:
 
 def load_activity_snapshot() -> ActivitySnapshot:
     snapshot = ActivitySnapshot(is_sunday_lineup_day=date.today().weekday() == 6)
+    _sync_disk_user_states_to_storage()
     _ingest_music_logs(snapshot)
     _ingest_suite_events(snapshot)
     _ingest_app_state_files(snapshot)
