@@ -6,7 +6,7 @@ import requests
 DEPLOY_PATHS = {
     "music": "coakley11/ai-music-practice-coach/dev/streamlit_music_practice_app.py",
     "investment": "coakley11/investment-portfolio-analyzer/dev/streamlit_app.py",
-    "baseball": "coakley11/baseball-stat-app/main/streamlit_app.py",
+    "baseball": "coakley11/baseball-stat-app/dev/streamlit_app.py",
     "nba": "coakley11/nba-playoff-companion-ai/dev/streamlit_app.py",
     "applied_intelligence": "coakley11/applied-mathematical-intelligence/dev/streamlit_app.py",
     "future_lens": "coakley11/future-lens-ai-transition-simulator/dev/streamlit_app.py",

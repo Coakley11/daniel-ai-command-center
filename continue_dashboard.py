@@ -40,7 +40,9 @@ def build_continue_cards(limit: int = 6) -> list[ContinueCard]:
     for item in load_active_resume_items(limit=limit):
         if item.app not in meta:
             continue
-        url = item.action_url.strip() or meta[item.app]["url"]
+        # Always use the app registry URL so continue cards follow current
+        # deployment routing (e.g., prod -> dev switches) immediately.
+        url = meta[item.app]["url"]
         if not url:
             continue
         cards.append(
