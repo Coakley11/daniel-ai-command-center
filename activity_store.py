@@ -568,7 +568,25 @@ MEANINGFUL_WEEK_EVENTS = frozenset(
         "chord_save",
         "chart_save",
         "backing_track",
+        "verified_chart_saved",
     }
+)
+
+
+# Public API — keep in sync with ai_command_center.py imports (see tests/test_import_smoke.py).
+__all__ = (
+    "ActivitySnapshot",
+    "AppDirectoryCard",
+    "WeeklySummary",
+    "format_days_ago",
+    "get_activity_rows",
+    "get_app_directory_card",
+    "get_resume_item_count",
+    "get_weekly_summary",
+    "load_activity_snapshot",
+    "load_all_events",
+    "load_events",
+    "log_event",
 )
 
 

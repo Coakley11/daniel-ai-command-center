@@ -67,7 +67,7 @@ def format_activity_message(event: dict[str, Any]) -> str | None:
         song = str(m.get("song") or "").strip()
         return f"Saved chord edits for {song}" if song else "Saved chord edits"
 
-    if event_type == "chart_save" and app == "music":
+    if event_type in ("chart_save", "verified_chart_saved") and app == "music":
         song = str(m.get("song") or "").strip()
         return f"Saved verified chart for {song}" if song else "Saved a verified chart"
 
