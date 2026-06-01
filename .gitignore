@@ -9,3 +9,6 @@ venv/
 *.sqlite3
 .DS_Store
 Thumbs.db
+data/app_state.json
+data/*activity_fallback.json
+data/*_activity_fallback.json
