@@ -680,6 +680,10 @@ def _ingest_suite_events(snapshot: ActivitySnapshot) -> None:
                 snapshot.last_song_focus = str(metrics["focus"])
             if app == "music" and metrics.get("display_key"):
                 snapshot.last_display_key = str(metrics["display_key"])
+            if app == "music" and event_name == "verified_chart_saved" and metrics.get("song"):
+                snapshot.last_song = str(metrics["song"])
+                if metrics.get("focus"):
+                    snapshot.last_song_focus = str(metrics["focus"])
 
         if last_opened is None or ts >= last_opened[2]:
             last_opened = (app, str(event.get("page") or ""), ts)
