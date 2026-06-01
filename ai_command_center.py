@@ -354,35 +354,41 @@ def _app_highlights_html(card_highlights: tuple[str, ...], accent: str) -> str:
     return f'<div class="cc-app-highlights">{"".join(parts)}</div>'
 
 
-def _render_app_card(app_key: str, snapshot: ActivitySnapshot) -> None:
+def _render_unsafe_html(block: str) -> None:
+    """Render HTML as one block (no newlines inside tags — Streamlit markdown-safe)."""
+    st.markdown(block.strip(), unsafe_allow_html=True)
+
+
+def _build_app_card_html(app_key: str, snapshot: ActivitySnapshot) -> str:
+    """Single-line HTML tree — avoids st.markdown newline/div parsing bugs."""
     app = next(a for a in APP_DEFINITIONS if a.key == app_key)
     theme = APP_THEMES[app.key]
-    url = get_app_url(app.key)
-    icon = theme["emoji"]
+    accent = theme["accent"]
     card = get_app_directory_card(snapshot, app.key)
 
-    when_html = (
-        f'<div class="cc-app-when" style="color:{theme["accent"]};">{html.escape(card.when)}</div>'
-        if card.when
-        else ""
-    )
-    badge_html = _status_badge_html(app.status) if app.status != "Active" else ""
+    if card.when:
+        top_right = f'<div class="cc-app-when" style="color:{accent};">{html.escape(card.when)}</div>'
+    elif app.status != "Active":
+        top_right = _status_badge_html(app.status)
+    else:
+        top_right = ""
 
-    st.markdown(
-        f"""
-        <div class="cc-app-card" style="border-top-color:{theme['accent']};">
-            <div class="cc-app-top">
-                <div class="cc-app-icon-wrap" style="background:{theme['bg']};border:1px solid {theme['border']};">
-                    {icon}
-                </div>
-                {when_html or badge_html}
-            </div>
-            <div class="cc-app-name">{html.escape(app.name)}</div>
-            {_app_highlights_html(card.highlights, theme["accent"])}
-        </div>
-        """,
-        unsafe_allow_html=True,
+    return (
+        f'<div class="cc-app-card" style="border-top-color:{accent};">'
+        f'<div class="cc-app-top">'
+        f'<div class="cc-app-icon-wrap" style="background:{theme["bg"]};border:1px solid {theme["border"]};">'
+        f"{theme['emoji']}</div>"
+        f"{top_right}</div>"
+        f'<div class="cc-app-name">{html.escape(app.name)}</div>'
+        f"{_app_highlights_html(card.highlights, accent)}"
+        f"</div>"
     )
+
+
+def _render_app_card(app_key: str, snapshot: ActivitySnapshot) -> None:
+    app = next(a for a in APP_DEFINITIONS if a.key == app_key)
+    url = get_app_url(app.key)
+    _render_unsafe_html(_build_app_card_html(app_key, snapshot))
     _render_go_button("Open", url, f"app_{app.key}")
 
 

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-BUILD_VERSION = "2026-05-31-v8"
+BUILD_VERSION = "2026-06-01-v9"
 
 # GitHub deploy paths (lowercase owner) for Streamlit disambiguate API.
 DEPLOY_PATHS: dict[str, str] = {
