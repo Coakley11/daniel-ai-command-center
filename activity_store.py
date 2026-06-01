@@ -101,6 +101,8 @@ class ActivitySnapshot:
     last_song_focus: str = ""
     last_instrument: str = ""
     last_display_key: str = ""
+    last_music_artist: str = ""
+    last_music_edit_label: str = ""
     music_minutes_this_week: float = 0.0
     songs_practiced_this_week: int = 0
     music_streak_days: int = 0
@@ -569,8 +571,74 @@ MEANINGFUL_WEEK_EVENTS = frozenset(
         "chart_save",
         "backing_track",
         "verified_chart_saved",
+        "lyrics_saved",
+        "song_added",
     }
 )
+
+
+def _apply_music_edit_metrics(snapshot: ActivitySnapshot, metrics: dict[str, Any], event_name: str) -> None:
+    """Promote chart/lyrics saves to snapshot highlights (overrides passive song_selected)."""
+    song = str(metrics.get("song") or metrics.get("last_edited_song") or "").strip()
+    if not song:
+        return
+    snapshot.last_song = song
+    artist = str(metrics.get("artist") or "").strip()
+    if artist:
+        snapshot.last_music_artist = artist
+    fields = metrics.get("edited_fields") or []
+    if not isinstance(fields, list):
+        fields = []
+    field_set = {str(f) for f in fields}
+    if event_name == "lyrics_saved" or field_set == {"lyrics"}:
+        snapshot.last_music_edit_label = "Lyrics updated"
+    elif field_set >= {"chords", "lyrics"}:
+        snapshot.last_music_edit_label = "Verified chart & lyrics"
+    elif "chords" in field_set or event_name == "verified_chart_saved":
+        snapshot.last_music_edit_label = "Verified chart saved"
+    else:
+        snapshot.last_music_edit_label = "Song edit saved"
+    snapshot.last_music_practice_days_ago = 0
+    snapshot.has_real_data = True
+
+
+def _import_sibling_fallback_events() -> None:
+    """Merge per-app fallback JSON from sibling repos into the Command Center SQLite log."""
+    existing: set[tuple[str, str, str]] = set()
+    for row in _load_db_events(limit=500):
+        metrics = row.get("metrics") if isinstance(row.get("metrics"), dict) else {}
+        song = str(metrics.get("song") or metrics.get("last_edited_song") or "")
+        existing.add(
+            (
+                str(row.get("app") or ""),
+                str(row.get("event") or ""),
+                song,
+            )
+        )
+    for event in _load_fallback_events():
+        metrics = event.get("metrics") if isinstance(event.get("metrics"), dict) else {}
+        song = str(metrics.get("song") or metrics.get("last_edited_song") or "")
+        key = (str(event.get("app") or ""), str(event.get("event") or ""), song)
+        if key in existing and song:
+            continue
+        if not song and (
+            str(event.get("app") or ""),
+            str(event.get("event") or ""),
+            str(event.get("timestamp") or ""),
+        ) in {
+            (str(r.get("app") or ""), str(r.get("event") or ""), str(r.get("timestamp") or ""))
+            for r in _load_db_events(limit=500)
+        }:
+            continue
+        try:
+            log_event(
+                str(event.get("app") or ""),
+                str(event.get("event") or "session"),
+                page=str(event.get("page") or ""),
+                metrics=event.get("metrics") if isinstance(event.get("metrics"), dict) else {},
+            )
+        except OSError:
+            continue
 
 
 # Public API — keep in sync with ai_command_center.py imports (see tests/test_import_smoke.py).
@@ -698,10 +766,18 @@ def _ingest_suite_events(snapshot: ActivitySnapshot) -> None:
                 snapshot.last_song_focus = str(metrics["focus"])
             if app == "music" and metrics.get("display_key"):
                 snapshot.last_display_key = str(metrics["display_key"])
-            if app == "music" and event_name == "verified_chart_saved" and metrics.get("song"):
-                snapshot.last_song = str(metrics["song"])
-                if metrics.get("focus"):
-                    snapshot.last_song_focus = str(metrics["focus"])
+            if app == "music" and event_name in {"verified_chart_saved", "lyrics_saved", "chart_save", "chord_save"}:
+                _apply_music_edit_metrics(snapshot, metrics, event_name)
+            if app == "music" and event_name == "backing_track":
+                _apply_music_edit_metrics(
+                    snapshot,
+                    {**metrics, "edited_fields": ["backing"]},
+                    event_name,
+                )
+                snapshot.last_music_edit_label = "Backing track generated"
+            if app == "music" and event_name == "song_added":
+                _apply_music_edit_metrics(snapshot, metrics, event_name)
+                snapshot.last_music_edit_label = "New song added"
 
         if last_opened is None or ts >= last_opened[2]:
             last_opened = (app, str(event.get("page") or ""), ts)
@@ -758,6 +834,7 @@ def _ingest_suite_events(snapshot: ActivitySnapshot) -> None:
 
 def load_activity_snapshot() -> ActivitySnapshot:
     snapshot = ActivitySnapshot(is_sunday_lineup_day=date.today().weekday() == 6)
+    _import_sibling_fallback_events()
     _sync_disk_user_states_to_storage()
     _ingest_music_logs(snapshot)
     _ingest_suite_events(snapshot)
@@ -810,7 +887,10 @@ def get_app_directory_card(snapshot: ActivitySnapshot, app_key: str) -> AppDirec
     lines: list[str] = []
 
     if app_key == "music":
-        if snapshot.last_song:
+        if snapshot.last_music_edit_label and snapshot.last_song:
+            artist_bit = f" — {snapshot.last_music_artist}" if snapshot.last_music_artist else ""
+            lines.append(f"{snapshot.last_music_edit_label}: {snapshot.last_song}{artist_bit}")
+        elif snapshot.last_song:
             lines.append(_labeled("Last song", snapshot.last_song))
         if snapshot.last_instrument:
             lines.append(_labeled("Instrument", snapshot.last_instrument))

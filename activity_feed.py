@@ -32,6 +32,28 @@ def _metrics(event: dict[str, Any]) -> dict[str, Any]:
     return raw if isinstance(raw, dict) else {}
 
 
+def _music_title_artist(metrics: dict[str, Any]) -> str:
+    title = str(metrics.get("song") or metrics.get("last_edited_song") or "").strip()
+    artist = str(metrics.get("artist") or "").strip()
+    if title and artist:
+        return f"{title} — {artist}"
+    return title
+
+
+def _music_edit_headline(event_type: str, metrics: dict[str, Any]) -> str:
+    fields = metrics.get("edited_fields") or []
+    if not isinstance(fields, list):
+        fields = []
+    field_set = {str(f) for f in fields}
+    if event_type == "lyrics_saved" or (field_set == {"lyrics"}):
+        return "Lyrics updated"
+    if field_set >= {"chords", "lyrics"}:
+        return "Verified chart & lyrics saved"
+    if "chords" in field_set:
+        return "Verified chart saved"
+    return "Song edit saved"
+
+
 def _player_pair(metrics: dict[str, Any]) -> str:
     a = str(metrics.get("player_a") or metrics.get("player") or "").strip()
     b = str(metrics.get("player_b") or "").strip()
@@ -57,23 +79,24 @@ def format_activity_message(event: dict[str, Any]) -> str | None:
             return f"Practiced {song}"
         return "Logged a practice session"
 
-    if event_type == "song_selected" and app == "music":
-        song = str(m.get("song") or "").strip()
-        if song:
-            return f"Opened {song} for practice"
-        return summary or "Selected a song"
+    if event_type in ("verified_chart_saved", "lyrics_saved", "chart_save", "chord_save") and app == "music":
+        label = _music_edit_headline(event_type, m)
+        line = _music_title_artist(m)
+        return f"{label}: {line}" if line else label
 
-    if event_type == "chord_save" and app == "music":
-        song = str(m.get("song") or "").strip()
-        return f"Saved chord edits for {song}" if song else "Saved chord edits"
-
-    if event_type in ("chart_save", "verified_chart_saved") and app == "music":
-        song = str(m.get("song") or "").strip()
-        return f"Saved verified chart for {song}" if song else "Saved a verified chart"
+    if event_type == "song_added" and app == "music":
+        line = _music_title_artist(m)
+        return f"Added song: {line}" if line else "Added a new song"
 
     if event_type == "backing_track" and app == "music":
-        song = str(m.get("song") or "").strip()
-        return f"Used backing track for {song}" if song else "Used a backing track"
+        line = _music_title_artist(m)
+        return f"Generated backing track: {line}" if line else "Generated a backing track"
+
+    if event_type == "song_selected" and app == "music":
+        line = _music_title_artist(m)
+        if line:
+            return f"Opened: {line}"
+        return summary or None
 
     if event_type == "portfolio_check" and app == "investment":
         label = str(m.get("review_type") or "portfolio health").strip()

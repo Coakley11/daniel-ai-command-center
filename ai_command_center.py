@@ -324,7 +324,8 @@ def _render_recent_activity_feed() -> None:
         unsafe_allow_html=True,
     )
     st.markdown(
-        '<div class="cc-section-sub">Meaningful actions across your suite — newest first, no placeholder events.</div>',
+        '<div class="cc-section-sub">Meaningful actions across your suite — newest first. '
+        "Music chart/lyrics saves appear after <strong>Save as user verified</strong> when repos run side-by-side locally.</div>",
         unsafe_allow_html=True,
     )
 
