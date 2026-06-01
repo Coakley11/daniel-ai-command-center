@@ -71,6 +71,7 @@ class ActivitySnapshot:
     last_music_practice_days_ago: int | None = None
     last_song: str = ""
     last_song_focus: str = ""
+    last_instrument: str = ""
     music_minutes_this_week: float = 0.0
     songs_practiced_this_week: int = 0
     music_streak_days: int = 0
@@ -83,6 +84,7 @@ class ActivitySnapshot:
     # Baseball
     last_baseball_review_days_ago: int | None = None
     baseball_reviews_this_week: int = 0
+    last_baseball_player: str = ""
     last_baseball_report: str = ""
     last_baseball_projection: str = ""
     is_sunday_lineup_day: bool = False
@@ -195,7 +197,9 @@ def _ingest_app_state_files(snapshot: ActivitySnapshot) -> None:
             if block.get("focus"):
                 snapshot.last_song_focus = str(block["focus"])
         if app_key == "baseball" and block.get("player"):
-            snapshot.last_baseball_report = str(block["player"])
+            snapshot.last_baseball_player = str(block["player"])
+        if app_key == "baseball" and block.get("report"):
+            snapshot.last_baseball_report = str(block["report"])
         if app_key == "investment" and block.get("review_type"):
             snapshot.last_portfolio_review = str(block["review_type"])
         if app_key == "applied_intelligence":
@@ -240,6 +244,7 @@ def _ingest_music_logs(snapshot: ActivitySnapshot) -> None:
         snapshot.last_music_practice_days_ago = _days_ago(latest_date)
         snapshot.last_song = str(latest.get("song") or latest.get("title") or "").strip()
         snapshot.last_song_focus = str(latest.get("focus") or latest.get("practice") or "").strip()
+        snapshot.last_instrument = str(latest.get("instrument") or "").strip()
 
         for d, entry in dated:
             if d >= week_start:
@@ -329,10 +334,14 @@ def _ingest_suite_events(snapshot: ActivitySnapshot) -> None:
                 snapshot.last_applied_intelligence_page = str(event.get("page") or "")
             if app == "investment" and metrics.get("review_type"):
                 snapshot.last_portfolio_review = str(metrics["review_type"])
+            if app == "baseball" and metrics.get("player"):
+                snapshot.last_baseball_player = str(metrics["player"])
             if app == "baseball" and metrics.get("report"):
                 snapshot.last_baseball_report = str(metrics["report"])
             if app == "baseball" and metrics.get("projection"):
                 snapshot.last_baseball_projection = str(metrics["projection"])
+            if app == "music" and metrics.get("instrument"):
+                snapshot.last_instrument = str(metrics["instrument"])
             if app == "nba" and metrics.get("team"):
                 snapshot.last_nba_team = str(metrics["team"])
             if app == "nba" and metrics.get("page"):
@@ -415,6 +424,83 @@ def format_days_ago(days: int | None) -> str:
     return f"{days} days ago"
 
 
+@dataclass(frozen=True)
+class AppDirectoryCard:
+    """Compact launch card: dynamic highlights + optional last-active hint."""
+
+    highlights: tuple[str, ...]
+    when: str | None
+
+
+def _app_last_active_days(snapshot: ActivitySnapshot, app_key: str) -> int | None:
+    return {
+        "music": snapshot.last_music_practice_days_ago,
+        "investment": snapshot.last_portfolio_check_days_ago,
+        "baseball": snapshot.last_baseball_review_days_ago,
+        "nba": snapshot.last_nba_session_days_ago,
+        "applied_intelligence": snapshot.last_applied_intelligence_days_ago,
+        "future_lens": snapshot.last_future_lens_days_ago,
+    }.get(app_key)
+
+
+def _labeled(label: str, value: str) -> str:
+    cleaned = value.strip()
+    if not cleaned:
+        return ""
+    return f"{label}: {cleaned}"
+
+
+def get_app_directory_card(snapshot: ActivitySnapshot, app_key: str) -> AppDirectoryCard:
+    """Scannable highlights for the App Directory — short labels, real values only."""
+    lines: list[str] = []
+
+    if app_key == "music":
+        if snapshot.last_song:
+            lines.append(_labeled("Last song", snapshot.last_song))
+        if snapshot.last_instrument:
+            lines.append(_labeled("Instrument", snapshot.last_instrument))
+        if snapshot.music_streak_days > 0:
+            days_word = "day" if snapshot.music_streak_days == 1 else "days"
+            lines.append(_labeled("Streak", f"{snapshot.music_streak_days} {days_word}"))
+    elif app_key == "investment":
+        if snapshot.last_portfolio_review:
+            lines.append(_labeled("Last review", snapshot.last_portfolio_review))
+    elif app_key == "baseball":
+        player = snapshot.last_baseball_player or snapshot.last_baseball_projection
+        if player:
+            lines.append(_labeled("Last player", player))
+        if snapshot.last_baseball_report:
+            lines.append(_labeled("Last report", snapshot.last_baseball_report))
+    elif app_key == "nba":
+        if snapshot.last_nba_team:
+            lines.append(_labeled("Last team", snapshot.last_nba_team))
+        if snapshot.last_nba_page:
+            lines.append(_labeled("Last page", snapshot.last_nba_page))
+    elif app_key == "applied_intelligence":
+        topic = (
+            snapshot.last_applied_intelligence_analysis
+            or snapshot.last_applied_intelligence_lesson
+            or snapshot.applied_intelligence_next_lesson
+            or snapshot.last_applied_intelligence_page
+        )
+        if topic:
+            lines.append(_labeled("Last topic", topic))
+    elif app_key == "future_lens":
+        sim = snapshot.last_simulation_name or snapshot.future_project
+        if sim:
+            lines.append(_labeled("Last simulation", sim))
+
+    lines = [line for line in lines if line]
+
+    days = _app_last_active_days(snapshot, app_key)
+    when = format_days_ago(days) if days is not None and lines else None
+
+    if not lines:
+        return AppDirectoryCard(highlights=("Ready to start.",), when=None)
+
+    return AppDirectoryCard(highlights=tuple(lines[:3]), when=when)
+
+
 def get_activity_rows(snapshot: ActivitySnapshot) -> list[dict[str, str]]:
     """Factual recent-activity rows for the Activity Summary section."""
 
@@ -472,6 +558,9 @@ def get_activity_rows(snapshot: ActivitySnapshot) -> list[dict[str, str]]:
                 " · ".join(
                     p
                     for p in [
+                        f"Last player: {snapshot.last_baseball_player}"
+                        if snapshot.last_baseball_player
+                        else "",
                         f"Last report: {snapshot.last_baseball_report}" if snapshot.last_baseball_report else "",
                         f"Last projection: {snapshot.last_baseball_projection}"
                         if snapshot.last_baseball_projection

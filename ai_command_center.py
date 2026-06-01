@@ -16,7 +16,7 @@ from datetime import datetime
 
 import streamlit as st
 
-from activity_store import ActivitySnapshot, format_days_ago, get_activity_rows, load_activity_snapshot
+from activity_store import ActivitySnapshot, get_activity_rows, get_app_directory_card, load_activity_snapshot
 from app_registry import APP_DEFINITIONS, AppStatus, get_app_url, verify_connections
 from app_urls import BUILD_VERSION, HOMEPAGE_DEV_URL, HOMEPAGE_PRODUCTION_URL
 from coach_engine import CoachInsight, generate_coach_insights
@@ -100,29 +100,48 @@ st.markdown(
     .cc-activity-detail { font-size: 0.84rem; color: #64748b; line-height: 1.45; margin: 0; }
 
     .cc-app-card {
-        border-radius: 18px; padding: 1.15rem 1.2rem 0.25rem; height: 100%;
-        min-height: 300px; box-shadow: 0 6px 20px rgba(15, 23, 42, 0.07); border: 1px solid;
+        background: white; border-radius: 20px; padding: 1.25rem 1.3rem 0.35rem;
+        height: 100%; min-height: 0; box-shadow: 0 8px 28px rgba(15, 23, 42, 0.08);
+        border: 1px solid #e2e8f0; border-top-width: 4px;
+        transition: box-shadow 0.15s ease, transform 0.15s ease;
     }
-    .cc-app-header {
+    .cc-app-card:hover {
+        box-shadow: 0 12px 32px rgba(15, 23, 42, 0.12);
+        transform: translateY(-2px);
+    }
+    .cc-app-top {
         display: flex; justify-content: space-between; align-items: flex-start;
-        gap: 0.5rem; margin-bottom: 0.35rem;
+        gap: 0.75rem; margin-bottom: 0.85rem;
     }
-    .cc-app-icon { font-size: 2rem; }
+    .cc-app-icon-wrap {
+        width: 4.25rem; height: 4.25rem; border-radius: 18px;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 2.35rem; line-height: 1; flex-shrink: 0;
+    }
+    .cc-app-when {
+        font-size: 0.72rem; font-weight: 600; color: #94a3b8;
+        text-align: right; padding-top: 0.15rem; white-space: nowrap;
+    }
     .cc-status-badge {
         font-size: 0.65rem; font-weight: 700; text-transform: uppercase;
         letter-spacing: 0.04em; border-radius: 999px; padding: 0.2rem 0.55rem;
         border: 1px solid; white-space: nowrap;
     }
-    .cc-app-name { font-size: 1.05rem; font-weight: 800; color: #1e293b; margin-bottom: 0.3rem; }
-    .cc-app-desc { color: #64748b; font-size: 0.88rem; line-height: 1.45; margin-bottom: 0.55rem; }
-    .cc-meta { font-size: 0.78rem; color: #94a3b8; margin-bottom: 0.15rem; }
-    .cc-why-box {
-        border-radius: 10px; padding: 0.55rem 0.7rem; margin: 0.5rem 0 0.65rem;
-        font-size: 0.82rem; line-height: 1.4;
+    .cc-app-name {
+        font-size: 1.12rem; font-weight: 800; color: #0f172a;
+        margin-bottom: 0.65rem; letter-spacing: -0.02em; line-height: 1.25;
     }
-    .cc-why-label {
-        font-size: 0.68rem; font-weight: 700; text-transform: uppercase;
-        letter-spacing: 0.05em; margin-bottom: 0.15rem;
+    .cc-app-highlights { display: flex; flex-direction: column; gap: 0.35rem; min-height: 3.2rem; }
+    .cc-app-highlight {
+        font-size: 0.88rem; font-weight: 600; color: #334155; line-height: 1.35;
+        padding-left: 0.65rem; border-left: 3px solid;
+    }
+    .cc-app-highlight-label {
+        font-weight: 600; color: #64748b;
+    }
+    .cc-app-ready {
+        font-size: 0.88rem; font-weight: 500; color: #94a3b8; font-style: italic;
+        padding-left: 0; border: none;
     }
     .cc-empty-box {
         background: white; border: 1px dashed #cbd5e1; border-radius: 16px;
@@ -315,19 +334,24 @@ def _render_activity_summary(snapshot: ActivitySnapshot) -> None:
         )
 
 
-def _last_active_label(snapshot: ActivitySnapshot, key: str) -> str:
-    days_map = {
-        "music": snapshot.last_music_practice_days_ago,
-        "investment": snapshot.last_portfolio_check_days_ago,
-        "baseball": snapshot.last_baseball_review_days_ago,
-        "nba": snapshot.last_nba_session_days_ago,
-        "applied_intelligence": snapshot.last_applied_intelligence_days_ago,
-        "future_lens": snapshot.last_future_lens_days_ago,
-    }
-    days = days_map.get(key)
-    if days is None:
-        return "No activity recorded yet"
-    return f"Last active · {format_days_ago(days)}"
+def _app_highlight_line_html(line: str, accent: str) -> str:
+    if line == "Ready to start.":
+        return f'<div class="cc-app-ready">{html.escape(line)}</div>'
+    if ": " in line:
+        label, value = line.split(": ", 1)
+        return (
+            f'<div class="cc-app-highlight" style="border-color:{accent};">'
+            f'<span class="cc-app-highlight-label">{html.escape(label)}:</span> '
+            f"{html.escape(value)}</div>"
+        )
+    return (
+        f'<div class="cc-app-highlight" style="border-color:{accent};">{html.escape(line)}</div>'
+    )
+
+
+def _app_highlights_html(card_highlights: tuple[str, ...], accent: str) -> str:
+    parts = [_app_highlight_line_html(line, accent) for line in card_highlights]
+    return f'<div class="cc-app-highlights">{"".join(parts)}</div>'
 
 
 def _render_app_card(app_key: str, snapshot: ActivitySnapshot) -> None:
@@ -335,26 +359,31 @@ def _render_app_card(app_key: str, snapshot: ActivitySnapshot) -> None:
     theme = APP_THEMES[app.key]
     url = get_app_url(app.key)
     icon = theme["emoji"]
+    card = get_app_directory_card(snapshot, app.key)
+
+    when_html = (
+        f'<div class="cc-app-when" style="color:{theme["accent"]};">{html.escape(card.when)}</div>'
+        if card.when
+        else ""
+    )
+    badge_html = _status_badge_html(app.status) if app.status != "Active" else ""
 
     st.markdown(
         f"""
-        <div class="cc-app-card" style="background:{theme['bg']};border-color:{theme['border']};">
-            <div class="cc-app-header">
-                <div class="cc-app-icon">{icon}</div>
-                {_status_badge_html(app.status)}
+        <div class="cc-app-card" style="border-top-color:{theme['accent']};">
+            <div class="cc-app-top">
+                <div class="cc-app-icon-wrap" style="background:{theme['bg']};border:1px solid {theme['border']};">
+                    {icon}
+                </div>
+                {when_html or badge_html}
             </div>
             <div class="cc-app-name">{html.escape(app.name)}</div>
-            <div class="cc-app-desc">{html.escape(app.description)}</div>
-            <div class="cc-meta">{_last_active_label(snapshot, app.key)} · {app.branch} branch</div>
-            <div class="cc-why-box" style="background:white;border:1px solid {theme['border']};color:#475569;">
-                <div class="cc-why-label" style="color:{theme['accent']};">Why it matters</div>
-                {html.escape(app.why_it_matters)}
-            </div>
+            {_app_highlights_html(card.highlights, theme["accent"])}
         </div>
         """,
         unsafe_allow_html=True,
     )
-    _render_go_button(app.button_label, url, f"app_{app.key}")
+    _render_go_button("Open", url, f"app_{app.key}")
 
 
 def _render_app_directory(snapshot: ActivitySnapshot) -> None:
@@ -363,7 +392,7 @@ def _render_app_directory(snapshot: ActivitySnapshot) -> None:
         unsafe_allow_html=True,
     )
     st.markdown(
-        '<div class="cc-section-sub">Launch any app — icons, descriptions, and one-click access.</div>',
+        '<div class="cc-section-sub">Your apps at a glance — pick up where you left off or start fresh.</div>',
         unsafe_allow_html=True,
     )
 
