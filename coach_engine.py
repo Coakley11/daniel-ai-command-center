@@ -10,6 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from activity_store import ActivitySnapshot
+from suite_storage import load_active_resume_items
 
 
 @dataclass(frozen=True)
@@ -45,16 +46,34 @@ def generate_coach_insights(snapshot: ActivitySnapshot) -> list[CoachInsight]:
         )
 
     if snapshot.last_portfolio_check_days_ago is not None and snapshot.last_portfolio_check_days_ago >= 7:
+        days = snapshot.last_portfolio_check_days_ago
         candidates.append(
             CoachInsight(
                 key="investment",
                 icon="📊",
-                message="Run a portfolio health check and rebalance if needed.",
-                priority=15 + snapshot.last_portfolio_check_days_ago,
+                message=(
+                    f"You haven't checked portfolio health in {days} days — run a health check."
+                    if days >= 10
+                    else "Run a portfolio health check and rebalance if needed."
+                ),
+                priority=15 + days,
             )
         )
 
-    if snapshot.last_music_practice_days_ago is not None and snapshot.last_music_practice_days_ago >= 2:
+    if (
+        snapshot.last_music_practice_days_ago is not None
+        and snapshot.last_music_practice_days_ago <= 1
+        and snapshot.last_song
+    ):
+        candidates.append(
+            CoachInsight(
+                key="music",
+                icon="🎵",
+                message=f"You practiced music recently — continue {snapshot.last_song} for 20 minutes.",
+                priority=8,
+            )
+        )
+    elif snapshot.last_music_practice_days_ago is not None and snapshot.last_music_practice_days_ago >= 2:
         if snapshot.last_song:
             message = f"Block 30 minutes to practice {snapshot.last_song}."
         else:
@@ -127,6 +146,18 @@ def generate_coach_insights(snapshot: ActivitySnapshot) -> list[CoachInsight]:
                 priority=24,
             )
         )
+
+    for item in load_active_resume_items(limit=12):
+        if item.app == "future_lens" and item.title:
+            candidates.append(
+                CoachInsight(
+                    key="future_lens",
+                    icon="🔮",
+                    message=f"You started a Future Lens simulation — finish {item.title}.",
+                    priority=14,
+                )
+            )
+            break
 
     if snapshot.future_project or snapshot.last_simulation_name:
         label = snapshot.future_project or snapshot.last_simulation_name

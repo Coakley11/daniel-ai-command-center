@@ -16,7 +16,14 @@ from datetime import datetime
 
 import streamlit as st
 
-from activity_store import ActivitySnapshot, get_activity_rows, get_app_directory_card, load_activity_snapshot
+from activity_feed import build_activity_feed
+from activity_store import (
+    ActivitySnapshot,
+    get_app_directory_card,
+    get_weekly_summary,
+    load_activity_snapshot,
+    load_all_events,
+)
 from app_registry import APP_DEFINITIONS, AppStatus, get_app_url, verify_connections
 from app_urls import BUILD_VERSION, HOMEPAGE_DEV_URL, HOMEPAGE_PRODUCTION_URL
 from coach_engine import CoachInsight, generate_coach_insights
@@ -40,7 +47,8 @@ STATUS_STYLES: dict[AppStatus, dict[str, str]] = {
 
 SECTION_ICONS = {
     "coach": "💡",
-    "activity": "📋",
+    "feed": "🕐",
+    "weekly": "📅",
     "apps": "📱",
     "continue": "⏯",
 }
@@ -155,6 +163,21 @@ st.markdown(
         letter-spacing: 0.05em; color: #64748b; margin-bottom: 0.25rem; }
     .cc-continue-title { font-size: 0.98rem; font-weight: 800; color: #1e293b; margin-bottom: 0.2rem; }
     .cc-continue-sub { font-size: 0.84rem; color: #64748b; line-height: 1.45; margin: 0 0 0.65rem 0; }
+    .cc-feed-list { list-style: none; padding: 0; margin: 0; }
+    .cc-feed-item {
+        background: white; border-radius: 12px; padding: 0.75rem 1rem; margin-bottom: 0.5rem;
+        border: 1px solid #e2e8f0; box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+        font-size: 0.9rem; color: #334155; line-height: 1.4;
+    }
+    .cc-feed-meta { font-size: 0.72rem; font-weight: 700; color: #94a3b8; text-transform: uppercase;
+        letter-spacing: 0.04em; margin-bottom: 0.2rem; }
+    .cc-weekly-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.65rem; }
+    .cc-weekly-stat {
+        background: white; border-radius: 14px; padding: 0.85rem 1rem; border: 1px solid #e2e8f0;
+        box-shadow: 0 2px 10px rgba(15, 23, 42, 0.05);
+    }
+    .cc-weekly-value { font-size: 1.35rem; font-weight: 800; color: #0f172a; line-height: 1.1; }
+    .cc-weekly-label { font-size: 0.78rem; color: #64748b; margin-top: 0.15rem; }
     </style>
     """,
     unsafe_allow_html=True,
@@ -178,6 +201,11 @@ def _render_go_button(label: str, url: str, key: str) -> None:
         st.caption("Not connected")
 
 
+def _render_unsafe_html(block: str) -> None:
+    """Render HTML as one block (no newlines inside tags — Streamlit markdown-safe)."""
+    st.markdown(block.strip(), unsafe_allow_html=True)
+
+
 def _render_hero(snapshot: ActivitySnapshot) -> None:
     activity_tag = "Live activity" if snapshot.has_real_data else "Waiting for activity data"
     st.markdown(
@@ -185,7 +213,7 @@ def _render_hero(snapshot: ActivitySnapshot) -> None:
         <div class="cc-hero">
             <div class="cc-hero-tag">👋 Welcome back</div>
             <h1>🏠 Daniel Cohen AI Command Center</h1>
-            <p>Your personal AI dashboard — coach insights, recent activity, and app launchers.
+            <p>Your cross-app activity dashboard — continue work, coach insights, and app launchers.
             Build {BUILD_VERSION} · {activity_tag}.</p>
         </div>
         """,
@@ -232,15 +260,16 @@ def _render_continue_section(snapshot: ActivitySnapshot, cards: list[ContinueCar
         for idx, card in enumerate(chunk):
             theme = APP_THEMES.get(card.app_key, {"accent": "#6366f1", "emoji": card.emoji})
             with cols[idx]:
-                st.markdown(
-                    f"""
-                    <div class="cc-continue-card" style="border-left: 4px solid {theme['accent']};">
-                        <div class="cc-continue-app">{html.escape(card.app_name)}</div>
-                        <div class="cc-continue-title">{theme.get('emoji', card.emoji)} {html.escape(card.title)}</div>
-                        <p class="cc-continue-sub">{html.escape(card.subtitle)}</p>
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
+                sub = (
+                    f'<p class="cc-continue-sub">{html.escape(card.subtitle)}</p>'
+                    if card.subtitle
+                    else ""
+                )
+                _render_unsafe_html(
+                    f'<div class="cc-continue-card" style="border-left:4px solid {theme["accent"]};">'
+                    f'<div class="cc-continue-app">{html.escape(card.app_name)}</div>'
+                    f'<div class="cc-continue-title">{theme.get("emoji", card.emoji)} '
+                    f"{html.escape(card.title)}</div>{sub}</div>"
                 )
                 _render_go_button("Continue", card.action_url, f"continue_{card.app_key}_{idx}_{group_start}")
 
@@ -289,49 +318,81 @@ def _render_coach_insights(insights: list[CoachInsight]) -> None:
         )
 
 
-def _render_activity_summary(snapshot: ActivitySnapshot) -> None:
+def _render_recent_activity_feed() -> None:
     st.markdown(
-        f'<div class="cc-section-title">{SECTION_ICONS["activity"]} Activity Summary</div>',
+        f'<div class="cc-section-title">{SECTION_ICONS["feed"]} Recent Activity</div>',
         unsafe_allow_html=True,
     )
     st.markdown(
-        '<div class="cc-section-sub">What you actually did recently — facts only, no recommendations.</div>',
+        '<div class="cc-section-sub">Meaningful actions across your suite — newest first, no placeholder events.</div>',
         unsafe_allow_html=True,
     )
 
-    rows = get_activity_rows(snapshot)
-    app_keys = [app.key for app in APP_DEFINITIONS]
-
-    for group_start in (0, 3):
-        cols = st.columns(3, gap="medium")
-        chunk_keys = app_keys[group_start : group_start + 3]
-        chunk_rows = rows[group_start : group_start + 3]
-        for col, key, row in zip(cols, chunk_keys, chunk_rows):
-            theme = APP_THEMES[key]
-            has_activity = row["Last activity"] != "No activity yet"
-            when_color = theme["accent"] if has_activity else "#94a3b8"
-            with col:
-                st.markdown(
-                    f"""
-                    <div class="cc-activity-card" style="background:{theme['bg']};border-color:{theme['border']};">
-                        <div class="cc-activity-icon">{theme['emoji']}</div>
-                        <div class="cc-activity-name">{html.escape(row['App'])}</div>
-                        <div class="cc-activity-when" style="color:{when_color};">
-                            {html.escape(row['Last activity'])}
-                        </div>
-                        <p class="cc-activity-detail">{html.escape(row['Details'])}</p>
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
-
-    if not snapshot.has_real_data:
+    feed = build_activity_feed(load_all_events(), limit=20)
+    if not feed:
         st.markdown(
-            '<div class="cc-empty-box" style="margin-top:0.75rem;">'
-            "No cross-app activity recorded yet. Music practice logs load automatically when available; "
-            "other apps will populate this section as tracking is wired in.</div>",
+            '<div class="cc-empty-box">No meaningful actions logged yet. Use your apps locally (sibling repos '
+            "side-by-side) or add a cloud activity backend for Streamlit Cloud sync.</div>",
             unsafe_allow_html=True,
         )
+        return
+
+    items_html = []
+    for item in feed:
+        when = ""
+        if item.timestamp:
+            try:
+                when = datetime.fromisoformat(item.timestamp).strftime("%b %d · %I:%M %p")
+            except ValueError:
+                when = item.timestamp[:16]
+        items_html.append(
+            f'<li class="cc-feed-item"><div class="cc-feed-meta">{html.escape(item.app_label)}'
+            f'{f" · {html.escape(when)}" if when else ""}</div>{html.escape(item.message)}</li>'
+        )
+    _render_unsafe_html(f'<ul class="cc-feed-list">{"".join(items_html)}</ul>')
+
+
+def _render_weekly_summary(snapshot: ActivitySnapshot) -> None:
+    st.markdown(
+        f'<div class="cc-section-title">{SECTION_ICONS["weekly"]} Weekly Summary</div>',
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        '<div class="cc-section-sub">This week only — counts appear when real activity exists.</div>',
+        unsafe_allow_html=True,
+    )
+
+    summary = get_weekly_summary(snapshot)
+    if not summary.has_any:
+        st.markdown(
+            '<div class="cc-empty-box">No weekly activity totals yet. Practice, review, or run an analysis '
+            "in any suite app to populate this section.</div>",
+            unsafe_allow_html=True,
+        )
+        return
+
+    stats: list[tuple[str, str]] = []
+    if summary.music_minutes > 0:
+        stats.append((f"{summary.music_minutes:.0f}", "Music practice min"))
+    if summary.songs_practiced > 0:
+        stats.append((str(summary.songs_practiced), "Songs practiced"))
+    if summary.baseball_reviews > 0:
+        stats.append((str(summary.baseball_reviews), "Baseball actions"))
+    if summary.portfolio_checks > 0:
+        stats.append((str(summary.portfolio_checks), "Portfolio checks"))
+    if summary.nba_sessions > 0:
+        stats.append((str(summary.nba_sessions), "Basketball sessions"))
+    if summary.applied_intelligence_sessions > 0:
+        stats.append((str(summary.applied_intelligence_sessions), "Applied Intelligence"))
+    if summary.future_simulations > 0:
+        stats.append((str(summary.future_simulations), "Simulations"))
+
+    cells = "".join(
+        f'<div class="cc-weekly-stat"><div class="cc-weekly-value">{html.escape(val)}</div>'
+        f'<div class="cc-weekly-label">{html.escape(label)}</div></div>'
+        for val, label in stats
+    )
+    _render_unsafe_html(f'<div class="cc-weekly-grid">{cells}</div>')
 
 
 def _app_highlight_line_html(line: str, accent: str) -> str:
@@ -352,11 +413,6 @@ def _app_highlight_line_html(line: str, accent: str) -> str:
 def _app_highlights_html(card_highlights: tuple[str, ...], accent: str) -> str:
     parts = [_app_highlight_line_html(line, accent) for line in card_highlights]
     return f'<div class="cc-app-highlights">{"".join(parts)}</div>'
-
-
-def _render_unsafe_html(block: str) -> None:
-    """Render HTML as one block (no newlines inside tags — Streamlit markdown-safe)."""
-    st.markdown(block.strip(), unsafe_allow_html=True)
 
 
 def _build_app_card_html(app_key: str, snapshot: ActivitySnapshot) -> str:
@@ -423,7 +479,8 @@ connections = _cached_connections()
 _render_hero(snapshot)
 _render_continue_section(snapshot, continue_cards)
 _render_coach_insights(insights)
-_render_activity_summary(snapshot)
+_render_recent_activity_feed()
+_render_weekly_summary(snapshot)
 _render_app_directory(snapshot)
 
 with st.expander("Deployment & link audit (admin)"):

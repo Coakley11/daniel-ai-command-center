@@ -36,6 +36,15 @@ MUSIC_LOG_CANDIDATES = (
     Path.home() / "Documents" / "GitHub" / "ai-music-practice-coach" / "practice_history.json",
 )
 
+APP_REPO_DIRS: dict[str, str] = {
+    "music": "ai-music-practice-coach",
+    "baseball": "baseball-stat-app",
+    "investment": "investment-portfolio-analyzer",
+    "nba": "nba-playoff-companion-ai",
+    "applied_intelligence": "Applied-mathematical-intelligence",
+    "future_lens": "future-lens-ai-transition-simulator",
+}
+
 APP_STATE_CANDIDATES: dict[str, tuple[Path, ...]] = {
     "music": (
         Path(__file__).resolve().parent.parent / "ai-music-practice-coach" / "data" / "app_state.json",
@@ -57,6 +66,10 @@ APP_STATE_CANDIDATES: dict[str, tuple[Path, ...]] = {
         Path(__file__).resolve().parent.parent / "future-lens-ai-transition-simulator" / "data" / "app_state.json",
         Path.home() / "Documents" / "GitHub" / "future-lens-ai-transition-simulator" / "data" / "app_state.json",
     ),
+    "nba": (
+        Path(__file__).resolve().parent.parent / "nba-playoff-companion-ai" / "data" / "app_state.json",
+        Path.home() / "Documents" / "GitHub" / "nba-playoff-companion-ai" / "data" / "app_state.json",
+    ),
 }
 
 
@@ -72,6 +85,7 @@ class ActivitySnapshot:
     last_song: str = ""
     last_song_focus: str = ""
     last_instrument: str = ""
+    last_display_key: str = ""
     music_minutes_this_week: float = 0.0
     songs_practiced_this_week: int = 0
     music_streak_days: int = 0
@@ -161,8 +175,66 @@ def _load_json_dict(path: Path) -> dict[str, Any]:
     return raw if isinstance(raw, dict) else {}
 
 
+def _fallback_event_paths(app: str) -> tuple[Path, ...]:
+    repo = APP_REPO_DIRS.get(app, "")
+    names: list[Path] = [
+        DATA_DIR / f"{app}_activity_fallback.json",
+    ]
+    if repo:
+        names.extend(
+            [
+                Path(__file__).resolve().parent.parent / repo / "data" / f"{app}_activity_fallback.json",
+                Path(__file__).resolve().parent.parent / repo / f"{app}_activity_fallback.json",
+                Path.home() / "Documents" / "GitHub" / repo / "data" / f"{app}_activity_fallback.json",
+            ]
+        )
+    return tuple(names)
+
+
+def _load_fallback_events() -> list[dict[str, Any]]:
+    """Per-app JSON logs written when SQLite is unavailable (isolated per deployment)."""
+    merged: list[dict[str, Any]] = []
+    for app in APP_REPO_DIRS:
+        for path in _fallback_event_paths(app):
+            if not path.is_file():
+                continue
+            try:
+                raw = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                continue
+            if not isinstance(raw, list):
+                continue
+            for row in raw:
+                if isinstance(row, dict) and row.get("app"):
+                    merged.append(row)
+            break
+    return merged
+
+
 def load_events() -> list[dict[str, Any]]:
     return _load_db_events()
+
+
+def load_all_events(limit: int = 500) -> list[dict[str, Any]]:
+    """SQLite history plus per-app fallback files (deduped, chronological)."""
+    db_events = _load_db_events(limit=limit)
+    fallbacks = _load_fallback_events()
+    if not fallbacks:
+        return db_events
+    seen: set[tuple[str, str, str]] = set()
+    combined: list[dict[str, Any]] = []
+    for event in db_events + fallbacks:
+        key = (
+            str(event.get("app") or ""),
+            str(event.get("timestamp") or ""),
+            str(event.get("event") or ""),
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        combined.append(event)
+    combined.sort(key=lambda e: str(e.get("timestamp") or ""))
+    return combined[-limit:]
 
 
 def log_event(
@@ -196,6 +268,12 @@ def _ingest_app_state_files(snapshot: ActivitySnapshot) -> None:
                 snapshot.last_song = str(block["song"])
             if block.get("focus"):
                 snapshot.last_song_focus = str(block["focus"])
+            if block.get("instrument"):
+                snapshot.last_instrument = str(block["instrument"])
+            if block.get("display_key"):
+                snapshot.last_display_key = str(block["display_key"])
+            if block.get("practice_focus_section"):
+                snapshot.last_song_focus = str(block["practice_focus_section"])
         if app_key == "baseball" and block.get("player"):
             snapshot.last_baseball_player = str(block["player"])
         if app_key == "baseball" and block.get("report"):
@@ -212,6 +290,11 @@ def _ingest_app_state_files(snapshot: ActivitySnapshot) -> None:
                 snapshot.future_project = str(block["project"])
             if block.get("simulation"):
                 snapshot.last_simulation_name = str(block["simulation"])
+        if app_key == "nba":
+            if block.get("team"):
+                snapshot.last_nba_team = str(block["team"])
+            if block.get("page") or block.get("page_label"):
+                snapshot.last_nba_page = str(block.get("page_label") or block.get("page") or "")
         if page and not snapshot.last_opened_page:
             snapshot.last_opened_app = app_key
             snapshot.last_opened_page = page
@@ -273,8 +356,64 @@ def _ingest_music_logs(snapshot: ActivitySnapshot) -> None:
         return
 
 
+MEANINGFUL_WEEK_EVENTS = frozenset(
+    {
+        "session",
+        "page_view",
+        "analysis",
+        "practice",
+        "simulation",
+        "portfolio_check",
+        "lineup_review",
+        "comparison",
+        "trade_eval",
+        "song_selected",
+        "chord_save",
+        "chart_save",
+        "backing_track",
+    }
+)
+
+
+@dataclass(frozen=True)
+class WeeklySummary:
+    music_minutes: float
+    songs_practiced: int
+    baseball_reviews: int
+    portfolio_checks: int
+    nba_sessions: int
+    applied_intelligence_sessions: int
+    future_simulations: int
+
+    @property
+    def has_any(self) -> bool:
+        return any(
+            (
+                self.music_minutes > 0,
+                self.songs_practiced > 0,
+                self.baseball_reviews > 0,
+                self.portfolio_checks > 0,
+                self.nba_sessions > 0,
+                self.applied_intelligence_sessions > 0,
+                self.future_simulations > 0,
+            )
+        )
+
+
+def get_weekly_summary(snapshot: ActivitySnapshot) -> WeeklySummary:
+    return WeeklySummary(
+        music_minutes=snapshot.music_minutes_this_week,
+        songs_practiced=snapshot.songs_practiced_this_week,
+        baseball_reviews=snapshot.baseball_reviews_this_week,
+        portfolio_checks=snapshot.portfolio_checks_this_week,
+        nba_sessions=snapshot.nba_sessions_this_week,
+        applied_intelligence_sessions=snapshot.applied_intelligence_sessions_this_week,
+        future_simulations=snapshot.future_simulations_this_week,
+    )
+
+
 def _ingest_suite_events(snapshot: ActivitySnapshot) -> None:
-    events = load_events()
+    events = load_all_events()
     if not events:
         return
 
@@ -309,15 +448,7 @@ def _ingest_suite_events(snapshot: ActivitySnapshot) -> None:
         if ts >= week_start_dt:
             event_name = str(event.get("event", ""))
             metrics = event.get("metrics") or {}
-            if app in week_counts and event_name in {
-                "session",
-                "page_view",
-                "analysis",
-                "practice",
-                "simulation",
-                "portfolio_check",
-                "lineup_review",
-            }:
+            if app in week_counts and event_name in MEANINGFUL_WEEK_EVENTS:
                 week_counts[app] += 1
 
             if app == "future_lens" and metrics.get("project"):
@@ -350,6 +481,8 @@ def _ingest_suite_events(snapshot: ActivitySnapshot) -> None:
                 snapshot.last_song = str(metrics["song"])
             if app == "music" and metrics.get("focus"):
                 snapshot.last_song_focus = str(metrics["focus"])
+            if app == "music" and metrics.get("display_key"):
+                snapshot.last_display_key = str(metrics["display_key"])
 
         if last_opened is None or ts >= last_opened[2]:
             last_opened = (app, str(event.get("page") or ""), ts)
@@ -366,6 +499,8 @@ def _ingest_suite_events(snapshot: ActivitySnapshot) -> None:
         updated_at = str(state.get("updated_at") or "")
         if app_key == "music" and metrics.get("song"):
             snapshot.last_song = str(metrics["song"])
+        if app_key == "music" and metrics.get("instrument"):
+            snapshot.last_instrument = str(metrics["instrument"])
         if app_key == "applied_intelligence" and page:
             snapshot.last_applied_intelligence_page = page
         if app_key == "future_lens" and metrics.get("project"):
