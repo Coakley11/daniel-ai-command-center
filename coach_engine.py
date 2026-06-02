@@ -45,18 +45,71 @@ def generate_coach_insights(snapshot: ActivitySnapshot) -> list[CoachInsight]:
             )
         )
 
-    if snapshot.last_portfolio_check_days_ago is not None and snapshot.last_portfolio_check_days_ago >= 7:
+    if (
+        snapshot.investment_last_portfolio_created_days_ago is not None
+        and snapshot.investment_last_portfolio_created_days_ago <= 14
+        and (
+            snapshot.last_portfolio_check_days_ago is None
+            or (
+                snapshot.investment_last_portfolio_created_days_ago
+                < snapshot.last_portfolio_check_days_ago
+            )
+        )
+    ):
+        candidates.append(
+            CoachInsight(
+                key="investment",
+                icon="📊",
+                message="You built a portfolio but have not run a health check yet.",
+                priority=8,
+            )
+        )
+    elif (
+        snapshot.investment_last_holdings_update_days_ago is not None
+        and snapshot.investment_last_holdings_update_days_ago <= 7
+        and (
+            snapshot.investment_last_allocation_review_days_ago is None
+            or snapshot.investment_last_holdings_update_days_ago
+            < snapshot.investment_last_allocation_review_days_ago
+        )
+    ):
+        candidates.append(
+            CoachInsight(
+                key="investment",
+                icon="📊",
+                message="You changed holdings but have not reviewed allocation drift.",
+                priority=9,
+            )
+        )
+    elif snapshot.last_portfolio_check_days_ago is not None and snapshot.last_portfolio_check_days_ago >= 7:
         days = snapshot.last_portfolio_check_days_ago
         candidates.append(
             CoachInsight(
                 key="investment",
                 icon="📊",
                 message=(
-                    f"You haven't checked portfolio health in {days} days — run a health check."
+                    f"You have not checked portfolio health in {days} days."
                     if days >= 10
                     else "Run a portfolio health check and rebalance if needed."
                 ),
                 priority=15 + days,
+            )
+        )
+    elif (
+        snapshot.investment_last_scenario_days_ago is not None
+        and snapshot.investment_last_scenario_days_ago <= 7
+        and (
+            snapshot.investment_last_rebalance_review_days_ago is None
+            or snapshot.investment_last_scenario_days_ago
+            < snapshot.investment_last_rebalance_review_days_ago
+        )
+    ):
+        candidates.append(
+            CoachInsight(
+                key="investment",
+                icon="📊",
+                message="You ran a scenario but did not review recommendations.",
+                priority=10,
             )
         )
 

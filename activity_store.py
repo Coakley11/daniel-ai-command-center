@@ -15,7 +15,7 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from activity_feed import format_activity_message, music_directory_rank
+from activity_feed import format_activity_message, investment_directory_rank, music_directory_rank
 
 from app_registry import get_app_url
 from suite_storage import (
@@ -124,6 +124,19 @@ class ActivitySnapshot:
     last_portfolio_check_days_ago: int | None = None
     portfolio_checks_this_week: int = 0
     last_portfolio_review: str = ""
+    last_investment_goal: str = ""
+    last_investment_holdings_count: int = 0
+    last_investment_risk_profile: str = ""
+    investment_directory_primary: str = ""
+    investment_scenarios_this_week: int = 0
+    investment_optimizer_runs_this_week: int = 0
+    investment_holdings_updates_this_week: int = 0
+    investment_goals_selected_this_week: int = 0
+    investment_last_holdings_update_days_ago: int | None = None
+    investment_last_allocation_review_days_ago: int | None = None
+    investment_last_scenario_days_ago: int | None = None
+    investment_last_rebalance_review_days_ago: int | None = None
+    investment_last_portfolio_created_days_ago: int | None = None
 
     # Baseball
     last_baseball_review_days_ago: int | None = None
@@ -576,6 +589,18 @@ MEANINGFUL_WEEK_EVENTS = frozenset(
         "practice",
         "simulation",
         "portfolio_check",
+        "portfolio_health_checked",
+        "investment_goal_selected",
+        "portfolio_created",
+        "holdings_updated",
+        "allocation_reviewed",
+        "optimizer_run",
+        "frontier_viewed",
+        "macro_environment_applied",
+        "scenario_run",
+        "ticker_analyzed",
+        "rebalance_reviewed",
+        "risk_profile_changed",
         "lineup_review",
         "comparison",
         "trade_eval",
@@ -681,6 +706,10 @@ class WeeklySummary:
     music_backing_sessions: int
     baseball_reviews: int
     portfolio_checks: int
+    investment_scenarios: int
+    investment_optimizer_runs: int
+    investment_holdings_updates: int
+    investment_goals_selected: int
     nba_sessions: int
     applied_intelligence_sessions: int
     future_simulations: int
@@ -697,6 +726,10 @@ class WeeklySummary:
                 self.music_backing_sessions > 0,
                 self.baseball_reviews > 0,
                 self.portfolio_checks > 0,
+                self.investment_scenarios > 0,
+                self.investment_optimizer_runs > 0,
+                self.investment_holdings_updates > 0,
+                self.investment_goals_selected > 0,
                 self.nba_sessions > 0,
                 self.applied_intelligence_sessions > 0,
                 self.future_simulations > 0,
@@ -714,6 +747,10 @@ def get_weekly_summary(snapshot: ActivitySnapshot) -> WeeklySummary:
         music_backing_sessions=snapshot.music_backing_sessions_this_week,
         baseball_reviews=snapshot.baseball_reviews_this_week,
         portfolio_checks=snapshot.portfolio_checks_this_week,
+        investment_scenarios=snapshot.investment_scenarios_this_week,
+        investment_optimizer_runs=snapshot.investment_optimizer_runs_this_week,
+        investment_holdings_updates=snapshot.investment_holdings_updates_this_week,
+        investment_goals_selected=snapshot.investment_goals_selected_this_week,
         nba_sessions=snapshot.nba_sessions_this_week,
         applied_intelligence_sessions=snapshot.applied_intelligence_sessions_this_week,
         future_simulations=snapshot.future_simulations_this_week,
@@ -742,7 +779,17 @@ def _ingest_suite_events(snapshot: ActivitySnapshot) -> None:
     music_dir_rank = 0
     music_dir_ts = datetime.min
     music_dir_line = ""
+    inv_dir_rank = 0
+    inv_dir_ts = datetime.min
+    inv_dir_line = ""
+    inv_health_week = 0
     music_edit_week: Counter[str] = Counter()
+    inv_portfolio_ts: datetime | None = None
+    inv_health_ts: datetime | None = None
+    inv_holdings_ts: datetime | None = None
+    inv_allocation_ts: datetime | None = None
+    inv_scenario_ts: datetime | None = None
+    inv_rebalance_ts: datetime | None = None
     music_practice_week: set[str] = set()
     last_upload_ts: datetime | None = None
     last_review_ts: datetime | None = None
@@ -806,6 +853,57 @@ def _ingest_suite_events(snapshot: ActivitySnapshot) -> None:
                 if song_name:
                     snapshot.last_song = song_name
 
+        if app == "investment":
+            msg = format_activity_message(event)
+            rank = investment_directory_rank(event_name)
+            if msg and rank and (rank > inv_dir_rank or (rank == inv_dir_rank and ts > inv_dir_ts)):
+                inv_dir_rank, inv_dir_ts, inv_dir_line = rank, ts, msg
+
+            goal_title = str(
+                metrics.get("goal_title") or metrics.get("goal") or ""
+            ).strip()
+            if goal_title:
+                snapshot.last_investment_goal = goal_title
+            if metrics.get("holdings_count") is not None:
+                try:
+                    snapshot.last_investment_holdings_count = int(metrics["holdings_count"])
+                except (TypeError, ValueError):
+                    pass
+            risk = str(metrics.get("risk_profile") or metrics.get("objective") or "").strip()
+            if risk:
+                snapshot.last_investment_risk_profile = risk.replace("_", " ").title()
+            review = str(metrics.get("review_type") or "").strip()
+            if review:
+                snapshot.last_portfolio_review = review
+
+            if event_name == "portfolio_created":
+                if inv_portfolio_ts is None or ts > inv_portfolio_ts:
+                    inv_portfolio_ts = ts
+                    snapshot.investment_last_portfolio_created_days_ago = _days_ago(ts.date())
+            elif event_name in ("portfolio_health_checked", "portfolio_check"):
+                if inv_health_ts is None or ts > inv_health_ts:
+                    inv_health_ts = ts
+                    snapshot.last_portfolio_check_days_ago = _days_ago(ts.date())
+            elif event_name == "holdings_updated":
+                if inv_holdings_ts is None or ts > inv_holdings_ts:
+                    inv_holdings_ts = ts
+                    snapshot.investment_last_holdings_update_days_ago = _days_ago(ts.date())
+                tickers = metrics.get("tickers")
+                if isinstance(tickers, list) and tickers:
+                    snapshot.last_investment_holdings_count = len(tickers)
+            elif event_name == "allocation_reviewed":
+                if inv_allocation_ts is None or ts > inv_allocation_ts:
+                    inv_allocation_ts = ts
+                    snapshot.investment_last_allocation_review_days_ago = _days_ago(ts.date())
+            elif event_name == "scenario_run":
+                if inv_scenario_ts is None or ts > inv_scenario_ts:
+                    inv_scenario_ts = ts
+                    snapshot.investment_last_scenario_days_ago = _days_ago(ts.date())
+            elif event_name == "rebalance_reviewed":
+                if inv_rebalance_ts is None or ts > inv_rebalance_ts:
+                    inv_rebalance_ts = ts
+                    snapshot.investment_last_rebalance_review_days_ago = _days_ago(ts.date())
+
         if ts >= week_start_dt:
             if app in week_counts and event_name in MEANINGFUL_WEEK_EVENTS:
                 week_counts[app] += 1
@@ -839,8 +937,32 @@ def _ingest_suite_events(snapshot: ActivitySnapshot) -> None:
                 snapshot.last_applied_intelligence_analysis = str(metrics["analysis"])
             if app == "applied_intelligence" and event.get("page"):
                 snapshot.last_applied_intelligence_page = str(event.get("page") or "")
-            if app == "investment" and metrics.get("review_type"):
-                snapshot.last_portfolio_review = str(metrics["review_type"])
+            if app == "investment":
+                if event_name in ("portfolio_health_checked", "portfolio_check"):
+                    inv_health_week += 1
+                elif event_name == "scenario_run":
+                    snapshot.investment_scenarios_this_week += 1
+                elif event_name == "optimizer_run":
+                    snapshot.investment_optimizer_runs_this_week += 1
+                elif event_name == "holdings_updated":
+                    snapshot.investment_holdings_updates_this_week += 1
+                elif event_name == "investment_goal_selected":
+                    snapshot.investment_goals_selected_this_week += 1
+                if metrics.get("review_type"):
+                    snapshot.last_portfolio_review = str(metrics["review_type"])
+                if metrics.get("goal_title") or metrics.get("goal"):
+                    snapshot.last_investment_goal = str(
+                        metrics.get("goal_title") or metrics.get("goal")
+                    )
+                if metrics.get("holdings_count") is not None:
+                    try:
+                        snapshot.last_investment_holdings_count = int(metrics["holdings_count"])
+                    except (TypeError, ValueError):
+                        pass
+                if metrics.get("risk_profile") or metrics.get("objective"):
+                    snapshot.last_investment_risk_profile = str(
+                        metrics.get("risk_profile") or metrics.get("objective")
+                    ).replace("_", " ").title()
             if app == "baseball" and metrics.get("player"):
                 snapshot.last_baseball_player = str(metrics["player"])
             if app == "baseball" and metrics.get("report"):
@@ -869,6 +991,8 @@ def _ingest_suite_events(snapshot: ActivitySnapshot) -> None:
 
     if music_dir_line:
         snapshot.music_directory_primary = music_dir_line
+    if inv_dir_line:
+        snapshot.investment_directory_primary = inv_dir_line
     if last_upload_ts:
         snapshot.last_music_upload_days_ago = _days_ago(last_upload_ts.date())
     if last_review_ts:
@@ -925,7 +1049,7 @@ def _ingest_suite_events(snapshot: ActivitySnapshot) -> None:
     if snapshot.last_music_practice_days_ago is None:
         snapshot.last_music_practice_days_ago = _latest_days("music")
 
-    snapshot.portfolio_checks_this_week = week_counts["investment"]
+    snapshot.portfolio_checks_this_week = inv_health_week or week_counts["investment"]
     snapshot.baseball_reviews_this_week = week_counts["baseball"]
     snapshot.nba_sessions_this_week = week_counts["nba"]
     snapshot.applied_intelligence_sessions_this_week = week_counts["applied_intelligence"]
@@ -1000,8 +1124,16 @@ def get_app_directory_card(snapshot: ActivitySnapshot, app_key: str) -> AppDirec
             days_word = "day" if snapshot.music_streak_days == 1 else "days"
             lines.append(_labeled("Streak", f"{snapshot.music_streak_days} {days_word}"))
     elif app_key == "investment":
-        if snapshot.last_portfolio_review:
+        if snapshot.investment_directory_primary:
+            lines.append(snapshot.investment_directory_primary)
+        elif snapshot.last_portfolio_review:
             lines.append(_labeled("Last review", snapshot.last_portfolio_review))
+        if snapshot.last_investment_goal:
+            lines.append(_labeled("Last goal", snapshot.last_investment_goal))
+        if snapshot.last_investment_holdings_count > 0:
+            lines.append(_labeled("Holdings", str(snapshot.last_investment_holdings_count)))
+        if snapshot.last_investment_risk_profile:
+            lines.append(_labeled("Risk profile", snapshot.last_investment_risk_profile))
     elif app_key == "baseball":
         player = snapshot.last_baseball_player or snapshot.last_baseball_projection
         if player:
@@ -1079,11 +1211,23 @@ def get_activity_rows(snapshot: ActivitySnapshot) -> list[dict[str, str]]:
             "Last activity": format_days_ago(snapshot.last_portfolio_check_days_ago),
             "Details": _detail(
                 "investment",
-                snapshot.last_portfolio_review
-                or (
-                    f"{snapshot.portfolio_checks_this_week} checks this week"
-                    if snapshot.portfolio_checks_this_week
-                    else ""
+                " · ".join(
+                    p
+                    for p in [
+                        f"Goal: {snapshot.last_investment_goal}"
+                        if snapshot.last_investment_goal
+                        else "",
+                        f"{snapshot.last_investment_holdings_count} holdings"
+                        if snapshot.last_investment_holdings_count
+                        else "",
+                        snapshot.last_portfolio_review
+                        or (
+                            f"{snapshot.portfolio_checks_this_week} checks this week"
+                            if snapshot.portfolio_checks_this_week
+                            else ""
+                        ),
+                    ]
+                    if p
                 ),
             ),
         },

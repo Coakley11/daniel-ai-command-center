@@ -142,12 +142,67 @@ def format_activity_message(event: dict[str, Any]) -> str | None:
             return f"Opened: {line}"
         return summary or None
 
-    if event_type == "portfolio_check" and app == "investment":
-        label = str(m.get("review_type") or "portfolio health").strip()
-        score = m.get("score")
-        if score is not None:
-            return f"Ran portfolio health check ({label}, {float(score):.0f}/100)"
-        return f"Ran portfolio health check ({label})"
+    if app == "investment":
+        if event_type == "investment_goal_selected":
+            goal = str(m.get("goal_title") or m.get("goal") or "").strip()
+            if goal:
+                return f"Selected investment goal: {goal}"
+            return "Selected an investment goal"
+
+        if event_type == "portfolio_created":
+            count = m.get("holdings_count")
+            if count is not None:
+                return f"Built portfolio with {int(count)} holdings"
+            return "Built a portfolio"
+
+        if event_type == "holdings_updated":
+            tickers = m.get("tickers") or []
+            if isinstance(tickers, list) and tickers:
+                sample = ", ".join(str(t).upper() for t in tickers[:6])
+                if len(tickers) > 6:
+                    sample += f", +{len(tickers) - 6} more"
+                return f"Updated holdings: {sample}"
+            return "Updated portfolio holdings"
+
+        if event_type in ("portfolio_health_checked", "portfolio_check"):
+            label = str(m.get("review_type") or "portfolio health").strip()
+            score = m.get("score")
+            if score is not None and event_type == "portfolio_health_checked":
+                return f"Ran portfolio health check ({label}, {float(score):.0f}/100)"
+            if score is not None:
+                return f"Ran portfolio health check ({label}, {float(score):.0f}/100)"
+            return "Ran portfolio health check"
+
+        if event_type == "risk_profile_changed":
+            profile = str(m.get("risk_profile") or m.get("objective") or "").strip()
+            if profile:
+                return f"Risk profile: {profile.replace('_', ' ').title()}"
+            return "Changed risk profile"
+
+        if event_type == "allocation_reviewed":
+            return "Reviewed allocation drift"
+
+        if event_type == "optimizer_run":
+            return "Ran optimizer"
+
+        if event_type == "frontier_viewed":
+            return "Viewed efficient frontier"
+
+        if event_type == "macro_environment_applied":
+            return "Applied current macro environment"
+
+        if event_type == "scenario_run":
+            ctx = str(m.get("scenario_type") or m.get("context") or "").strip()
+            if ctx:
+                return f"Ran investment scenario ({ctx})"
+            return "Ran investment scenario"
+
+        if event_type == "ticker_analyzed":
+            ticker = str(m.get("ticker") or "").strip().upper()
+            return f"Analyzed ticker {ticker}" if ticker else "Analyzed a ticker"
+
+        if event_type == "rebalance_reviewed":
+            return "Reviewed rebalance guidance"
 
     if event_type == "comparison" and app == "baseball":
         pair = _player_pair(m)
@@ -241,9 +296,40 @@ def _feed_priority(event: dict[str, Any]) -> int:
         return 3
     if app == "music" and event_type == "song_selected":
         return 0
+    if app == "investment" and event_type in {
+        "portfolio_health_checked",
+        "portfolio_check",
+        "holdings_updated",
+        "portfolio_created",
+        "optimizer_run",
+        "scenario_run",
+        "allocation_reviewed",
+        "rebalance_reviewed",
+        "investment_goal_selected",
+        "macro_environment_applied",
+        "frontier_viewed",
+        "ticker_analyzed",
+        "risk_profile_changed",
+    }:
+        return 4
     if event_type == "page_view":
         return 0
     return 2
+
+
+def investment_directory_rank(event_type: str) -> int:
+    """Higher rank wins on Investment App Directory card."""
+    if event_type in {"portfolio_health_checked", "portfolio_check"}:
+        return 5
+    if event_type in {"allocation_reviewed", "rebalance_reviewed", "optimizer_run"}:
+        return 4
+    if event_type in {"holdings_updated", "scenario_run", "macro_environment_applied"}:
+        return 3
+    if event_type in {"portfolio_created", "investment_goal_selected", "risk_profile_changed"}:
+        return 2
+    if event_type == "frontier_viewed":
+        return 1
+    return 0
 
 
 def music_directory_rank(event_type: str) -> int:

@@ -34,14 +34,18 @@ def main() -> int:
     for app in sorted(d.last_event_by_app_command_center):
         print(f"  {app}: {d.last_event_by_app_command_center[app]}")
 
-    print("\nPhase A — Music events:")
-    print(f"{'Event':<28} {'Supabase':<10} {'CC read':<10} Feed preview")
-    print("-" * 90)
-    for row in d.phase_a_music:
-        print(
-            f"{row.event_type:<28} {str(row.in_supabase):<10} {str(row.in_command_center):<10} "
-            f"{row.feed_preview[:48]}"
-        )
+    def _print_phase_a(title: str, rows: list) -> None:
+        print(f"\n{title}:")
+        print(f"{'Event':<28} {'Supabase':<10} {'CC read':<10} Feed preview")
+        print("-" * 90)
+        for row in rows:
+            print(
+                f"{row.event_type:<28} {str(row.in_supabase):<10} {str(row.in_command_center):<10} "
+                f"{row.feed_preview[:48]}"
+            )
+
+    _print_phase_a("Phase A — Music events", d.phase_a_music)
+    _print_phase_a("Phase A — Investment events", d.phase_a_investment)
 
     print(f"\n{d.recommendation}")
     return 0 if d.failure_step.startswith("none") else 1

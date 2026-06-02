@@ -389,6 +389,14 @@ def _render_weekly_summary(snapshot: ActivitySnapshot) -> None:
         stats.append((str(summary.baseball_reviews), "Baseball actions"))
     if summary.portfolio_checks > 0:
         stats.append((str(summary.portfolio_checks), "Portfolio checks"))
+    if summary.investment_scenarios > 0:
+        stats.append((str(summary.investment_scenarios), "Scenarios run"))
+    if summary.investment_optimizer_runs > 0:
+        stats.append((str(summary.investment_optimizer_runs), "Optimizer runs"))
+    if summary.investment_holdings_updates > 0:
+        stats.append((str(summary.investment_holdings_updates), "Holdings updates"))
+    if summary.investment_goals_selected > 0:
+        stats.append((str(summary.investment_goals_selected), "Goals selected"))
     if summary.nba_sessions > 0:
         stats.append((str(summary.nba_sessions), "Basketball sessions"))
     if summary.applied_intelligence_sessions > 0:
@@ -583,6 +591,22 @@ with st.expander("Deployment & link audit (admin)"):
                 "Latest": row.latest_timestamp,
             }
             for row in diag.phase_a_music
+        ],
+        use_container_width=True,
+        hide_index=True,
+    )
+
+    st.markdown("##### Phase A — Investment event verification")
+    st.dataframe(
+        [
+            {
+                "Event": row.event_type,
+                "In Supabase": row.in_supabase,
+                "CC reads row": row.in_command_center,
+                "Recent Activity preview": row.feed_preview,
+                "Latest": row.latest_timestamp,
+            }
+            for row in diag.phase_a_investment
         ],
         use_container_width=True,
         hide_index=True,

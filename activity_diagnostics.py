@@ -33,6 +33,21 @@ PHASE_A_MUSIC_EVENTS = (
     "practice",
 )
 
+PHASE_A_INVESTMENT_EVENTS = (
+    "investment_goal_selected",
+    "portfolio_created",
+    "holdings_updated",
+    "portfolio_health_checked",
+    "risk_profile_changed",
+    "allocation_reviewed",
+    "optimizer_run",
+    "frontier_viewed",
+    "macro_environment_applied",
+    "scenario_run",
+    "ticker_analyzed",
+    "rebalance_reviewed",
+)
+
 SUITE_APPS = tuple(APP_LABELS.keys())
 
 
@@ -144,7 +159,9 @@ class LiveActivityDiagnostics:
     last_10_raw_supabase: list[str] = field(default_factory=list)
     last_10_raw_command_center: list[str] = field(default_factory=list)
     phase_a_music: list[PhaseAEventStatus] = field(default_factory=list)
+    phase_a_investment: list[PhaseAEventStatus] = field(default_factory=list)
     verified_in_feed: bool = False
+    investment_health_in_feed: bool = False
     # Legacy fields for compact summary row
     can_command_center_see_music_verified: bool = False
     sqlite_verified_count: int = 0
@@ -204,15 +221,25 @@ def run_live_activity_diagnostics() -> LiveActivityDiagnostics:
     music_cc = [e for e in cc_events if str(e.get("app") or "") == "music"]
     verified_cc = [e for e in music_cc if str(e.get("event") or "") == "verified_chart_saved"]
 
-    phase_a = [
+    phase_a_music = [
         _phase_a_status(name, supabase_events, cc_events)
         for name in PHASE_A_MUSIC_EVENTS
     ]
+    phase_a_investment = [
+        _phase_a_status(name, supabase_events, cc_events)
+        for name in PHASE_A_INVESTMENT_EVENTS
+    ]
     verified_feed = False
+    investment_health_feed = False
     for event in reversed(cc_events):
-        if str(event.get("event") or "") == "verified_chart_saved":
+        ev = str(event.get("event") or "")
+        if ev == "verified_chart_saved" and not verified_feed:
             msg = format_activity_message(event) or ""
             verified_feed = "Verified chart saved" in msg
+        if ev == "portfolio_health_checked" and not investment_health_feed:
+            msg = format_activity_message(event) or ""
+            investment_health_feed = "portfolio health check" in msg.lower()
+        if verified_feed and investment_health_feed:
             break
 
     can_see = bool(verified_cc) or (
@@ -264,8 +291,10 @@ def run_live_activity_diagnostics() -> LiveActivityDiagnostics:
         last_event_by_app_command_center=_last_by_app(cc_events),
         last_10_raw_supabase=[_format_raw_event(e) for e in sb_sorted[:10]],
         last_10_raw_command_center=[_format_raw_event(e) for e in cc_sorted[:10]],
-        phase_a_music=phase_a,
+        phase_a_music=phase_a_music,
+        phase_a_investment=phase_a_investment,
         verified_in_feed=verified_feed,
+        investment_health_in_feed=investment_health_feed,
         can_command_center_see_music_verified=bool(verified_cc),
         sqlite_verified_count=len(verified_cc),
     )
