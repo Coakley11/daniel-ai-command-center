@@ -9,7 +9,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 GITHUB = ROOT.parent
 
-FILES = (
+MODULE_FILES = (
     "suite_storage_config.py",
     "suite_storage_supabase.py",
     "suite_activity_client.py",
@@ -26,6 +26,8 @@ TARGET_REPOS = (
     "future-lens-ai-transition-simulator",
 )
 
+SECRETS_EXAMPLE = ROOT / ".streamlit" / "secrets.toml.example"
+
 
 def main() -> None:
     for repo in TARGET_REPOS:
@@ -33,12 +35,19 @@ def main() -> None:
         if not dest_dir.is_dir():
             print(f"skip (missing): {dest_dir}")
             continue
-        for name in FILES:
+        for name in MODULE_FILES:
             src = ROOT / name
             dest = dest_dir / name
             shutil.copy2(src, dest)
             print(f"copied {name} -> {repo}/")
-    print("Done. Add identical [suite_activity] secrets to each Streamlit Cloud app.")
+        if SECRETS_EXAMPLE.is_file():
+            secrets_dest = dest_dir / ".streamlit"
+            secrets_dest.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(SECRETS_EXAMPLE, secrets_dest / "secrets.toml.example")
+            print(f"copied secrets.toml.example -> {repo}/.streamlit/")
+    print()
+    print("Done. Paste identical [suite_activity] secrets into every Streamlit Cloud app,")
+    print("then reboot each deployment (Settings -> Reboot app).")
 
 
 if __name__ == "__main__":
