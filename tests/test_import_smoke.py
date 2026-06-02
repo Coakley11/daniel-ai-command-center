@@ -5,6 +5,7 @@ from __future__ import annotations
 import ast
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parent.parent
 COMMAND_CENTER = ROOT / "ai_command_center.py"
@@ -46,7 +47,8 @@ class TestImportSmoke(unittest.TestCase):
 
         self.assertTrue(callable(build_activity_feed))
 
-    def test_targeted_activity_store_import(self) -> None:
+    @patch("activity_store._sync_disk_user_states_to_storage")
+    def test_targeted_activity_store_import(self, _sync) -> None:
         from activity_store import (
             ActivitySnapshot,
             get_app_directory_card,
@@ -65,7 +67,8 @@ class TestImportSmoke(unittest.TestCase):
         source = COMMAND_CENTER.read_text(encoding="utf-8")
         ast.parse(source, filename=str(COMMAND_CENTER))
 
-    def test_build_continue_cards_accepts_snapshot(self) -> None:
+    @patch("activity_store._sync_disk_user_states_to_storage")
+    def test_build_continue_cards_accepts_snapshot(self, _sync) -> None:
         import inspect
 
         from continue_dashboard import build_continue_cards, continue_cards_for_snapshot

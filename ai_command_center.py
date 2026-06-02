@@ -358,63 +358,55 @@ def _render_recent_activity_feed() -> None:
     _render_unsafe_html(f'<ul class="cc-feed-list">{"".join(items_html)}</ul>')
 
 
+def _render_cross_app_section(snapshot: ActivitySnapshot) -> None:
+    """Suite-wide focus — cross-app patterns, not per-app navigation."""
+    insights = generate_cross_app_insights(snapshot)
+    if not insights:
+        return
+    st.markdown(
+        '<div class="cc-section-title">🧭 Suite focus</div>',
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        '<div class="cc-section-sub">How your week connects across apps — not a click count.</div>',
+        unsafe_allow_html=True,
+    )
+    for item in insights:
+        st.markdown(
+            f'<div class="cc-insight-card" style="border-left-color:#0ea5e9;margin-bottom:0.5rem;">'
+            f'<p class="cc-insight-text">{html.escape(item.message)}</p></div>',
+            unsafe_allow_html=True,
+        )
+
+
 def _render_weekly_summary(snapshot: ActivitySnapshot) -> None:
     st.markdown(
         f'<div class="cc-section-title">{SECTION_ICONS["weekly"]} Weekly Summary</div>',
         unsafe_allow_html=True,
     )
     st.markdown(
-        '<div class="cc-section-sub">This week only — counts appear when real activity exists.</div>',
+        '<div class="cc-section-sub">Accomplishments this week — meaningful work only.</div>',
         unsafe_allow_html=True,
     )
 
     summary = get_weekly_summary(snapshot)
-    if not summary.has_any:
+    lines = weekly_accomplishment_lines(summary)
+    if not lines:
         st.markdown(
-            '<div class="cc-empty-box">No weekly activity totals yet. Practice, review, or run an analysis '
-            "in any suite app to populate this section.</div>",
+            '<div class="cc-empty-box">No accomplishments logged this week yet. Practice, verify a chart, '
+            "or run an analysis to see your progress here.</div>",
             unsafe_allow_html=True,
         )
         return
 
-    stats: list[tuple[str, str]] = []
-    if summary.music_minutes > 0:
-        stats.append((f"{summary.music_minutes:.0f}", "Practice minutes"))
-    if summary.songs_practiced > 0:
-        stats.append((str(summary.songs_practiced), "Songs practiced"))
-    if summary.music_uploads > 0:
-        stats.append((str(summary.music_uploads), "Uploads"))
-    if summary.music_verified_edits > 0:
-        stats.append((str(summary.music_verified_edits), "Verified chart edits"))
-    if summary.music_lyrics_edits > 0:
-        stats.append((str(summary.music_lyrics_edits), "Lyrics edits"))
-    if summary.music_backing_sessions > 0:
-        stats.append((str(summary.music_backing_sessions), "Backing track sessions"))
-    if summary.baseball_reviews > 0:
-        stats.append((str(summary.baseball_reviews), "Baseball actions"))
-    if summary.portfolio_checks > 0:
-        stats.append((str(summary.portfolio_checks), "Portfolio checks"))
-    if summary.investment_scenarios > 0:
-        stats.append((str(summary.investment_scenarios), "Scenarios run"))
-    if summary.investment_optimizer_runs > 0:
-        stats.append((str(summary.investment_optimizer_runs), "Optimizer runs"))
-    if summary.investment_holdings_updates > 0:
-        stats.append((str(summary.investment_holdings_updates), "Holdings updates"))
-    if summary.investment_goals_selected > 0:
-        stats.append((str(summary.investment_goals_selected), "Goals selected"))
-    if summary.nba_sessions > 0:
-        stats.append((str(summary.nba_sessions), "Basketball sessions"))
-    if summary.applied_intelligence_sessions > 0:
-        stats.append((str(summary.applied_intelligence_sessions), "Applied Intelligence"))
-    if summary.future_simulations > 0:
-        stats.append((str(summary.future_simulations), "Simulations"))
-
-    cells = "".join(
-        f'<div class="cc-weekly-stat"><div class="cc-weekly-value">{html.escape(val)}</div>'
-        f'<div class="cc-weekly-label">{html.escape(label)}</div></div>'
-        for val, label in stats
+    items_html = "".join(
+        f"<li class='cc-feed-item'>{html.escape(count)} {html.escape(label)}</li>"
+        for count, label in lines
     )
-    _render_unsafe_html(f'<div class="cc-weekly-grid">{cells}</div>')
+    _render_unsafe_html(
+        f"<p style='margin:0 0 0.35rem 0;font-weight:700;color:#334155;'>This week</p>"
+        f"<ul class='cc-feed-list'>{items_html}</ul>"
+    )
 
 
 def _app_highlight_line_html(line: str, accent: str) -> str:
