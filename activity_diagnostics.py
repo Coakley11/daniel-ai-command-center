@@ -10,8 +10,23 @@ from pathlib import Path
 from typing import Any
 
 from activity_store import APP_REPO_DIRS, _fallback_event_paths, load_all_events
-from suite_storage import DB_PATH, cloud_ping, load_events
-from suite_storage_config import cloud_storage_enabled, get_cloud_config
+from suite_storage_config import cloud_storage_enabled
+
+# Mirror suite_storage.DATA_DIR / DB_PATH — avoid importing suite_storage here
+# (can fail on Streamlit Cloud during partial/circular module init).
+_DATA_DIR = Path(__file__).resolve().parent / "data"
+DB_PATH = _DATA_DIR / "suite_activity.db"
+
+
+def _cloud_ping() -> bool:
+    if not cloud_storage_enabled():
+        return False
+    try:
+        from suite_storage_supabase import ping
+
+        return ping()
+    except Exception:
+        return False
 
 MUSIC_MEANINGFUL_EVENTS = frozenset(
     {
@@ -102,7 +117,7 @@ def run_activity_diagnostics() -> ActivityDiagnostics:
     db_path = str(DB_PATH)
     db_exists = DB_PATH.is_file()
 
-    db_events = load_events(limit=500)
+    db_events = load_all_events(limit=500)
     music_db = [e for e in db_events if str(e.get("app") or "") == "music"]
     verified_db = [e for e in music_db if str(e.get("event") or "") == "verified_chart_saved"]
     lyrics_db = [e for e in music_db if str(e.get("event") or "") == "lyrics_saved"]
@@ -116,7 +131,7 @@ def run_activity_diagnostics() -> ActivityDiagnostics:
     can_see = bool(verified_db or lyrics_db) or (sibling_ok and bool(fb_verified))
 
     cloud_cfg = cloud_storage_enabled()
-    cloud_ok = cloud_ping() if cloud_cfg else False
+    cloud_ok = _cloud_ping() if cloud_cfg else False
 
     if can_see:
         failure = "none — events are reachable"
