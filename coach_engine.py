@@ -61,16 +61,97 @@ def generate_coach_insights(snapshot: ActivitySnapshot) -> list[CoachInsight]:
         )
 
     if (
-        snapshot.last_music_practice_days_ago is not None
-        and snapshot.last_music_practice_days_ago <= 1
+        snapshot.last_music_edit_days_ago is not None
+        and snapshot.last_music_edit_days_ago <= 2
         and snapshot.last_song
+        and (
+            snapshot.last_music_practice_days_ago is None
+            or snapshot.last_music_practice_days_ago > snapshot.last_music_edit_days_ago
+        )
     ):
         candidates.append(
             CoachInsight(
                 key="music",
                 icon="🎵",
-                message=f"You practiced music recently — continue {snapshot.last_song} for 20 minutes.",
-                priority=8,
+                message=(
+                    f"You edited {snapshot.last_song} recently but haven't practiced it yet — "
+                    "run a focused session."
+                ),
+                priority=6,
+            )
+        )
+    elif (
+        snapshot.last_music_upload_days_ago is not None
+        and snapshot.last_music_upload_days_ago <= 3
+        and snapshot.last_song
+        and (
+            snapshot.last_recording_review_days_ago is None
+            or snapshot.last_recording_review_days_ago > snapshot.last_music_upload_days_ago
+        )
+    ):
+        candidates.append(
+            CoachInsight(
+                key="music",
+                icon="🎵",
+                message=(
+                    f"You uploaded a performance of {snapshot.last_song} — review it and "
+                    "compare with older recordings."
+                ),
+                priority=7,
+            )
+        )
+    elif snapshot.music_minutes_this_week >= 90 or snapshot.songs_practiced_this_week >= 4:
+        candidates.append(
+            CoachInsight(
+                key="music",
+                icon="🎵",
+                message=(
+                    f"Strong practice week ({snapshot.songs_practiced_this_week} songs, "
+                    f"{snapshot.music_minutes_this_week:.0f} min) — keep the momentum."
+                ),
+                priority=12,
+            )
+        )
+    elif (
+        snapshot.last_instrument
+        and snapshot.last_instrument_practice_days_ago is not None
+        and snapshot.last_instrument_practice_days_ago >= 5
+    ):
+        candidates.append(
+            CoachInsight(
+                key="music",
+                icon="🎵",
+                message=(
+                    f"You haven't practiced {snapshot.last_instrument.lower()} in "
+                    f"{snapshot.last_instrument_practice_days_ago} days."
+                ),
+                priority=14 + snapshot.last_instrument_practice_days_ago,
+            )
+        )
+    elif snapshot.music_overedited_song:
+        candidates.append(
+            CoachInsight(
+                key="music",
+                icon="🎵",
+                message=(
+                    f"You've edited {snapshot.music_overedited_song} several times this week "
+                    "without logging practice — perform it once."
+                ),
+                priority=9,
+            )
+        )
+    elif (
+        snapshot.last_music_edit_label
+        and snapshot.last_song
+        and snapshot.last_music_edit_days_ago is not None
+        and snapshot.last_music_edit_days_ago <= 3
+    ):
+        candidates.append(
+            CoachInsight(
+                key="music",
+                icon="🎵",
+                message=f"You recently {snapshot.last_music_edit_label.lower()} for {snapshot.last_song}.",
+                priority=18,
             )
         )
     elif snapshot.last_music_practice_days_ago is not None and snapshot.last_music_practice_days_ago >= 2:
@@ -87,16 +168,16 @@ def generate_coach_insights(snapshot: ActivitySnapshot) -> list[CoachInsight]:
             )
         )
     elif (
-        snapshot.last_song
-        and snapshot.last_song_focus
-        and (snapshot.last_music_practice_days_ago or 99) <= 1
+        snapshot.last_music_practice_days_ago is not None
+        and snapshot.last_music_practice_days_ago <= 1
+        and snapshot.last_song
     ):
         candidates.append(
             CoachInsight(
                 key="music",
                 icon="🎵",
-                message=f"Drill {snapshot.last_song_focus} on {snapshot.last_song}.",
-                priority=30,
+                message=f"You practiced music recently — continue {snapshot.last_song} for 20 minutes.",
+                priority=20,
             )
         )
 

@@ -374,9 +374,17 @@ def _render_weekly_summary(snapshot: ActivitySnapshot) -> None:
 
     stats: list[tuple[str, str]] = []
     if summary.music_minutes > 0:
-        stats.append((f"{summary.music_minutes:.0f}", "Music practice min"))
+        stats.append((f"{summary.music_minutes:.0f}", "Practice minutes"))
     if summary.songs_practiced > 0:
         stats.append((str(summary.songs_practiced), "Songs practiced"))
+    if summary.music_uploads > 0:
+        stats.append((str(summary.music_uploads), "Uploads"))
+    if summary.music_verified_edits > 0:
+        stats.append((str(summary.music_verified_edits), "Verified chart edits"))
+    if summary.music_lyrics_edits > 0:
+        stats.append((str(summary.music_lyrics_edits), "Lyrics edits"))
+    if summary.music_backing_sessions > 0:
+        stats.append((str(summary.music_backing_sessions), "Backing track sessions"))
     if summary.baseball_reviews > 0:
         stats.append((str(summary.baseball_reviews), "Baseball actions"))
     if summary.portfolio_checks > 0:
@@ -485,30 +493,83 @@ _render_weekly_summary(snapshot)
 _render_app_directory(snapshot)
 
 with st.expander("Deployment & link audit (admin)"):
-    from activity_diagnostics import run_activity_diagnostics
+    from activity_diagnostics import run_live_activity_diagnostics
+    from activity_feed import APP_LABELS
 
-    diag = run_activity_diagnostics()
-    st.markdown("#### Cross-app activity trace (Music → Command Center)")
+    diag = run_live_activity_diagnostics()
+    st.markdown("#### Live activity diagnostics (Supabase ↔ Command Center)")
     st.markdown(
         f"| Check | Result |\n|---|---|\n"
         f"| Deployment mode | `{diag.deployment_mode}` |\n"
-        f"| Supabase configured | {diag.cloud_storage_configured} |\n"
-        f"| Supabase reachable | {diag.cloud_storage_reachable} |\n"
-        f"| Failing step | **{diag.failure_step}** |\n"
-        f"| CC SQLite exists | {diag.command_center_db_exists} |\n"
-        f"| Music events in CC DB | {diag.sqlite_music_event_count} "
-        f"(verified: {diag.sqlite_verified_count}, lyrics: {diag.sqlite_lyrics_count}) |\n"
-        f"| Last music event in CC DB | {diag.last_music_event} |\n"
-        f"| Last verified/lyrics in CC DB | {diag.last_verified_event} |\n"
-        f"| Music fallback file found | {diag.music_fallback_found or '—'} |\n"
-        f"| Verified/lyrics in fallback | {diag.music_fallback_verified_count} |\n"
-        f"| Sibling repos on disk | {diag.sibling_repos_reachable} |\n"
-        f"| CC can see verified saves | {diag.can_command_center_see_music_verified} |"
+        f"| **Supabase configured** | **{diag.cloud_storage_configured}** |\n"
+        f"| **Supabase reachable** | **{diag.cloud_storage_reachable}** |\n"
+        f"| Supabase event count | {diag.supabase_event_count} |\n"
+        f"| Command Center event count | {diag.command_center_event_count} |\n"
+        f"| Verified in Recent Activity format | {diag.verified_in_feed} |\n"
+        f"| Pipeline status | **{diag.failure_step}** |"
     )
+    if diag.supabase_error:
+        st.error(f"Supabase read error: {diag.supabase_error}")
     st.info(diag.recommendation)
-    with st.expander("Fallback paths checked"):
-        for p in diag.music_fallback_paths_checked:
-            st.code(p)
+
+    st.markdown("##### Event count by app")
+    app_cols = st.columns(2)
+    with app_cols[0]:
+        st.caption("Supabase (direct)")
+        if diag.counts_by_app_supabase:
+            st.table(
+                [{"app": k, "count": v} for k, v in sorted(diag.counts_by_app_supabase.items())]
+            )
+        else:
+            st.write("—")
+    with app_cols[1]:
+        st.caption("Command Center (`load_all_events`)")
+        if diag.counts_by_app_command_center:
+            st.table(
+                [
+                    {"app": k, "count": v}
+                    for k, v in sorted(diag.counts_by_app_command_center.items())
+                ]
+            )
+        else:
+            st.write("—")
+
+    st.markdown("##### Most recent event by app")
+    recent_cols = st.columns(2)
+    with recent_cols[0]:
+        st.caption("Supabase")
+        for app in sorted(diag.last_event_by_app_supabase):
+            label = APP_LABELS.get(app, app)
+            st.text(f"{label}: {diag.last_event_by_app_supabase[app]}")
+    with recent_cols[1]:
+        st.caption("Command Center")
+        for app in sorted(diag.last_event_by_app_command_center):
+            label = APP_LABELS.get(app, app)
+            st.text(f"{label}: {diag.last_event_by_app_command_center[app]}")
+
+    st.markdown("##### Phase A — Music event verification")
+    st.dataframe(
+        [
+            {
+                "Event": row.event_type,
+                "In Supabase": row.in_supabase,
+                "CC reads row": row.in_command_center,
+                "Recent Activity preview": row.feed_preview,
+                "Latest": row.latest_timestamp,
+            }
+            for row in diag.phase_a_music
+        ],
+        use_container_width=True,
+        hide_index=True,
+    )
+
+    st.markdown("##### Last 10 raw events (Supabase)")
+    for raw in diag.last_10_raw_supabase or ["—"]:
+        st.code(raw, language="json")
+    st.markdown("##### Last 10 raw events (Command Center)")
+    for raw in diag.last_10_raw_command_center or ["—"]:
+        st.code(raw, language="json")
+
     st.divider()
     st.markdown(f"**Homepage Production:** {HOMEPAGE_PRODUCTION_URL} · branch `main`")
     dev_line = HOMEPAGE_DEV_URL or "Not deployed yet — create on Streamlit Cloud from branch `dev`"

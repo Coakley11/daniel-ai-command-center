@@ -9,10 +9,13 @@ and resume items for the Continue dashboard.
 from __future__ import annotations
 
 import json
+from collections import Counter
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any
+
+from activity_feed import format_activity_message, music_directory_rank
 
 from app_registry import get_app_url
 from suite_storage import (
@@ -106,6 +109,16 @@ class ActivitySnapshot:
     music_minutes_this_week: float = 0.0
     songs_practiced_this_week: int = 0
     music_streak_days: int = 0
+    music_uploads_this_week: int = 0
+    music_verified_edits_this_week: int = 0
+    music_lyrics_edits_this_week: int = 0
+    music_backing_sessions_this_week: int = 0
+    last_music_upload_days_ago: int | None = None
+    last_recording_review_days_ago: int | None = None
+    last_music_edit_days_ago: int | None = None
+    last_instrument_practice_days_ago: int | None = None
+    music_directory_primary: str = ""
+    music_overedited_song: str = ""
 
     # Investment
     last_portfolio_check_days_ago: int | None = None
@@ -662,6 +675,10 @@ __all__ = (
 class WeeklySummary:
     music_minutes: float
     songs_practiced: int
+    music_uploads: int
+    music_verified_edits: int
+    music_lyrics_edits: int
+    music_backing_sessions: int
     baseball_reviews: int
     portfolio_checks: int
     nba_sessions: int
@@ -674,6 +691,10 @@ class WeeklySummary:
             (
                 self.music_minutes > 0,
                 self.songs_practiced > 0,
+                self.music_uploads > 0,
+                self.music_verified_edits > 0,
+                self.music_lyrics_edits > 0,
+                self.music_backing_sessions > 0,
                 self.baseball_reviews > 0,
                 self.portfolio_checks > 0,
                 self.nba_sessions > 0,
@@ -687,6 +708,10 @@ def get_weekly_summary(snapshot: ActivitySnapshot) -> WeeklySummary:
     return WeeklySummary(
         music_minutes=snapshot.music_minutes_this_week,
         songs_practiced=snapshot.songs_practiced_this_week,
+        music_uploads=snapshot.music_uploads_this_week,
+        music_verified_edits=snapshot.music_verified_edits_this_week,
+        music_lyrics_edits=snapshot.music_lyrics_edits_this_week,
+        music_backing_sessions=snapshot.music_backing_sessions_this_week,
         baseball_reviews=snapshot.baseball_reviews_this_week,
         portfolio_checks=snapshot.portfolio_checks_this_week,
         nba_sessions=snapshot.nba_sessions_this_week,
@@ -714,6 +739,15 @@ def _ingest_suite_events(snapshot: ActivitySnapshot) -> None:
         "music": 0,
     }
     last_opened: tuple[str, str, datetime] | None = None
+    music_dir_rank = 0
+    music_dir_ts = datetime.min
+    music_dir_line = ""
+    music_edit_week: Counter[str] = Counter()
+    music_practice_week: set[str] = set()
+    last_upload_ts: datetime | None = None
+    last_review_ts: datetime | None = None
+    last_edit_ts: datetime | None = None
+    last_instrument_practice: dict[str, datetime] = {}
 
     for event in events:
         raw_app = str(event.get("app", "")).strip()
@@ -728,11 +762,70 @@ def _ingest_suite_events(snapshot: ActivitySnapshot) -> None:
 
         by_app.setdefault(app, []).append(ts)
 
+        event_name = str(event.get("event", ""))
+        metrics = event.get("metrics") if isinstance(event.get("metrics"), dict) else {}
+
+        if app == "music":
+            msg = format_activity_message(event)
+            rank = music_directory_rank(event_name)
+            if msg and rank and (
+                rank > music_dir_rank or (rank == music_dir_rank and ts > music_dir_ts)
+            ):
+                music_dir_rank, music_dir_ts, music_dir_line = rank, ts, msg
+
+            song_name = str(metrics.get("song") or metrics.get("last_edited_song") or "").strip()
+            if event_name in {"verified_chart_saved", "lyrics_saved", "chart_save", "chord_save"}:
+                if last_edit_ts is None or ts > last_edit_ts:
+                    last_edit_ts = ts
+                    snapshot.last_music_edit_days_ago = _days_ago(ts.date())
+                if song_name and ts >= week_start_dt:
+                    music_edit_week[song_name] += 1
+                _apply_music_edit_metrics(snapshot, metrics, event_name)
+            elif event_name in {"video_uploaded", "audio_uploaded"}:
+                if last_upload_ts is None or ts > last_upload_ts:
+                    last_upload_ts = ts
+                if song_name:
+                    snapshot.last_song = song_name
+                    artist = str(metrics.get("artist") or "").strip()
+                    if artist:
+                        snapshot.last_music_artist = artist
+            elif event_name == "practice":
+                if song_name:
+                    snapshot.last_song = song_name
+                    if ts >= week_start_dt:
+                        music_practice_week.add(song_name)
+                instrument = str(metrics.get("instrument") or "").strip()
+                if instrument:
+                    snapshot.last_instrument = instrument
+                    last_instrument_practice[instrument] = ts
+            elif event_name in {
+                "backing_track_started",
+                "backing_track_completed",
+                "backing_track",
+            }:
+                if song_name:
+                    snapshot.last_song = song_name
+
         if ts >= week_start_dt:
-            event_name = str(event.get("event", ""))
-            metrics = event.get("metrics") or {}
             if app in week_counts and event_name in MEANINGFUL_WEEK_EVENTS:
                 week_counts[app] += 1
+
+            if app == "music":
+                if event_name in {"video_uploaded", "audio_uploaded"}:
+                    snapshot.music_uploads_this_week += 1
+                elif event_name == "verified_chart_saved":
+                    snapshot.music_verified_edits_this_week += 1
+                elif event_name == "lyrics_saved":
+                    snapshot.music_lyrics_edits_this_week += 1
+                elif event_name in {
+                    "backing_track_started",
+                    "backing_track_completed",
+                    "backing_track",
+                }:
+                    snapshot.music_backing_sessions_this_week += 1
+                elif event_name == "recording_reviewed":
+                    if last_review_ts is None or ts > last_review_ts:
+                        last_review_ts = ts
 
             if app == "future_lens" and metrics.get("project"):
                 snapshot.future_project = str(metrics["project"])
@@ -766,21 +859,28 @@ def _ingest_suite_events(snapshot: ActivitySnapshot) -> None:
                 snapshot.last_song_focus = str(metrics["focus"])
             if app == "music" and metrics.get("display_key"):
                 snapshot.last_display_key = str(metrics["display_key"])
-            if app == "music" and event_name in {"verified_chart_saved", "lyrics_saved", "chart_save", "chord_save"}:
-                _apply_music_edit_metrics(snapshot, metrics, event_name)
-            if app == "music" and event_name == "backing_track":
-                _apply_music_edit_metrics(
-                    snapshot,
-                    {**metrics, "edited_fields": ["backing"]},
-                    event_name,
-                )
-                snapshot.last_music_edit_label = "Backing track generated"
             if app == "music" and event_name == "song_added":
                 _apply_music_edit_metrics(snapshot, metrics, event_name)
                 snapshot.last_music_edit_label = "New song added"
 
         if last_opened is None or ts >= last_opened[2]:
-            last_opened = (app, str(event.get("page") or ""), ts)
+            if not (app == "music" and event_name == "song_selected"):
+                last_opened = (app, str(event.get("page") or ""), ts)
+
+    if music_dir_line:
+        snapshot.music_directory_primary = music_dir_line
+    if last_upload_ts:
+        snapshot.last_music_upload_days_ago = _days_ago(last_upload_ts.date())
+    if last_review_ts:
+        snapshot.last_recording_review_days_ago = _days_ago(last_review_ts.date())
+    if last_instrument_practice and snapshot.last_instrument:
+        inst_ts = last_instrument_practice.get(snapshot.last_instrument)
+        if inst_ts:
+            snapshot.last_instrument_practice_days_ago = _days_ago(inst_ts.date())
+    for song, count in music_edit_week.items():
+        if count >= 2 and song not in music_practice_week:
+            snapshot.music_overedited_song = song
+            break
 
     if last_opened:
         snapshot.last_opened_app = last_opened[0]
@@ -887,7 +987,9 @@ def get_app_directory_card(snapshot: ActivitySnapshot, app_key: str) -> AppDirec
     lines: list[str] = []
 
     if app_key == "music":
-        if snapshot.last_music_edit_label and snapshot.last_song:
+        if snapshot.music_directory_primary:
+            lines.append(snapshot.music_directory_primary)
+        elif snapshot.last_music_edit_label and snapshot.last_song:
             artist_bit = f" — {snapshot.last_music_artist}" if snapshot.last_music_artist else ""
             lines.append(f"{snapshot.last_music_edit_label}: {snapshot.last_song}{artist_bit}")
         elif snapshot.last_song:

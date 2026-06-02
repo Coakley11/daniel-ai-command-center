@@ -73,11 +73,51 @@ def format_activity_message(event: dict[str, Any]) -> str | None:
     if event_type == "practice" and app == "music":
         song = str(m.get("song") or "").strip()
         mins = m.get("minutes")
+        instrument = str(m.get("instrument") or "").strip()
+        if song and mins and instrument:
+            return f"Practiced {song} on {instrument} ({int(mins)} min)"
         if song and mins:
             return f"Practiced {song} ({int(mins)} min)"
+        if song and instrument:
+            return f"Practiced {song} on {instrument}"
         if song:
             return f"Practiced {song}"
         return "Logged a practice session"
+
+    if event_type == "video_uploaded" and app == "music":
+        line = _music_title_artist(m)
+        kind = str(m.get("upload_kind") or "performance video").strip()
+        if line:
+            return f"Uploaded {kind}: {line}"
+        return f"Uploaded {kind}"
+
+    if event_type == "audio_uploaded" and app == "music":
+        line = _music_title_artist(m)
+        kind = str(m.get("upload_kind") or "audio recording").strip()
+        if line:
+            return f"Uploaded {kind}: {line}"
+        return f"Uploaded {kind}"
+
+    if event_type == "display_key_changed" and app == "music":
+        song = str(m.get("song") or "").strip()
+        dk = str(m.get("display_key") or "").strip()
+        if song and dk:
+            return f"Changed {song} to {dk}"
+        if dk:
+            return f"Changed display key to {dk}"
+        return "Changed display key"
+
+    if event_type == "backing_track_started" and app == "music":
+        line = _music_title_artist(m)
+        if line:
+            return f"Practiced with backing track: {line}"
+        return "Started backing track session"
+
+    if event_type == "backing_track_completed" and app == "music":
+        line = _music_title_artist(m)
+        if line:
+            return f"Completed backing track session: {line}"
+        return "Completed backing track session"
 
     if event_type in ("verified_chart_saved", "lyrics_saved", "chart_save", "chord_save") and app == "music":
         label = _music_edit_headline(event_type, m)
@@ -91,6 +131,10 @@ def format_activity_message(event: dict[str, Any]) -> str | None:
     if event_type == "backing_track" and app == "music":
         line = _music_title_artist(m)
         return f"Generated backing track: {line}" if line else "Generated a backing track"
+
+    if event_type == "recording_reviewed" and app == "music":
+        line = _music_title_artist(m)
+        return f"Reviewed recording: {line}" if line else "Reviewed a recording"
 
     if event_type == "song_selected" and app == "music":
         line = _music_title_artist(m)
@@ -181,8 +225,17 @@ def _feed_priority(event: dict[str, Any]) -> int:
         "lyrics_saved",
         "chart_save",
         "chord_save",
+    }:
+        return 5
+    if app == "music" and event_type in {
         "practice",
+        "video_uploaded",
+        "audio_uploaded",
+        "display_key_changed",
+        "backing_track_started",
+        "backing_track_completed",
         "backing_track",
+        "recording_reviewed",
         "song_added",
     }:
         return 3
@@ -191,6 +244,26 @@ def _feed_priority(event: dict[str, Any]) -> int:
     if event_type == "page_view":
         return 0
     return 2
+
+
+def music_directory_rank(event_type: str) -> int:
+    """Higher rank wins on App Directory card (passive opens are lowest)."""
+    if event_type in {"verified_chart_saved", "lyrics_saved", "chart_save", "chord_save"}:
+        return 4
+    if event_type == "practice":
+        return 3
+    if event_type in {
+        "video_uploaded",
+        "audio_uploaded",
+        "backing_track_started",
+        "backing_track_completed",
+        "backing_track",
+        "display_key_changed",
+    }:
+        return 2
+    if event_type == "song_selected":
+        return 1
+    return 0
 
 
 def build_activity_feed(events: list[dict[str, Any]], *, limit: int = 20) -> list[ActivityFeedItem]:

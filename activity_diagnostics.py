@@ -1,21 +1,34 @@
 """
-Diagnostics for cross-app activity wiring (Music → Command Center).
+Live activity diagnostics for Command Center admin (Supabase + feed wiring).
 """
 
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+from collections import Counter
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from activity_feed import APP_LABELS, format_activity_message
 from activity_store import APP_REPO_DIRS, _fallback_event_paths, load_all_events
 from suite_storage_config import cloud_storage_enabled
 
-# Mirror suite_storage.DATA_DIR / DB_PATH — avoid importing suite_storage here
-# (can fail on Streamlit Cloud during partial/circular module init).
 _DATA_DIR = Path(__file__).resolve().parent / "data"
 DB_PATH = _DATA_DIR / "suite_activity.db"
+
+PHASE_A_MUSIC_EVENTS = (
+    "verified_chart_saved",
+    "lyrics_saved",
+    "video_uploaded",
+    "audio_uploaded",
+    "display_key_changed",
+    "backing_track_started",
+    "backing_track_completed",
+    "practice",
+)
+
+SUITE_APPS = tuple(APP_LABELS.keys())
 
 
 def _cloud_ping() -> bool:
@@ -28,80 +41,105 @@ def _cloud_ping() -> bool:
     except Exception:
         return False
 
-MUSIC_MEANINGFUL_EVENTS = frozenset(
-    {
-        "verified_chart_saved",
-        "lyrics_saved",
-        "practice",
-        "song_selected",
-        "backing_track",
-        "song_added",
-    }
-)
+
+def _load_supabase_events(limit: int = 200) -> tuple[list[dict[str, Any]], str | None]:
+    if not cloud_storage_enabled():
+        return [], "Supabase not configured"
+    try:
+        from suite_storage_supabase import load_events
+
+        return load_events(limit=limit), None
+    except Exception as exc:
+        return [], str(exc)
+
+
+def _load_sqlite_events(limit: int = 200) -> list[dict[str, Any]]:
+    if not DB_PATH.is_file():
+        return []
+    try:
+        from suite_storage import load_events as sqlite_load
+
+        if cloud_storage_enabled():
+            return []
+        return sqlite_load(limit=limit)
+    except Exception:
+        return []
+
+
+def _counts_by_app(events: list[dict[str, Any]]) -> dict[str, int]:
+    counts: Counter[str] = Counter()
+    for event in events:
+        app = str(event.get("app") or "").strip()
+        if app:
+            counts[app] += 1
+    return dict(counts)
+
+
+def _last_by_app(events: list[dict[str, Any]]) -> dict[str, str]:
+    latest: dict[str, tuple[str, str]] = {}
+    for event in events:
+        app = str(event.get("app") or "").strip()
+        if not app:
+            continue
+        ts = str(event.get("timestamp") or "")
+        ev = str(event.get("event") or "")
+        m = event.get("metrics") if isinstance(event.get("metrics"), dict) else {}
+        song = str(m.get("song") or "")
+        line = ev
+        if song:
+            line += f" · {song}"
+        if ts:
+            line += f" ({ts})"
+        prev = latest.get(app)
+        if prev is None or ts >= prev[0]:
+            latest[app] = (ts, line)
+    return {app: line for app, (_, line) in latest.items()}
+
+
+def _format_raw_event(event: dict[str, Any]) -> str:
+    return json.dumps(
+        {
+            "app": event.get("app"),
+            "event": event.get("event"),
+            "timestamp": event.get("timestamp"),
+            "page": event.get("page"),
+            "metrics": event.get("metrics"),
+        },
+        ensure_ascii=False,
+    )
 
 
 @dataclass(frozen=True)
-class ActivityDiagnostics:
+class PhaseAEventStatus:
+    event_type: str
+    in_supabase: bool
+    in_command_center: bool
+    feed_preview: str
+    latest_timestamp: str
+
+
+@dataclass
+class LiveActivityDiagnostics:
     deployment_mode: str
     cloud_storage_configured: bool
     cloud_storage_reachable: bool
-    command_center_db: str
-    command_center_db_exists: bool
-    sqlite_music_event_count: int
-    sqlite_verified_count: int
-    sqlite_lyrics_count: int
-    last_music_event: str
-    last_verified_event: str
-    music_fallback_paths_checked: tuple[str, ...]
-    music_fallback_found: str | None
-    music_fallback_verified_count: int
-    sibling_repos_reachable: bool
-    can_command_center_see_music_verified: bool
     failure_step: str
     recommendation: str
-
-
-def _count_events(events: list[dict[str, Any]], *, event_name: str | None = None) -> int:
-    if event_name:
-        return sum(1 for e in events if str(e.get("event") or "") == event_name)
-    return len(events)
-
-
-def _last_event_line(
-    events: list[dict[str, Any]], *, app: str | None = None, event_name: str | None = None
-) -> str:
-    for event in reversed(events):
-        if app and str(event.get("app") or "") != app:
-            continue
-        if event_name and str(event.get("event") or "") != event_name:
-            continue
-        m = event.get("metrics") if isinstance(event.get("metrics"), dict) else {}
-        song = str(m.get("song") or m.get("last_edited_song") or "")
-        artist = str(m.get("artist") or "")
-        when = str(event.get("timestamp") or "")
-        ev = str(event.get("event") or "")
-        label = f"{ev}"
-        if song:
-            label += f" · {song}"
-        if artist:
-            label += f" — {artist}"
-        if when:
-            label += f" ({when})"
-        return label
-    return "—"
-
-
-def _load_music_fallback_file() -> tuple[str | None, list[dict[str, Any]]]:
-    for path in _fallback_event_paths("music"):
-        if not path.is_file():
-            continue
-        try:
-            raw = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            continue
-        if isinstance(raw, list):
-            return str(path), raw
-    return None, []
+    supabase_event_count: int = 0
+    command_center_event_count: int = 0
+    sqlite_event_count: int = 0
+    supabase_error: str | None = None
+    counts_by_app_supabase: dict[str, int] = field(default_factory=dict)
+    counts_by_app_command_center: dict[str, int] = field(default_factory=dict)
+    last_event_by_app_supabase: dict[str, str] = field(default_factory=dict)
+    last_event_by_app_command_center: dict[str, str] = field(default_factory=dict)
+    last_10_raw_supabase: list[str] = field(default_factory=list)
+    last_10_raw_command_center: list[str] = field(default_factory=list)
+    phase_a_music: list[PhaseAEventStatus] = field(default_factory=list)
+    verified_in_feed: bool = False
+    # Legacy fields for compact summary row
+    can_command_center_see_music_verified: bool = False
+    sqlite_verified_count: int = 0
 
 
 def _detect_deployment_mode() -> str:
@@ -112,75 +150,116 @@ def _detect_deployment_mode() -> str:
     return "isolated_deployments"
 
 
-def run_activity_diagnostics() -> ActivityDiagnostics:
+def _phase_a_status(
+    event_type: str,
+    supabase_events: list[dict[str, Any]],
+    cc_events: list[dict[str, Any]],
+) -> PhaseAEventStatus:
+    def _latest(events: list[dict[str, Any]]) -> dict[str, Any] | None:
+        found = [e for e in events if str(e.get("event") or "") == event_type]
+        if not found:
+            return None
+        return max(found, key=lambda e: str(e.get("timestamp") or ""))
+
+    sb = _latest(supabase_events)
+    cc = _latest(cc_events)
+    in_sb = sb is not None
+    in_cc = cc is not None
+    preview = ""
+    ts = ""
+    if cc:
+        preview = format_activity_message(cc) or ""
+        ts = str(cc.get("timestamp") or "")
+    elif sb:
+        preview = format_activity_message(sb) or "(in Supabase only — CC read issue)"
+        ts = str(sb.get("timestamp") or "")
+    return PhaseAEventStatus(
+        event_type=event_type,
+        in_supabase=in_sb,
+        in_command_center=in_cc,
+        feed_preview=preview or "—",
+        latest_timestamp=ts,
+    )
+
+
+def run_live_activity_diagnostics() -> LiveActivityDiagnostics:
     mode = _detect_deployment_mode()
-    db_path = str(DB_PATH)
-    db_exists = DB_PATH.is_file()
-
-    db_events = load_all_events(limit=500)
-    music_db = [e for e in db_events if str(e.get("app") or "") == "music"]
-    verified_db = [e for e in music_db if str(e.get("event") or "") == "verified_chart_saved"]
-    lyrics_db = [e for e in music_db if str(e.get("event") or "") == "lyrics_saved"]
-
-    fb_path, fb_rows = _load_music_fallback_file()
-    fb_music = [r for r in fb_rows if str(r.get("app") or "") == "music"]
-    fb_verified = [r for r in fb_music if str(r.get("event") or "") in {"verified_chart_saved", "lyrics_saved"}]
-
-    paths_checked = tuple(str(p) for p in _fallback_event_paths("music"))
-    sibling_ok = mode == "local_sibling_repos"
-    can_see = bool(verified_db or lyrics_db) or (sibling_ok and bool(fb_verified))
-
     cloud_cfg = cloud_storage_enabled()
     cloud_ok = _cloud_ping() if cloud_cfg else False
 
-    if can_see:
-        failure = "none — events are reachable"
-        rec = "Refresh Command Center. Verified saves should appear in Recent Activity and the Music card."
-    elif cloud_cfg and not cloud_ok:
-        failure = "step 4 — Supabase configured but not reachable"
-        rec = "Check SUITE_SUPABASE_URL / key in Streamlit secrets and that migration SQL was applied."
-    elif cloud_cfg and cloud_ok and not can_see:
-        failure = "step 1–2 — Cloud connected; no verified/lyrics events in store yet"
-        rec = (
-            "Save as user verified in Music (with the same [suite_activity] secrets on the Music app). "
-            "Then refresh Command Center."
-        )
-    elif mode == "isolated_deployments" and not cloud_cfg:
-        failure = "step 4 — Command Center cannot read Music app storage on Streamlit Cloud"
-        rec = (
-            "Add [suite_activity] Supabase secrets to every Streamlit Cloud app (see docs/SUITE_CLOUD_ACTIVITY.md). "
-            "Without cloud credentials, verified saves stay inside the Music container only."
-        )
-    elif not db_exists:
-        failure = "step 3 — Command Center SQLite not initialized"
-        rec = "Open Command Center once to create data/suite_activity.db, then save verified in Music again."
-    elif fb_path and fb_verified and not verified_db:
-        failure = "step 4 — fallback exists but not imported into Command Center DB"
-        rec = "Reload Command Center (imports sibling fallback on startup). If still missing, check activity_store._import_sibling_fallback_events."
-    else:
-        failure = "step 1 or 2 — Music app did not write verified_chart_saved / lyrics_saved"
-        rec = (
-            "In Music: Save as user verified and watch for a yellow warning about activity logging. "
-            "Confirm edited_fields is non-empty (chords and/or lyrics actually saved)."
-        )
+    supabase_events, sb_err = _load_supabase_events(200)
+    cc_events = load_all_events(limit=200)
+    sqlite_events = _load_sqlite_events(200)
 
-    return ActivityDiagnostics(
+    music_cc = [e for e in cc_events if str(e.get("app") or "") == "music"]
+    verified_cc = [e for e in music_cc if str(e.get("event") or "") == "verified_chart_saved"]
+
+    phase_a = [
+        _phase_a_status(name, supabase_events, cc_events)
+        for name in PHASE_A_MUSIC_EVENTS
+    ]
+    verified_feed = False
+    for event in reversed(cc_events):
+        if str(event.get("event") or "") == "verified_chart_saved":
+            msg = format_activity_message(event) or ""
+            verified_feed = "Verified chart saved" in msg
+            break
+
+    can_see = bool(verified_cc) or (
+        cloud_cfg and cloud_ok and any(p.in_supabase for p in phase_a if p.event_type == "verified_chart_saved")
+    )
+
+    if cloud_cfg and cloud_ok and verified_cc and verified_feed:
+        failure = "none — live pipeline OK"
+        rec = "Recent Activity should match Phase A table below. Trigger new events in Music to refresh."
+    elif cloud_cfg and not cloud_ok:
+        failure = "Supabase configured but not reachable"
+        rec = "Check URL/key and run supabase/migrations/001_suite_activity.sql."
+    elif cloud_cfg and cloud_ok and not supabase_events:
+        failure = "Supabase empty — Music not writing or wrong project"
+        rec = "Add identical [suite_activity] secrets to Music Cloud app; save verified chords again."
+    elif cloud_cfg and cloud_ok and supabase_events and not cc_events:
+        failure = "Command Center not reading Supabase"
+        rec = "Confirm CC deployment has suite_storage cloud-first code (dev v14+)."
+    elif cloud_cfg and cloud_ok and verified_cc and not verified_feed:
+        failure = "Events loaded but feed formatting failed"
+        rec = "Check activity_feed.format_activity_message for verified_chart_saved."
+    elif not cloud_cfg and mode == "isolated_deployments":
+        failure = "No Supabase — Cloud cannot share activity"
+        rec = "Configure [suite_activity] secrets on all Streamlit apps (docs/SUITE_CLOUD_ACTIVITY.md)."
+    elif can_see:
+        failure = "none — events reachable (local/SQLite)"
+        rec = "For Cloud cross-app proof, configure Supabase on all deployments."
+    else:
+        failure = "No verified_chart_saved in Command Center store"
+        rec = "Save as user verified in Music, then refresh Command Center admin panel."
+
+    sb_sorted = sorted(supabase_events, key=lambda e: str(e.get("timestamp") or ""), reverse=True)
+    cc_sorted = sorted(cc_events, key=lambda e: str(e.get("timestamp") or ""), reverse=True)
+
+    return LiveActivityDiagnostics(
         deployment_mode=mode,
         cloud_storage_configured=cloud_cfg,
         cloud_storage_reachable=cloud_ok,
-        command_center_db=db_path,
-        command_center_db_exists=db_exists,
-        sqlite_music_event_count=len(music_db),
-        sqlite_verified_count=len(verified_db),
-        sqlite_lyrics_count=len(lyrics_db),
-        last_music_event=_last_event_line(music_db),
-        last_verified_event=_last_event_line(music_db, event_name="verified_chart_saved")
-        or _last_event_line(music_db, event_name="lyrics_saved"),
-        music_fallback_paths_checked=paths_checked,
-        music_fallback_found=fb_path,
-        music_fallback_verified_count=len(fb_verified),
-        sibling_repos_reachable=sibling_ok,
-        can_command_center_see_music_verified=can_see,
         failure_step=failure,
         recommendation=rec,
+        supabase_event_count=len(supabase_events),
+        command_center_event_count=len(cc_events),
+        sqlite_event_count=len(sqlite_events),
+        supabase_error=sb_err,
+        counts_by_app_supabase=_counts_by_app(supabase_events),
+        counts_by_app_command_center=_counts_by_app(cc_events),
+        last_event_by_app_supabase=_last_by_app(supabase_events),
+        last_event_by_app_command_center=_last_by_app(cc_events),
+        last_10_raw_supabase=[_format_raw_event(e) for e in sb_sorted[:10]],
+        last_10_raw_command_center=[_format_raw_event(e) for e in cc_sorted[:10]],
+        phase_a_music=phase_a,
+        verified_in_feed=verified_feed,
+        can_command_center_see_music_verified=bool(verified_cc),
+        sqlite_verified_count=len(verified_cc),
     )
+
+
+def run_activity_diagnostics() -> LiveActivityDiagnostics:
+    """Alias for admin panel."""
+    return run_live_activity_diagnostics()
