@@ -51,6 +51,58 @@ class TestActivityFeedNoise(unittest.TestCase):
         self.assertFalse(any("Selected investment goal" in m for m in messages))
         self.assertFalse(any("Updated holdings" in m for m in messages))
 
+    def test_repeated_portfolio_setup_line_once(self) -> None:
+        goal = "Grow my money long term"
+        events = [
+            {
+                "app": "investment",
+                "event": "investment_goal_selected",
+                "timestamp": "2026-06-01T10:00:00",
+                "metrics": {"goal_title": goal},
+            },
+            {
+                "app": "investment",
+                "event": "portfolio_created",
+                "timestamp": "2026-06-01T10:05:00",
+                "metrics": {"holdings_count": 4, "goal_title": goal},
+            },
+            {
+                "app": "investment",
+                "event": "portfolio_created",
+                "timestamp": "2026-06-01T10:20:00",
+                "metrics": {"holdings_count": 4, "goal_title": goal},
+            },
+            {
+                "app": "investment",
+                "event": "portfolio_created",
+                "timestamp": "2026-06-01T10:35:00",
+                "metrics": {"holdings_count": 4, "goal_title": goal},
+            },
+            {
+                "app": "investment",
+                "event": "holdings_updated",
+                "timestamp": "2026-06-01T10:40:00",
+                "metrics": {"tickers": ["SPY", "BND", "VTI", "BNDX"]},
+            },
+            {
+                "app": "investment",
+                "event": "portfolio_created",
+                "timestamp": "2026-06-01T10:50:00",
+                "metrics": {"holdings_count": 4, "goal_title": goal},
+            },
+            {
+                "app": "investment",
+                "event": "portfolio_health_checked",
+                "timestamp": "2026-06-01T11:00:00",
+                "metrics": {"review_type": "Good", "score": 82},
+            },
+        ]
+        feed = build_activity_feed(events, limit=10)
+        messages = [item.message for item in feed]
+        portfolio_lines = [m for m in messages if "starter portfolio" in m.lower() and goal.lower() in m.lower()]
+        self.assertEqual(len(portfolio_lines), 1)
+        self.assertTrue(any("health check" in m.lower() for m in messages))
+
     def test_health_outranks_setup(self) -> None:
         events = [
             {

@@ -59,6 +59,7 @@ INVESTMENT_SETUP_EVENTS = frozenset(
 
 SETUP_CLUSTER_WINDOW = timedelta(minutes=45)
 DEDUPE_WINDOW = timedelta(minutes=20)
+MESSAGE_DEDUPE_WINDOW = timedelta(minutes=45)
 
 
 @dataclass(frozen=True)
@@ -295,6 +296,9 @@ def format_activity_message(event: dict[str, Any], *, for_feed: bool = True) -> 
 
         if event_type == "portfolio_created":
             count = m.get("holdings_count")
+            goal = str(m.get("goal_title") or m.get("goal") or "").strip()
+            if count is not None and goal:
+                return f"Built starter portfolio: {int(count)} holdings ({goal})"
             if count is not None:
                 return f"Built starter portfolio: {int(count)} holdings"
             return "Built a starter portfolio"
@@ -614,6 +618,10 @@ def _summarize_investment_setup(cluster: list[dict[str, Any]]) -> str | None:
     return f"Set investment goal: {goal}" if goal else None
 
 
+def _normalize_feed_message(message: str) -> str:
+    return " ".join(str(message or "").strip().lower().split())
+
+
 def _cluster_investment_setup(events: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], list[tuple[datetime, str, str]]]:
     """
     Collapse setup clicks in a time window into synthetic feed lines.
@@ -625,6 +633,9 @@ def _cluster_investment_setup(events: list[dict[str, Any]]) -> tuple[list[dict[s
 
     i = 0
     while i < len(sorted_events):
+        if i in consumed:
+            i += 1
+            continue
         event = sorted_events[i]
         if str(event.get("app") or "") != "investment":
             i += 1
@@ -651,16 +662,53 @@ def _cluster_investment_setup(events: list[dict[str, Any]]) -> tuple[list[dict[s
             j += 1
         msg = _summarize_investment_setup(cluster)
         if msg:
-            synthetic.append((anchor, "investment", msg))
-        i += 1
+            latest = max(_parse_ts(e) for e in cluster)
+            synthetic.append((latest, "investment", msg))
+        i = j
 
     remaining = [e for idx, e in enumerate(sorted_events) if idx not in consumed]
     return remaining, synthetic
 
 
+def _dedupe_items_by_message(
+    items: list[tuple[int, datetime, ActivityFeedItem]],
+    *,
+    window: timedelta = MESSAGE_DEDUPE_WINDOW,
+) -> list[tuple[int, datetime, ActivityFeedItem]]:
+    """
+    One line per (app, message) inside the time window — keep newest / highest priority.
+    """
+    ranked = sorted(items, key=lambda row: (row[1], row[0]), reverse=True)
+    kept: list[tuple[int, datetime, ActivityFeedItem]] = []
+    anchors: list[tuple[str, str, datetime, int]] = []
+
+    for priority, sort_key, item in ranked:
+        norm = _normalize_feed_message(item.message)
+        if not norm:
+            continue
+        skip = False
+        for app, prev_norm, prev_ts, prev_pri in anchors:
+            if app != item.app or prev_norm != norm:
+                continue
+            if abs((sort_key - prev_ts).total_seconds()) <= window.total_seconds():
+                if priority <= prev_pri:
+                    skip = True
+                    break
+        if skip:
+            continue
+        kept.append((priority, sort_key, item))
+        anchors.append((item.app, norm, sort_key, priority))
+
+    return kept
+
+
 def _dedupe_key(event: dict[str, Any]) -> str:
     app = str(event.get("app") or "")
     event_type = str(event.get("event") or "")
+    if app == "investment" and event_type in INVESTMENT_SETUP_EVENTS | {"portfolio_created"}:
+        msg = format_activity_message(event, for_feed=True)
+        if msg:
+            return f"{app}:msg:{_normalize_feed_message(msg)}"
     if app == "investment" and event_type == "holdings_updated":
         return f"{app}:holdings"
     return f"{app}:{event_type}"
@@ -723,5 +771,6 @@ def build_activity_feed(events: list[dict[str, Any]], *, limit: int = 20) -> lis
             )
         )
 
+    items = _dedupe_items_by_message(items)
     items.sort(key=lambda row: (row[0], row[1]), reverse=True)
     return [row[2] for row in items[:limit]]
