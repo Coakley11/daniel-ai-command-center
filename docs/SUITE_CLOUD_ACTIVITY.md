@@ -66,11 +66,17 @@
 3. **Copy** Project URL + **service_role** key (Settings → API).
 4. **Add secrets** to every Streamlit Cloud app (identical block):
 
-   ```toml
-   [suite_activity]
-   supabase_url = "https://xxxx.supabase.co"
-   supabase_key = "eyJ...service_role..."
-   ```
+```toml
+[suite_activity]
+supabase_url = "https://xxxx.supabase.co"
+supabase_key = "eyJ...service_role..."
+```
+
+**Important:** Secrets are per Streamlit app. Paste this block into **Command Center** and **Music** separately (Settings → Secrets → Save → Reboot).
+
+Key names must be exactly `supabase_url` and `supabase_key` under section `[suite_activity]`.
+
+If the admin panel shows `suite_activity section found = false`, the block is missing from **this** app's secrets file (not Supabase itself).
 
 5. **Deploy** Command Center + Music + Baseball + NBA + Investment + Applied Intelligence + Future Lens (each repo must include synced cloud modules).
 6. **Optional:** `python scripts/migrate_sqlite_to_supabase.py` to upload existing local `data/suite_activity.db`.

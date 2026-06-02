@@ -12,7 +12,12 @@ from typing import Any
 
 from activity_feed import APP_LABELS, format_activity_message
 from activity_store import APP_REPO_DIRS, _fallback_event_paths, load_all_events
-from suite_storage_config import cloud_storage_enabled
+from suite_storage_config import (
+    EXPECTED_SECRETS_TOML,
+    cloud_storage_enabled,
+    probe_secrets,
+    reset_cloud_config_cache,
+)
 
 _DATA_DIR = Path(__file__).resolve().parent / "data"
 DB_PATH = _DATA_DIR / "suite_activity.db"
@@ -44,7 +49,9 @@ def _cloud_ping() -> bool:
 
 def _load_supabase_events(limit: int = 200) -> tuple[list[dict[str, Any]], str | None]:
     if not cloud_storage_enabled():
-        return [], "Supabase not configured"
+        probe = probe_secrets()
+        detail = probe.secrets_error or "Supabase not configured"
+        return [], detail
     try:
         from suite_storage_supabase import load_events
 
@@ -125,6 +132,7 @@ class LiveActivityDiagnostics:
     cloud_storage_reachable: bool
     failure_step: str
     recommendation: str
+    secrets_probe: Any = None
     supabase_event_count: int = 0
     command_center_event_count: int = 0
     sqlite_event_count: int = 0
@@ -183,6 +191,8 @@ def _phase_a_status(
 
 
 def run_live_activity_diagnostics() -> LiveActivityDiagnostics:
+    reset_cloud_config_cache()
+    secrets = probe_secrets()
     mode = _detect_deployment_mode()
     cloud_cfg = cloud_storage_enabled()
     cloud_ok = _cloud_ping() if cloud_cfg else False
@@ -243,6 +253,7 @@ def run_live_activity_diagnostics() -> LiveActivityDiagnostics:
         cloud_storage_reachable=cloud_ok,
         failure_step=failure,
         recommendation=rec,
+        secrets_probe=secrets,
         supabase_event_count=len(supabase_events),
         command_center_event_count=len(cc_events),
         sqlite_event_count=len(sqlite_events),

@@ -497,7 +497,32 @@ with st.expander("Deployment & link audit (admin)"):
     from activity_feed import APP_LABELS
 
     diag = run_live_activity_diagnostics()
+    probe = diag.secrets_probe
     st.markdown("#### Live activity diagnostics (Supabase ↔ Command Center)")
+    if probe is not None:
+        st.markdown("##### Secrets detection (values never shown)")
+        st.markdown(
+            f"| Check | Result |\n|---|---|\n"
+            f"| `st.secrets` available | {probe.streamlit_secrets_available} |\n"
+            f"| **`[suite_activity]` section found** | **{probe.suite_activity_section_found}** |\n"
+            f"| **`supabase_url` found** | **{probe.supabase_url_found}** |\n"
+            f"| **`supabase_key` found** | **{probe.supabase_key_found}** |\n"
+            f"| Top-level `supabase_url` (fallback) | {probe.top_level_url_found} |\n"
+            f"| Top-level `supabase_key` (fallback) | {probe.top_level_key_found} |\n"
+            f"| Env `SUITE_SUPABASE_URL` set | {probe.env_supabase_url_set} |\n"
+            f"| Env `SUITE_SUPABASE_KEY` set | {probe.env_supabase_key_set} |\n"
+            f"| Resolved source | `{probe.resolved_source}` |"
+        )
+        if probe.secrets_error:
+            st.warning(probe.secrets_error)
+        from suite_storage_config import EXPECTED_SECRETS_TOML
+
+        st.markdown("##### Expected Streamlit Cloud Secrets (paste exactly)")
+        st.code(EXPECTED_SECRETS_TOML, language="toml")
+        st.caption(
+            "Streamlit Cloud → this Command Center app → Settings → Secrets. "
+            "Save, then Reboot app. Same block must be on Music and other suite apps."
+        )
     st.markdown(
         f"| Check | Result |\n|---|---|\n"
         f"| Deployment mode | `{diag.deployment_mode}` |\n"
