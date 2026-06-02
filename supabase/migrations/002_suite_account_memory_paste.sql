@@ -1,4 +1,6 @@
--- suite_account_memory 002: run after 001_suite_activity.sql (idempotent, safe to re-run)
+-- Paste this entire file into Supabase SQL Editor.
+-- Run after 001_suite_activity.sql. Safe to re-run.
+
 CREATE TABLE IF NOT EXISTS public.suite_users (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   external_id text NOT NULL UNIQUE,
@@ -7,24 +9,18 @@ CREATE TABLE IF NOT EXISTS public.suite_users (
   created_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
--- ---------------------------------------------------------------------------
--- app_activity: suite_activity_events + user_id
--- ---------------------------------------------------------------------------
 ALTER TABLE public.suite_activity_events
   ADD COLUMN IF NOT EXISTS user_id uuid REFERENCES public.suite_users (id);
 
 CREATE INDEX IF NOT EXISTS idx_suite_events_user_ts
   ON public.suite_activity_events (user_id, timestamp DESC);
 
--- app_state: suite_app_current_state + user_id
 ALTER TABLE public.suite_app_current_state
   ADD COLUMN IF NOT EXISTS user_id uuid REFERENCES public.suite_users (id);
 
--- resume items + user_id
 ALTER TABLE public.suite_resume_items
   ADD COLUMN IF NOT EXISTS user_id uuid REFERENCES public.suite_users (id);
 
--- saved_items
 CREATE TABLE IF NOT EXISTS public.suite_saved_items (
   id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   user_id uuid NOT NULL REFERENCES public.suite_users (id) ON DELETE CASCADE,
@@ -41,7 +37,6 @@ CREATE TABLE IF NOT EXISTS public.suite_saved_items (
 CREATE INDEX IF NOT EXISTS idx_suite_saved_user_app
   ON public.suite_saved_items (user_id, app, valid, updated_at DESC);
 
--- user_settings
 CREATE TABLE IF NOT EXISTS public.suite_user_settings (
   user_id uuid NOT NULL REFERENCES public.suite_users (id) ON DELETE CASCADE,
   app text NOT NULL DEFAULT '_global',
@@ -50,7 +45,6 @@ CREATE TABLE IF NOT EXISTS public.suite_user_settings (
   PRIMARY KEY (user_id, app)
 );
 
--- backfill legacy rows (default account; use suite_user_id in app secrets)
 INSERT INTO public.suite_users (external_id, email, display_name)
 VALUES ('default', '', 'Daniel AI Suite')
 ON CONFLICT (external_id) DO NOTHING;
@@ -67,16 +61,11 @@ UPDATE public.suite_resume_items
 SET user_id = (SELECT id FROM public.suite_users WHERE external_id = 'default' LIMIT 1)
 WHERE user_id IS NULL;
 
--- Per-user resume uniqueness (after user_id backfill)
 ALTER TABLE public.suite_resume_items
   DROP CONSTRAINT IF EXISTS suite_resume_items_app_item_key_key;
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_suite_resume_user_app_item_key
   ON public.suite_resume_items (user_id, app, item_key);
-
--- Optional later: composite PK on app_state when only one user exists:
--- ALTER TABLE public.suite_app_current_state DROP CONSTRAINT IF EXISTS suite_app_current_state_pkey;
--- ALTER TABLE public.suite_app_current_state ADD PRIMARY KEY (user_id, app);
 
 ALTER TABLE public.suite_users DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.suite_saved_items DISABLE ROW LEVEL SECURITY;

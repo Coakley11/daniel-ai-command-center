@@ -17,7 +17,7 @@ Also: `suite_resume_items` (Continue cards), invalidated when items are deleted.
 ## Setup
 
 1. Run `supabase/migrations/001_suite_activity.sql` (if new project).
-2. Run `supabase/migrations/002_suite_account_memory.sql`.
+2. Run `supabase/migrations/002_suite_account_memory_paste.sql` in Supabase SQL Editor (copy from the file in GitHub; do not copy from chat markdown).
 3. Add to **every** Streamlit app (identical block):
 
 ```toml
