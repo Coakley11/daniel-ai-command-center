@@ -75,29 +75,42 @@ def _connect() -> Iterator[sqlite3.Connection]:
         conn.close()
 
 
+def _sqlite_user_id() -> str:
+    try:
+        from suite_user import get_account_user_id
+
+        return get_account_user_id()
+    except Exception:
+        return "local:default"
+
+
 def _init_db(conn: sqlite3.Connection) -> None:
     conn.executescript(
         """
         CREATE TABLE IF NOT EXISTS activity_events (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id TEXT NOT NULL DEFAULT 'local:default',
             app TEXT NOT NULL,
             event TEXT NOT NULL,
             page TEXT NOT NULL DEFAULT '',
             timestamp TEXT NOT NULL,
             metrics_json TEXT NOT NULL DEFAULT '{}'
         );
-        CREATE INDEX IF NOT EXISTS idx_events_app_ts ON activity_events(app, timestamp DESC);
+        CREATE INDEX IF NOT EXISTS idx_events_user_app_ts ON activity_events(user_id, app, timestamp DESC);
 
         CREATE TABLE IF NOT EXISTS app_current_state (
-            app TEXT PRIMARY KEY,
+            user_id TEXT NOT NULL DEFAULT 'local:default',
+            app TEXT NOT NULL,
             page TEXT NOT NULL DEFAULT '',
             summary TEXT NOT NULL DEFAULT '',
             metrics_json TEXT NOT NULL DEFAULT '{}',
-            updated_at TEXT NOT NULL
+            updated_at TEXT NOT NULL,
+            PRIMARY KEY (user_id, app)
         );
 
         CREATE TABLE IF NOT EXISTS resume_items (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id TEXT NOT NULL DEFAULT 'local:default',
             app TEXT NOT NULL,
             item_key TEXT NOT NULL,
             title TEXT NOT NULL,
@@ -105,11 +118,73 @@ def _init_db(conn: sqlite3.Connection) -> None:
             action_url TEXT NOT NULL DEFAULT '',
             valid INTEGER NOT NULL DEFAULT 1,
             updated_at TEXT NOT NULL,
-            UNIQUE(app, item_key)
+            UNIQUE(user_id, app, item_key)
         );
-        CREATE INDEX IF NOT EXISTS idx_resume_valid ON resume_items(valid, updated_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_resume_valid ON resume_items(user_id, valid, updated_at DESC);
+
+        CREATE TABLE IF NOT EXISTS saved_items (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id TEXT NOT NULL,
+            app TEXT NOT NULL,
+            item_type TEXT NOT NULL DEFAULT 'item',
+            item_key TEXT NOT NULL,
+            title TEXT NOT NULL,
+            payload_json TEXT NOT NULL DEFAULT '{}',
+            valid INTEGER NOT NULL DEFAULT 1,
+            updated_at TEXT NOT NULL,
+            UNIQUE(user_id, app, item_type, item_key)
+        );
+        CREATE INDEX IF NOT EXISTS idx_saved_user_app ON saved_items(user_id, app, valid, updated_at DESC);
+
+        CREATE TABLE IF NOT EXISTS user_settings (
+            user_id TEXT NOT NULL,
+            app TEXT NOT NULL DEFAULT '_global',
+            settings_json TEXT NOT NULL DEFAULT '{}',
+            updated_at TEXT NOT NULL,
+            PRIMARY KEY (user_id, app)
+        );
         """
     )
+    _migrate_account_columns(conn)
+
+
+def _migrate_account_columns(conn: sqlite3.Connection) -> None:
+    """Add account columns to DBs created before unified memory."""
+    uid = _sqlite_user_id()
+
+    def _has_column(table: str, col: str) -> bool:
+        rows = conn.execute(f"PRAGMA table_info({table})").fetchall()
+        return any(str(r[1]) == col for r in rows)
+
+    if _has_column("activity_events", "id") and not _has_column("activity_events", "user_id"):
+        conn.execute("ALTER TABLE activity_events ADD COLUMN user_id TEXT NOT NULL DEFAULT 'local:default'")
+        conn.execute("UPDATE activity_events SET user_id = ?", (uid,))
+    if _has_column("app_current_state", "app") and not _has_column("app_current_state", "user_id"):
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS app_current_state_v2 (
+                user_id TEXT NOT NULL,
+                app TEXT NOT NULL,
+                page TEXT NOT NULL DEFAULT '',
+                summary TEXT NOT NULL DEFAULT '',
+                metrics_json TEXT NOT NULL DEFAULT '{}',
+                updated_at TEXT NOT NULL,
+                PRIMARY KEY (user_id, app)
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT OR REPLACE INTO app_current_state_v2 (user_id, app, page, summary, metrics_json, updated_at)
+            SELECT ?, app, page, summary, metrics_json, updated_at FROM app_current_state
+            """,
+            (uid,),
+        )
+        conn.execute("DROP TABLE app_current_state")
+        conn.execute("ALTER TABLE app_current_state_v2 RENAME TO app_current_state")
+    if _has_column("resume_items", "app") and not _has_column("resume_items", "user_id"):
+        conn.execute("ALTER TABLE resume_items ADD COLUMN user_id TEXT NOT NULL DEFAULT 'local:default'")
+        conn.execute("UPDATE resume_items SET user_id = ?", (uid,))
 
 
 def ensure_storage() -> None:
@@ -132,15 +207,17 @@ def _migrate_legacy_json(conn: sqlite3.Connection) -> None:
         return
     if not isinstance(raw, list):
         return
+    uid = _sqlite_user_id()
     for row in raw[-500:]:
         if not isinstance(row, dict):
             continue
         conn.execute(
             """
-            INSERT INTO activity_events (app, event, page, timestamp, metrics_json)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO activity_events (user_id, app, event, page, timestamp, metrics_json)
+            VALUES (?, ?, ?, ?, ?, ?)
             """,
             (
+                uid,
                 str(row.get("app", "")),
                 str(row.get("event", "")),
                 str(row.get("page") or ""),
@@ -162,14 +239,15 @@ def _sqlite_append_event(
         return
     payload = metrics or {}
     ts = _now_iso()
+    uid = _sqlite_user_id()
     ensure_storage()
     with _connect() as conn:
         conn.execute(
             """
-            INSERT INTO activity_events (app, event, page, timestamp, metrics_json)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO activity_events (user_id, app, event, page, timestamp, metrics_json)
+            VALUES (?, ?, ?, ?, ?, ?)
             """,
-            (app_key, event, page, ts, json.dumps(payload, ensure_ascii=False)),
+            (uid, app_key, event, page, ts, json.dumps(payload, ensure_ascii=False)),
         )
         conn.execute(
             "DELETE FROM activity_events WHERE id NOT IN (SELECT id FROM activity_events ORDER BY id DESC LIMIT ?)",
@@ -220,20 +298,21 @@ def _sqlite_upsert_resume_item(
     if app_key not in ACTIVE_APP_KEYS:
         return
     ts = _now_iso()
+    uid = _sqlite_user_id()
     ensure_storage()
     with _connect() as conn:
         conn.execute(
             """
-            INSERT INTO resume_items (app, item_key, title, subtitle, action_url, valid, updated_at)
-            VALUES (?, ?, ?, ?, ?, 1, ?)
-            ON CONFLICT(app, item_key) DO UPDATE SET
+            INSERT INTO resume_items (user_id, app, item_key, title, subtitle, action_url, valid, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, 1, ?)
+            ON CONFLICT(user_id, app, item_key) DO UPDATE SET
                 title=excluded.title,
                 subtitle=excluded.subtitle,
                 action_url=excluded.action_url,
                 valid=1,
                 updated_at=excluded.updated_at
             """,
-            (app_key, key, title_clean, subtitle, action_url, ts),
+            (uid, app_key, key, title_clean, subtitle, action_url, ts),
         )
 
 
@@ -263,16 +342,18 @@ def _sqlite_invalidate_app_resume_items(app: str) -> None:
 
 
 def _sqlite_load_events(limit: int = MAX_EVENTS) -> list[dict[str, Any]]:
+    uid = _sqlite_user_id()
     ensure_storage()
     with _connect() as conn:
         rows = conn.execute(
             """
             SELECT app, event, page, timestamp, metrics_json
             FROM activity_events
+            WHERE user_id = ?
             ORDER BY id DESC
             LIMIT ?
             """,
-            (limit,),
+            (uid, limit),
         ).fetchall()
     out: list[dict[str, Any]] = []
     for row in reversed(rows):
@@ -293,10 +374,12 @@ def _sqlite_load_events(limit: int = MAX_EVENTS) -> list[dict[str, Any]]:
 
 
 def _sqlite_load_current_states() -> dict[str, dict[str, Any]]:
+    uid = _sqlite_user_id()
     ensure_storage()
     with _connect() as conn:
         rows = conn.execute(
-            "SELECT app, page, summary, metrics_json, updated_at FROM app_current_state"
+            "SELECT app, page, summary, metrics_json, updated_at FROM app_current_state WHERE user_id = ?",
+            (uid,),
         ).fetchall()
     out: dict[str, dict[str, Any]] = {}
     for row in rows:
@@ -317,17 +400,18 @@ def _sqlite_load_current_states() -> dict[str, dict[str, Any]]:
 
 
 def _sqlite_load_active_resume_items(limit: int = 8) -> list[ResumeItem]:
+    uid = _sqlite_user_id()
     ensure_storage()
     with _connect() as conn:
         rows = conn.execute(
             """
             SELECT app, item_key, title, subtitle, action_url, updated_at
             FROM resume_items
-            WHERE valid=1 AND app IN ({})
+            WHERE user_id = ? AND valid=1 AND app IN ({})
             ORDER BY updated_at DESC
             LIMIT ?
             """.format(",".join("?" * len(ACTIVE_APP_KEYS))),
-            (*sorted(ACTIVE_APP_KEYS), limit),
+            (uid, *sorted(ACTIVE_APP_KEYS), limit),
         ).fetchall()
     return [
         ResumeItem(
@@ -554,6 +638,208 @@ def record_activity(
             subtitle=resume_subtitle,
             action_url=action_url,
         )
+
+
+def _sqlite_upsert_saved_item(
+    app: str,
+    item_type: str,
+    item_key: str,
+    *,
+    title: str,
+    payload: dict[str, Any] | None = None,
+) -> None:
+    app_key = normalize_app_key(app)
+    key = str(item_key or "").strip()
+    title_clean = str(title or "").strip()
+    itype = str(item_type or "item").strip() or "item"
+    if not app_key or not key or not title_clean:
+        return
+    uid = _sqlite_user_id()
+    ts = _now_iso()
+    ensure_storage()
+    with _connect() as conn:
+        conn.execute(
+            """
+            INSERT INTO saved_items (user_id, app, item_type, item_key, title, payload_json, valid, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, 1, ?)
+            ON CONFLICT(user_id, app, item_type, item_key) DO UPDATE SET
+                title=excluded.title,
+                payload_json=excluded.payload_json,
+                valid=1,
+                updated_at=excluded.updated_at
+            """,
+            (uid, app_key, itype, key, title_clean, json.dumps(payload or {}, ensure_ascii=False), ts),
+        )
+
+
+def _sqlite_invalidate_saved_item(app: str, item_type: str, item_key: str) -> None:
+    app_key = normalize_app_key(app)
+    key = str(item_key or "").strip()
+    itype = str(item_type or "item").strip() or "item"
+    if not app_key or not key:
+        return
+    uid = _sqlite_user_id()
+    ensure_storage()
+    with _connect() as conn:
+        conn.execute(
+            """
+            UPDATE saved_items SET valid=0, updated_at=?
+            WHERE user_id=? AND app=? AND item_type=? AND item_key=?
+            """,
+            (_now_iso(), uid, app_key, itype, key),
+        )
+
+
+def _sqlite_load_saved_items(
+    *,
+    app: str | None = None,
+    item_type: str | None = None,
+    limit: int = 100,
+) -> list[dict[str, Any]]:
+    uid = _sqlite_user_id()
+    ensure_storage()
+    query = """
+        SELECT app, item_type, item_key, title, payload_json, updated_at
+        FROM saved_items
+        WHERE user_id = ? AND valid = 1
+    """
+    params: list[Any] = [uid]
+    if app:
+        query += " AND app = ?"
+        params.append(normalize_app_key(app))
+    if item_type:
+        query += " AND item_type = ?"
+        params.append(item_type)
+    query += " ORDER BY updated_at DESC LIMIT ?"
+    params.append(limit)
+    with _connect() as conn:
+        rows = conn.execute(query, params).fetchall()
+    out: list[dict[str, Any]] = []
+    for row in rows:
+        try:
+            payload = json.loads(row["payload_json"] or "{}")
+        except json.JSONDecodeError:
+            payload = {}
+        out.append(
+            {
+                "app": row["app"],
+                "item_type": row["item_type"],
+                "item_key": row["item_key"],
+                "title": row["title"],
+                "payload": payload,
+                "updated_at": row["updated_at"],
+            }
+        )
+    return out
+
+
+def _sqlite_save_user_settings(app: str, settings: dict[str, Any]) -> None:
+    app_key = str(app or "_global").strip() or "_global"
+    uid = _sqlite_user_id()
+    ts = _now_iso()
+    ensure_storage()
+    with _connect() as conn:
+        conn.execute(
+            """
+            INSERT INTO user_settings (user_id, app, settings_json, updated_at)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(user_id, app) DO UPDATE SET
+                settings_json=excluded.settings_json,
+                updated_at=excluded.updated_at
+            """,
+            (uid, app_key, json.dumps(settings or {}, ensure_ascii=False), ts),
+        )
+
+
+def _sqlite_load_user_settings(app: str = "_global") -> dict[str, Any]:
+    app_key = str(app or "_global").strip() or "_global"
+    uid = _sqlite_user_id()
+    ensure_storage()
+    with _connect() as conn:
+        row = conn.execute(
+            "SELECT settings_json FROM user_settings WHERE user_id = ? AND app = ?",
+            (uid, app_key),
+        ).fetchone()
+    if not row:
+        return {}
+    try:
+        raw = json.loads(row["settings_json"] or "{}")
+        return raw if isinstance(raw, dict) else {}
+    except json.JSONDecodeError:
+        return {}
+
+
+def upsert_saved_item(
+    app: str,
+    item_type: str,
+    item_key: str,
+    *,
+    title: str,
+    payload: dict[str, Any] | None = None,
+) -> None:
+    if _use_cloud():
+        import suite_storage_supabase as cloud
+
+        cloud.upsert_saved_item(app, item_type, item_key, title=title, payload=payload)
+        try:
+            _sqlite_upsert_saved_item(app, item_type, item_key, title=title, payload=payload)
+        except OSError:
+            pass
+        return
+    _sqlite_upsert_saved_item(app, item_type, item_key, title=title, payload=payload)
+
+
+def invalidate_saved_item(app: str, item_type: str, item_key: str) -> None:
+    if _use_cloud():
+        import suite_storage_supabase as cloud
+
+        cloud.invalidate_saved_item(app, item_type, item_key)
+        try:
+            _sqlite_invalidate_saved_item(app, item_type, item_key)
+        except OSError:
+            pass
+        return
+    _sqlite_invalidate_saved_item(app, item_type, item_key)
+
+
+def load_saved_items(
+    *,
+    app: str | None = None,
+    item_type: str | None = None,
+    limit: int = 100,
+) -> list[dict[str, Any]]:
+    if _use_cloud():
+        import suite_storage_supabase as cloud
+
+        try:
+            return cloud.load_saved_items(app=app, item_type=item_type, limit=limit)
+        except Exception:
+            return _sqlite_load_saved_items(app=app, item_type=item_type, limit=limit)
+    return _sqlite_load_saved_items(app=app, item_type=item_type, limit=limit)
+
+
+def save_user_settings(app: str, settings: dict[str, Any]) -> None:
+    if _use_cloud():
+        import suite_storage_supabase as cloud
+
+        cloud.save_user_settings(app, settings)
+        try:
+            _sqlite_save_user_settings(app, settings)
+        except OSError:
+            pass
+        return
+    _sqlite_save_user_settings(app, settings)
+
+
+def load_user_settings(app: str = "_global") -> dict[str, Any]:
+    if _use_cloud():
+        import suite_storage_supabase as cloud
+
+        try:
+            return cloud.load_user_settings(app)
+        except Exception:
+            return _sqlite_load_user_settings(app)
+    return _sqlite_load_user_settings(app)
 
 
 def cloud_ping() -> bool:

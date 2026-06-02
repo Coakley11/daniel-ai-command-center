@@ -13,6 +13,8 @@ FILES = (
     "suite_storage_config.py",
     "suite_storage_supabase.py",
     "suite_activity_client.py",
+    "suite_user.py",
+    "suite_account.py",
 )
 
 TARGET_REPOS = (

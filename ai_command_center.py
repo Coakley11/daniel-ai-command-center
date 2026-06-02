@@ -498,6 +498,24 @@ with st.expander("Deployment & link audit (admin)"):
 
     diag = run_live_activity_diagnostics()
     probe = diag.secrets_probe
+    try:
+        from suite_account import account_summary
+
+        acct = account_summary()
+        st.markdown("#### Unified account memory")
+        st.markdown(
+            f"| Field | Value |\n|---|---|\n"
+            f"| **Account id** | `{acct['external_id']}` |\n"
+            f"| **Storage user** | `{acct['user_id'][:36]}…` |\n"
+            f"| **Sync mode** | **{acct['mode']}** |\n"
+            f"| Display name | {html.escape(acct['display_name'])} |"
+        )
+        st.caption(
+            "Use the same `suite_user_id` in [suite_activity] secrets on phone, laptop, and every suite app. "
+            "Run `supabase/migrations/002_suite_account_memory.sql` after migration 001."
+        )
+    except Exception:
+        pass
     st.markdown("#### Live activity diagnostics (Supabase ↔ Command Center)")
     if probe is not None:
         st.markdown("##### Secrets detection (values never shown)")
