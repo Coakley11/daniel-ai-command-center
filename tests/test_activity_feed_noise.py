@@ -1,0 +1,74 @@
+"""Recent Activity should suppress noisy setup clicks and summarize portfolio setup."""
+
+from __future__ import annotations
+
+import unittest
+
+from activity_feed import build_activity_feed, format_activity_message
+
+
+class TestActivityFeedNoise(unittest.TestCase):
+    def test_goal_selected_hidden_from_feed(self) -> None:
+        event = {
+            "app": "investment",
+            "event": "investment_goal_selected",
+            "metrics": {"goal_title": "Retirement"},
+        }
+        self.assertIsNone(format_activity_message(event, for_feed=True))
+        self.assertIn("Retirement", format_activity_message(event, for_feed=False) or "")
+
+    def test_setup_cluster_summarized(self) -> None:
+        events = [
+            {
+                "app": "investment",
+                "event": "investment_goal_selected",
+                "timestamp": "2026-06-01T10:00:00",
+                "metrics": {"goal_title": "Retirement"},
+            },
+            {
+                "app": "investment",
+                "event": "portfolio_created",
+                "timestamp": "2026-06-01T10:05:00",
+                "metrics": {"holdings_count": 4},
+            },
+            {
+                "app": "investment",
+                "event": "holdings_updated",
+                "timestamp": "2026-06-01T10:06:00",
+                "metrics": {"tickers": ["SPY", "BND"]},
+            },
+            {
+                "app": "investment",
+                "event": "portfolio_health_checked",
+                "timestamp": "2026-06-01T11:00:00",
+                "metrics": {"review_type": "Good", "score": 80},
+            },
+        ]
+        feed = build_activity_feed(events, limit=5)
+        messages = [item.message for item in feed]
+        self.assertTrue(any("starter portfolio" in m.lower() for m in messages))
+        self.assertTrue(any("portfolio health check" in m.lower() for m in messages))
+        self.assertFalse(any("Selected investment goal" in m for m in messages))
+        self.assertFalse(any("Updated holdings" in m for m in messages))
+
+    def test_health_outranks_setup(self) -> None:
+        events = [
+            {
+                "app": "investment",
+                "event": "portfolio_created",
+                "timestamp": "2026-06-01T12:00:00",
+                "metrics": {"holdings_count": 3},
+            },
+            {
+                "app": "investment",
+                "event": "portfolio_health_checked",
+                "timestamp": "2026-06-01T11:00:00",
+                "metrics": {"review_type": "Fair", "score": 65},
+            },
+        ]
+        feed = build_activity_feed(events, limit=2)
+        self.assertIn("health check", feed[0].message.lower())
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -193,10 +193,10 @@ def _phase_a_status(
     preview = ""
     ts = ""
     if cc:
-        preview = format_activity_message(cc) or ""
+        preview = format_activity_message(cc, for_feed=False) or ""
         ts = str(cc.get("timestamp") or "")
     elif sb:
-        preview = format_activity_message(sb) or "(in Supabase only — CC read issue)"
+        preview = format_activity_message(sb, for_feed=False) or "(in Supabase only — CC read issue)"
         ts = str(sb.get("timestamp") or "")
     return PhaseAEventStatus(
         event_type=event_type,

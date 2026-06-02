@@ -5,7 +5,7 @@ Human-readable activity feed lines from suite event logs.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 
 APP_LABELS: dict[str, str] = {
@@ -16,6 +16,34 @@ APP_LABELS: dict[str, str] = {
     "applied_intelligence": "Applied Intelligence",
     "future_lens": "Future Lens",
 }
+
+# Events stored for diagnostics/coach but omitted from Recent Activity unless summarized.
+FEED_SUPPRESSED: frozenset[tuple[str, str]] = frozenset(
+    {
+        ("music", "song_selected"),
+        ("music", "display_key_changed"),
+        ("music", "backing_track_started"),
+        ("music", "song_added"),
+        ("investment", "investment_goal_selected"),
+        ("investment", "holdings_updated"),
+        ("investment", "ticker_analyzed"),
+        ("investment", "risk_profile_changed"),
+        ("investment", "frontier_viewed"),
+        ("investment", "macro_environment_applied"),
+    }
+)
+
+INVESTMENT_SETUP_EVENTS = frozenset(
+    {
+        "portfolio_created",
+        "investment_goal_selected",
+        "holdings_updated",
+        "ticker_analyzed",
+    }
+)
+
+SETUP_CLUSTER_WINDOW = timedelta(minutes=45)
+DEDUPE_WINDOW = timedelta(minutes=20)
 
 
 @dataclass(frozen=True)
@@ -30,6 +58,14 @@ class ActivityFeedItem:
 def _metrics(event: dict[str, Any]) -> dict[str, Any]:
     raw = event.get("metrics")
     return raw if isinstance(raw, dict) else {}
+
+
+def _parse_ts(event: dict[str, Any]) -> datetime:
+    ts_raw = str(event.get("timestamp") or "")
+    try:
+        return datetime.fromisoformat(ts_raw)
+    except ValueError:
+        return datetime.min
 
 
 def _music_title_artist(metrics: dict[str, Any]) -> str:
@@ -62,13 +98,18 @@ def _player_pair(metrics: dict[str, Any]) -> str:
     return a or b
 
 
-def format_activity_message(event: dict[str, Any]) -> str | None:
+def format_activity_message(event: dict[str, Any], *, for_feed: bool = True) -> str | None:
     """Return a scannable feed line, or None to skip noise-only events."""
     app = str(event.get("app") or "").strip()
     event_type = str(event.get("event") or "").strip()
     page = str(event.get("page") or "").strip()
     summary = str(event.get("summary") or "").strip()
     m = _metrics(event)
+
+    if for_feed and (app, event_type) in FEED_SUPPRESSED:
+        return None
+    if for_feed and event_type == "page_view" and app not in {"nba", "baseball"}:
+        return None
 
     if event_type == "practice" and app == "music":
         song = str(m.get("song") or "").strip()
@@ -99,6 +140,8 @@ def format_activity_message(event: dict[str, Any]) -> str | None:
         return f"Uploaded {kind}"
 
     if event_type == "display_key_changed" and app == "music":
+        if for_feed:
+            return None
         song = str(m.get("song") or "").strip()
         dk = str(m.get("display_key") or "").strip()
         if song and dk:
@@ -108,6 +151,8 @@ def format_activity_message(event: dict[str, Any]) -> str | None:
         return "Changed display key"
 
     if event_type == "backing_track_started" and app == "music":
+        if for_feed:
+            return None
         line = _music_title_artist(m)
         if line:
             return f"Practiced with backing track: {line}"
@@ -125,6 +170,8 @@ def format_activity_message(event: dict[str, Any]) -> str | None:
         return f"{label}: {line}" if line else label
 
     if event_type == "song_added" and app == "music":
+        if for_feed:
+            return None
         line = _music_title_artist(m)
         return f"Added song: {line}" if line else "Added a new song"
 
@@ -137,6 +184,8 @@ def format_activity_message(event: dict[str, Any]) -> str | None:
         return f"Reviewed recording: {line}" if line else "Reviewed a recording"
 
     if event_type == "song_selected" and app == "music":
+        if for_feed:
+            return None
         line = _music_title_artist(m)
         if line:
             return f"Opened: {line}"
@@ -144,6 +193,8 @@ def format_activity_message(event: dict[str, Any]) -> str | None:
 
     if app == "investment":
         if event_type == "investment_goal_selected":
+            if for_feed:
+                return None
             goal = str(m.get("goal_title") or m.get("goal") or "").strip()
             if goal:
                 return f"Selected investment goal: {goal}"
@@ -152,10 +203,12 @@ def format_activity_message(event: dict[str, Any]) -> str | None:
         if event_type == "portfolio_created":
             count = m.get("holdings_count")
             if count is not None:
-                return f"Built portfolio with {int(count)} holdings"
-            return "Built a portfolio"
+                return f"Built starter portfolio: {int(count)} holdings"
+            return "Built a starter portfolio"
 
         if event_type == "holdings_updated":
+            if for_feed:
+                return None
             tickers = m.get("tickers") or []
             if isinstance(tickers, list) and tickers:
                 sample = ", ".join(str(t).upper() for t in tickers[:6])
@@ -167,13 +220,13 @@ def format_activity_message(event: dict[str, Any]) -> str | None:
         if event_type in ("portfolio_health_checked", "portfolio_check"):
             label = str(m.get("review_type") or "portfolio health").strip()
             score = m.get("score")
-            if score is not None and event_type == "portfolio_health_checked":
-                return f"Ran portfolio health check ({label}, {float(score):.0f}/100)"
             if score is not None:
                 return f"Ran portfolio health check ({label}, {float(score):.0f}/100)"
             return "Ran portfolio health check"
 
         if event_type == "risk_profile_changed":
+            if for_feed:
+                return None
             profile = str(m.get("risk_profile") or m.get("objective") or "").strip()
             if profile:
                 return f"Risk profile: {profile.replace('_', ' ').title()}"
@@ -183,12 +236,16 @@ def format_activity_message(event: dict[str, Any]) -> str | None:
             return "Reviewed allocation drift"
 
         if event_type == "optimizer_run":
-            return "Ran optimizer"
+            return "Ran portfolio optimizer"
 
         if event_type == "frontier_viewed":
+            if for_feed:
+                return None
             return "Viewed efficient frontier"
 
         if event_type == "macro_environment_applied":
+            if for_feed:
+                return None
             return "Applied current macro environment"
 
         if event_type == "scenario_run":
@@ -198,6 +255,8 @@ def format_activity_message(event: dict[str, Any]) -> str | None:
             return "Ran investment scenario"
 
         if event_type == "ticker_analyzed":
+            if for_feed:
+                return None
             ticker = str(m.get("ticker") or "").strip().upper()
             return f"Analyzed ticker {ticker}" if ticker else "Analyzed a ticker"
 
@@ -224,9 +283,9 @@ def format_activity_message(event: dict[str, Any]) -> str | None:
         sim = str(m.get("simulation") or "").strip()
         project = str(m.get("project") or "").strip()
         if sim and project:
-            return f"Simulated {sim} ({project})"
+            return f"Completed simulation: {sim} ({project})"
         if sim:
-            return f"Simulated {sim}"
+            return f"Completed simulation: {sim}"
         return summary or "Ran a future scenario"
 
     if event_type == "analysis" and app == "applied_intelligence":
@@ -241,6 +300,8 @@ def format_activity_message(event: dict[str, Any]) -> str | None:
                 return f"Viewed {team} injury report" if team else "Viewed injury report"
             if "live" in pg.lower():
                 return f"Checked live games ({team})" if team else "Used Live Game Center"
+            if for_feed:
+                return None
             if team and pg:
                 return f"Viewed {team} — {pg}"
             if team:
@@ -255,13 +316,15 @@ def format_activity_message(event: dict[str, Any]) -> str | None:
             if report:
                 return f"Opened {report}"
         if app == "applied_intelligence":
+            if for_feed:
+                return None
             lesson = str(m.get("lesson") or page or "").strip()
             if lesson:
                 return f"Opened topic: {lesson}"
         if summary:
             return summary
         if page and app != "nba":
-            return f"Opened {page}"
+            return None
         return None
 
     if summary:
@@ -281,37 +344,37 @@ def _feed_priority(event: dict[str, Any]) -> int:
         "chart_save",
         "chord_save",
     }:
-        return 5
+        return 6
     if app == "music" and event_type in {
         "practice",
+        "recording_reviewed",
         "video_uploaded",
         "audio_uploaded",
-        "display_key_changed",
-        "backing_track_started",
         "backing_track_completed",
         "backing_track",
-        "recording_reviewed",
-        "song_added",
     }:
-        return 3
-    if app == "music" and event_type == "song_selected":
-        return 0
+        return 5
     if app == "investment" and event_type in {
         "portfolio_health_checked",
         "portfolio_check",
-        "holdings_updated",
-        "portfolio_created",
         "optimizer_run",
         "scenario_run",
-        "allocation_reviewed",
         "rebalance_reviewed",
-        "investment_goal_selected",
-        "macro_environment_applied",
-        "frontier_viewed",
-        "ticker_analyzed",
-        "risk_profile_changed",
+        "allocation_reviewed",
     }:
+        return 6
+    if app == "investment" and event_type == "portfolio_created":
+        return 3
+    if event_type in {"comparison", "trade_eval", "lineup_review"}:
+        return 5
+    if event_type == "simulation" and app == "future_lens":
+        return 5
+    if event_type == "analysis" and app == "applied_intelligence":
+        return 5
+    if app == "nba" and event_type == "page_view":
         return 4
+    if (app, event_type) in FEED_SUPPRESSED:
+        return 0
     if event_type == "page_view":
         return 0
     return 2
@@ -323,12 +386,10 @@ def investment_directory_rank(event_type: str) -> int:
         return 5
     if event_type in {"allocation_reviewed", "rebalance_reviewed", "optimizer_run"}:
         return 4
-    if event_type in {"holdings_updated", "scenario_run", "macro_environment_applied"}:
+    if event_type in {"scenario_run"}:
         return 3
-    if event_type in {"portfolio_created", "investment_goal_selected", "risk_profile_changed"}:
+    if event_type == "portfolio_created":
         return 2
-    if event_type == "frontier_viewed":
-        return 1
     return 0
 
 
@@ -341,10 +402,9 @@ def music_directory_rank(event_type: str) -> int:
     if event_type in {
         "video_uploaded",
         "audio_uploaded",
-        "backing_track_started",
         "backing_track_completed",
         "backing_track",
-        "display_key_changed",
+        "recording_reviewed",
     }:
         return 2
     if event_type == "song_selected":
@@ -352,19 +412,129 @@ def music_directory_rank(event_type: str) -> int:
     return 0
 
 
+def _summarize_investment_setup(cluster: list[dict[str, Any]]) -> str | None:
+    goal = ""
+    holdings = 0
+    latest_ts = datetime.min
+    for event in cluster:
+        m = _metrics(event)
+        g = str(m.get("goal_title") or m.get("goal") or "").strip()
+        if g:
+            goal = g
+        try:
+            holdings = max(holdings, int(m.get("holdings_count") or 0))
+        except (TypeError, ValueError):
+            pass
+        tickers = m.get("tickers")
+        if isinstance(tickers, list):
+            holdings = max(holdings, len(tickers))
+        ts = _parse_ts(event)
+        if ts > latest_ts:
+            latest_ts = ts
+    if holdings <= 0 and not goal:
+        return None
+    if goal and holdings:
+        return f"Built starter portfolio: {holdings} holdings ({goal})"
+    if holdings:
+        return f"Built starter portfolio: {holdings} holdings"
+    return f"Set investment goal: {goal}" if goal else None
+
+
+def _cluster_investment_setup(events: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], list[tuple[datetime, str, str]]]:
+    """
+    Collapse setup clicks in a time window into synthetic feed lines.
+    Returns (remaining_events, synthetic_lines as (sort_key, app, message)).
+    """
+    sorted_events = sorted(events, key=_parse_ts)
+    consumed: set[int] = set()
+    synthetic: list[tuple[datetime, str, str]] = []
+
+    i = 0
+    while i < len(sorted_events):
+        event = sorted_events[i]
+        if str(event.get("app") or "") != "investment":
+            i += 1
+            continue
+        if str(event.get("event") or "") not in INVESTMENT_SETUP_EVENTS:
+            i += 1
+            continue
+        anchor = _parse_ts(event)
+        cluster = [event]
+        consumed.add(i)
+        j = i + 1
+        while j < len(sorted_events):
+            other = sorted_events[j]
+            if str(other.get("app") or "") != "investment":
+                j += 1
+                continue
+            if str(other.get("event") or "") not in INVESTMENT_SETUP_EVENTS:
+                j += 1
+                continue
+            if _parse_ts(other) - anchor > SETUP_CLUSTER_WINDOW:
+                break
+            cluster.append(other)
+            consumed.add(j)
+            j += 1
+        msg = _summarize_investment_setup(cluster)
+        if msg:
+            synthetic.append((anchor, "investment", msg))
+        i += 1
+
+    remaining = [e for idx, e in enumerate(sorted_events) if idx not in consumed]
+    return remaining, synthetic
+
+
+def _dedupe_key(event: dict[str, Any]) -> str:
+    app = str(event.get("app") or "")
+    event_type = str(event.get("event") or "")
+    if app == "investment" and event_type == "holdings_updated":
+        return f"{app}:holdings"
+    return f"{app}:{event_type}"
+
+
 def build_activity_feed(events: list[dict[str, Any]], *, limit: int = 20) -> list[ActivityFeedItem]:
+    remaining, synthetic_lines = _cluster_investment_setup(events)
+
     items: list[tuple[int, datetime, ActivityFeedItem]] = []
-    for event in events:
-        message = format_activity_message(event)
+    for sort_key, app, message in synthetic_lines:
+        items.append(
+            (
+                4,
+                sort_key,
+                ActivityFeedItem(
+                    app=app,
+                    app_label=APP_LABELS.get(app, app.replace("_", " ").title()),
+                    timestamp=sort_key.isoformat(timespec="seconds"),
+                    message=message,
+                    sort_key=sort_key,
+                ),
+            )
+        )
+
+    sorted_events = sorted(remaining, key=_parse_ts, reverse=True)
+    seen: list[tuple[str, datetime, int]] = []
+
+    for event in sorted_events:
+        message = format_activity_message(event, for_feed=True)
         if not message:
             continue
         app = str(event.get("app") or "")
-        ts_raw = str(event.get("timestamp") or "")
-        try:
-            sort_key = datetime.fromisoformat(ts_raw)
-        except ValueError:
-            sort_key = datetime.min
+        sort_key = _parse_ts(event)
         priority = _feed_priority(event)
+        if priority <= 0:
+            continue
+
+        key = _dedupe_key(event)
+        skip = False
+        for prev_key, prev_ts, prev_pri in seen:
+            if prev_key == key and abs((sort_key - prev_ts).total_seconds()) <= DEDUPE_WINDOW.total_seconds():
+                if priority <= prev_pri:
+                    skip = True
+                    break
+        if skip:
+            continue
+        seen.append((key, sort_key, priority))
+
         items.append(
             (
                 priority,
@@ -372,11 +542,12 @@ def build_activity_feed(events: list[dict[str, Any]], *, limit: int = 20) -> lis
                 ActivityFeedItem(
                     app=app,
                     app_label=APP_LABELS.get(app, app.replace("_", " ").title()),
-                    timestamp=ts_raw,
+                    timestamp=str(event.get("timestamp") or ""),
                     message=message,
                     sort_key=sort_key,
                 ),
             )
         )
+
     items.sort(key=lambda row: (row[0], row[1]), reverse=True)
     return [row[2] for row in items[:limit]]

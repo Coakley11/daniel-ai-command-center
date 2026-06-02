@@ -15,7 +15,11 @@ class TestPhaseAInvestmentActivity(unittest.TestCase):
             "event": "investment_goal_selected",
             "metrics": {"goal_title": "Retirement"},
         }
-        self.assertEqual(format_activity_message(event), "Selected investment goal: Retirement")
+        self.assertEqual(
+            format_activity_message(event, for_feed=False),
+            "Selected investment goal: Retirement",
+        )
+        self.assertIsNone(format_activity_message(event, for_feed=True))
 
     def test_portfolio_created_feed_line(self) -> None:
         event = {
@@ -23,7 +27,7 @@ class TestPhaseAInvestmentActivity(unittest.TestCase):
             "event": "portfolio_created",
             "metrics": {"holdings_count": 6},
         }
-        self.assertIn("6 holdings", format_activity_message(event) or "")
+        self.assertIn("6 holdings", format_activity_message(event, for_feed=True) or "")
 
     def test_directory_rank_prefers_health_over_goal(self) -> None:
         self.assertGreater(

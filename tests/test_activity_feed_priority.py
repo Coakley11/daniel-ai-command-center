@@ -28,9 +28,8 @@ class TestActivityFeedPriority(unittest.TestCase):
             },
         ]
         feed = build_activity_feed(events, limit=2)
-        self.assertGreaterEqual(len(feed), 2)
+        self.assertEqual(len(feed), 1)
         self.assertIn("Verified chart saved", feed[0].message)
-        self.assertIn("Opened:", feed[1].message)
 
 
 if __name__ == "__main__":
