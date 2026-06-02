@@ -46,6 +46,10 @@ def main() -> int:
 
     _print_phase_a("Phase A — Music events", d.phase_a_music)
     _print_phase_a("Phase A — Investment events", d.phase_a_investment)
+    _print_phase_a("Phase A — Baseball events", d.phase_a_baseball)
+    _print_phase_a("Phase A — NBA events", d.phase_a_nba)
+    _print_phase_a("Phase A — Applied Intelligence events", d.phase_a_applied)
+    _print_phase_a("Phase A — Future Lens events", d.phase_a_future_lens)
 
     print(f"\n{d.recommendation}")
     return 0 if d.failure_step.startswith("none") else 1

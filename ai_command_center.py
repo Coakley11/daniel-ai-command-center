@@ -610,6 +610,28 @@ with st.expander("Deployment & link audit (admin)"):
         hide_index=True,
     )
 
+    for title, rows in (
+        ("Baseball", diag.phase_a_baseball),
+        ("NBA", diag.phase_a_nba),
+        ("Applied Intelligence", diag.phase_a_applied),
+        ("Future Lens", diag.phase_a_future_lens),
+    ):
+        st.markdown(f"##### Phase A — {title} event verification")
+        st.dataframe(
+            [
+                {
+                    "Event": row.event_type,
+                    "In Supabase": row.in_supabase,
+                    "CC reads row": row.in_command_center,
+                    "Recent Activity preview": row.feed_preview,
+                    "Latest": row.latest_timestamp,
+                }
+                for row in rows
+            ],
+            use_container_width=True,
+            hide_index=True,
+        )
+
     st.markdown("##### Last 10 raw events (Supabase)")
     for raw in diag.last_10_raw_supabase or ["—"]:
         st.code(raw, language="json")

@@ -144,6 +144,9 @@ class ActivitySnapshot:
     last_baseball_player: str = ""
     last_baseball_report: str = ""
     last_baseball_projection: str = ""
+    baseball_last_draft_prep_days_ago: int | None = None
+    baseball_last_trade_analysis_days_ago: int | None = None
+    baseball_last_projection_report_days_ago: int | None = None
     is_sunday_lineup_day: bool = False
 
     # Basketball
@@ -606,11 +609,17 @@ MEANINGFUL_WEEK_EVENTS = frozenset(
         "rebalance_reviewed",
         "lineup_review",
         "comparison",
+        "player_comparison",
         "trade_eval",
+        "trade_analysis",
         "draft_prep",
         "sleeper_review",
+        "sleeper_research",
         "projection_report",
         "roster_built",
+        "roster_build",
+        "trend_analysis",
+        "breakout_analysis",
         "chord_save",
         "chart_save",
         "backing_track",
@@ -623,9 +632,18 @@ MEANINGFUL_WEEK_EVENTS = frozenset(
         "lesson_completed",
         "case_study_completed",
         "concept_explored",
+        "problem_solved",
+        "module_completed",
+        "reasoning_exercise_completed",
         "matchup_analysis",
         "injury_review",
+        "injury_analysis",
         "playoff_simulation",
+        "playoff_tracker_review",
+        "simulation_completed",
+        "career_analysis",
+        "skill_forecast_review",
+        "technology_timeline_review",
         "player_comparison",
         "game_outlook",
         "playoff_tracking",
@@ -811,6 +829,9 @@ def _ingest_suite_events(snapshot: ActivitySnapshot) -> None:
     inv_allocation_ts: datetime | None = None
     inv_scenario_ts: datetime | None = None
     inv_rebalance_ts: datetime | None = None
+    bb_draft_ts: datetime | None = None
+    bb_trade_ts: datetime | None = None
+    bb_projection_ts: datetime | None = None
     music_practice_week: set[str] = set()
     last_upload_ts: datetime | None = None
     last_review_ts: datetime | None = None
@@ -927,6 +948,20 @@ def _ingest_suite_events(snapshot: ActivitySnapshot) -> None:
                     inv_rebalance_ts = ts
                     snapshot.investment_last_rebalance_review_days_ago = _days_ago(ts.date())
 
+        if app == "baseball":
+            if event_name == "draft_prep":
+                if bb_draft_ts is None or ts > bb_draft_ts:
+                    bb_draft_ts = ts
+                    snapshot.baseball_last_draft_prep_days_ago = _days_ago(ts.date())
+            elif event_name in {"trade_eval", "trade_analysis"}:
+                if bb_trade_ts is None or ts > bb_trade_ts:
+                    bb_trade_ts = ts
+                    snapshot.baseball_last_trade_analysis_days_ago = _days_ago(ts.date())
+            elif event_name == "projection_report":
+                if bb_projection_ts is None or ts > bb_projection_ts:
+                    bb_projection_ts = ts
+                    snapshot.baseball_last_projection_report_days_ago = _days_ago(ts.date())
+
         if ts >= week_start_dt:
             if app in week_counts and event_name in MEANINGFUL_WEEK_EVENTS:
                 week_counts[app] += 1
@@ -988,26 +1023,38 @@ def _ingest_suite_events(snapshot: ActivitySnapshot) -> None:
                     ).replace("_", " ").title()
             if app == "baseball" and event_name in {
                 "comparison",
+                "player_comparison",
                 "trade_eval",
+                "trade_analysis",
                 "draft_prep",
                 "sleeper_review",
+                "sleeper_research",
                 "projection_report",
                 "roster_built",
+                "roster_build",
                 "lineup_review",
+                "trend_analysis",
+                "breakout_analysis",
             }:
                 snapshot.baseball_analyses_this_week += 1
             if app == "nba" and event_name in {
                 "matchup_analysis",
                 "injury_review",
+                "injury_analysis",
                 "playoff_simulation",
                 "player_comparison",
                 "game_outlook",
                 "playoff_tracking",
+                "playoff_tracker_review",
             }:
                 snapshot.nba_analyses_this_week += 1
             if app == "applied_intelligence" and event_name in {
                 "lesson_completed",
                 "case_study_completed",
+                "problem_solved",
+                "module_completed",
+                "reasoning_exercise_completed",
+                "analysis",
             }:
                 snapshot.applied_lessons_completed_this_week += 1
             if app == "baseball" and metrics.get("player"):

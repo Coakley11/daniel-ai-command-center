@@ -33,6 +33,41 @@ PHASE_A_MUSIC_EVENTS = (
     "practice",
 )
 
+PHASE_A_BASEBALL_EVENTS = (
+    "player_comparison",
+    "draft_prep",
+    "sleeper_research",
+    "trade_analysis",
+    "projection_report",
+    "roster_build",
+    "trend_analysis",
+    "breakout_analysis",
+)
+
+PHASE_A_NBA_EVENTS = (
+    "matchup_analysis",
+    "injury_analysis",
+    "playoff_simulation",
+    "player_comparison",
+    "game_outlook",
+    "playoff_tracker_review",
+)
+
+PHASE_A_APPLIED_EVENTS = (
+    "lesson_completed",
+    "case_study_completed",
+    "module_completed",
+    "problem_solved",
+    "reasoning_exercise_completed",
+)
+
+PHASE_A_FUTURE_LENS_EVENTS = (
+    "simulation_completed",
+    "career_analysis",
+    "skill_forecast_review",
+    "technology_timeline_review",
+)
+
 PHASE_A_INVESTMENT_EVENTS = (
     "investment_goal_selected",
     "portfolio_created",
@@ -160,6 +195,10 @@ class LiveActivityDiagnostics:
     last_10_raw_command_center: list[str] = field(default_factory=list)
     phase_a_music: list[PhaseAEventStatus] = field(default_factory=list)
     phase_a_investment: list[PhaseAEventStatus] = field(default_factory=list)
+    phase_a_baseball: list[PhaseAEventStatus] = field(default_factory=list)
+    phase_a_nba: list[PhaseAEventStatus] = field(default_factory=list)
+    phase_a_applied: list[PhaseAEventStatus] = field(default_factory=list)
+    phase_a_future_lens: list[PhaseAEventStatus] = field(default_factory=list)
     verified_in_feed: bool = False
     investment_health_in_feed: bool = False
     # Legacy fields for compact summary row
@@ -179,9 +218,16 @@ def _phase_a_status(
     event_type: str,
     supabase_events: list[dict[str, Any]],
     cc_events: list[dict[str, Any]],
+    *,
+    app: str | None = None,
 ) -> PhaseAEventStatus:
     def _latest(events: list[dict[str, Any]]) -> dict[str, Any] | None:
-        found = [e for e in events if str(e.get("event") or "") == event_type]
+        found = [
+            e
+            for e in events
+            if str(e.get("event") or "") == event_type
+            and (app is None or str(e.get("app") or "") == app)
+        ]
         if not found:
             return None
         return max(found, key=lambda e: str(e.get("timestamp") or ""))
@@ -222,12 +268,28 @@ def run_live_activity_diagnostics() -> LiveActivityDiagnostics:
     verified_cc = [e for e in music_cc if str(e.get("event") or "") == "verified_chart_saved"]
 
     phase_a_music = [
-        _phase_a_status(name, supabase_events, cc_events)
+        _phase_a_status(name, supabase_events, cc_events, app="music")
         for name in PHASE_A_MUSIC_EVENTS
     ]
     phase_a_investment = [
-        _phase_a_status(name, supabase_events, cc_events)
+        _phase_a_status(name, supabase_events, cc_events, app="investment")
         for name in PHASE_A_INVESTMENT_EVENTS
+    ]
+    phase_a_baseball = [
+        _phase_a_status(name, supabase_events, cc_events, app="baseball")
+        for name in PHASE_A_BASEBALL_EVENTS
+    ]
+    phase_a_nba = [
+        _phase_a_status(name, supabase_events, cc_events, app="nba")
+        for name in PHASE_A_NBA_EVENTS
+    ]
+    phase_a_applied = [
+        _phase_a_status(name, supabase_events, cc_events, app="applied_intelligence")
+        for name in PHASE_A_APPLIED_EVENTS
+    ]
+    phase_a_future_lens = [
+        _phase_a_status(name, supabase_events, cc_events, app="future_lens")
+        for name in PHASE_A_FUTURE_LENS_EVENTS
     ]
     verified_feed = False
     investment_health_feed = False
@@ -243,7 +305,9 @@ def run_live_activity_diagnostics() -> LiveActivityDiagnostics:
             break
 
     can_see = bool(verified_cc) or (
-        cloud_cfg and cloud_ok and any(p.in_supabase for p in phase_a if p.event_type == "verified_chart_saved")
+        cloud_cfg
+        and cloud_ok
+        and any(p.in_supabase for p in phase_a_music if p.event_type == "verified_chart_saved")
     )
 
     if cloud_cfg and cloud_ok and verified_cc and verified_feed:
@@ -293,6 +357,10 @@ def run_live_activity_diagnostics() -> LiveActivityDiagnostics:
         last_10_raw_command_center=[_format_raw_event(e) for e in cc_sorted[:10]],
         phase_a_music=phase_a_music,
         phase_a_investment=phase_a_investment,
+        phase_a_baseball=phase_a_baseball,
+        phase_a_nba=phase_a_nba,
+        phase_a_applied=phase_a_applied,
+        phase_a_future_lens=phase_a_future_lens,
         verified_in_feed=verified_feed,
         investment_health_in_feed=investment_health_feed,
         can_command_center_see_music_verified=bool(verified_cc),

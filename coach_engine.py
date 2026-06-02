@@ -34,6 +34,35 @@ def generate_coach_insights(snapshot: ActivitySnapshot) -> list[CoachInsight]:
                 priority=5,
             )
         )
+    elif (
+        snapshot.baseball_last_draft_prep_days_ago is not None
+        and snapshot.baseball_last_draft_prep_days_ago <= 7
+        and (
+            snapshot.baseball_last_projection_report_days_ago is None
+            or snapshot.baseball_last_draft_prep_days_ago
+            < snapshot.baseball_last_projection_report_days_ago
+        )
+    ):
+        candidates.append(
+            CoachInsight(
+                key="baseball",
+                icon="⚾",
+                message="Draft preparation is active but rankings are not finalized.",
+                priority=11,
+            )
+        )
+    elif (
+        snapshot.baseball_last_trade_analysis_days_ago is not None
+        and snapshot.baseball_last_trade_analysis_days_ago <= 3
+    ):
+        candidates.append(
+            CoachInsight(
+                key="baseball",
+                icon="⚾",
+                message="Trade analysis completed — review the recommendation before you accept.",
+                priority=10,
+            )
+        )
     elif snapshot.last_baseball_player and snapshot.last_baseball_review_days_ago is not None:
         if snapshot.last_baseball_review_days_ago <= 2:
             candidates.append(
@@ -41,8 +70,8 @@ def generate_coach_insights(snapshot: ActivitySnapshot) -> list[CoachInsight]:
                     key="baseball",
                     icon="⚾",
                     message=(
-                        "You reviewed projections but have not finalized rankings — "
-                        "lock your draft board next."
+                        "You reviewed projections but have not updated your draft board — "
+                        "lock rankings next."
                     ),
                     priority=12,
                 )

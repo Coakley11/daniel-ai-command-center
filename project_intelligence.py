@@ -165,9 +165,15 @@ def _projects_from_events(snapshot: ActivitySnapshot) -> list[tuple[int, str, st
         elif app == "baseball":
             if event_name == "draft_prep" and baseball_draft is None:
                 baseball_draft = ts
-            elif event_name == "trade_eval" and baseball_trade is None:
+            elif event_name in {"trade_eval", "trade_analysis"} and baseball_trade is None:
                 baseball_trade = ts
-            elif event_name in {"projection_report", "comparison"}:
+            elif event_name in {
+                "projection_report",
+                "comparison",
+                "player_comparison",
+                "trend_analysis",
+                "breakout_analysis",
+            }:
                 baseball_projection = True
 
         elif app == "nba":
@@ -182,7 +188,7 @@ def _projects_from_events(snapshot: ActivitySnapshot) -> list[tuple[int, str, st
             if event_name == "playoff_simulation" or "playoff" in pg:
                 nba_playoff = True
 
-        elif app == "future_lens" and event_name == "simulation":
+        elif app == "future_lens" and event_name in {"simulation", "simulation_completed"}:
             sim = str(m.get("simulation") or m.get("domain") or "").strip()
             if sim and not future_sim:
                 future_sim = sim
@@ -193,6 +199,9 @@ def _projects_from_events(snapshot: ActivitySnapshot) -> list[tuple[int, str, st
             "lesson_completed",
             "case_study_completed",
             "analysis",
+            "problem_solved",
+            "module_completed",
+            "reasoning_exercise_completed",
         }:
             lesson = str(m.get("lesson") or m.get("analysis") or "").strip()
             if lesson and not ai_lesson:

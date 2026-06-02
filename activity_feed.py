@@ -360,12 +360,15 @@ def format_activity_message(event: dict[str, Any], *, for_feed: bool = True) -> 
         if event_type == "rebalance_reviewed":
             return "Reviewed rebalance guidance"
 
-    if event_type == "comparison" and app == "baseball":
+    if app == "baseball" and event_type in {
+        "comparison",
+        "player_comparison",
+    }:
         pair = _player_pair(m)
         if pair:
             return f"Compared {pair}"
         player = str(m.get("player") or "").strip()
-        return f"Ran comparison{f' — {player}' if player else ''}"
+        return f"Completed player comparison{f' — {player}' if player else ''}"
 
     if event_type == "lineup_review" and app == "baseball":
         team = str(m.get("team") or m.get("league") or "").strip()
@@ -373,24 +376,31 @@ def format_activity_message(event: dict[str, Any], *, for_feed: bool = True) -> 
             return f"Reviewed fantasy lineup ({team})"
         return "Reviewed fantasy lineup"
 
-    if event_type == "trade_eval" and app == "baseball":
+    if app == "baseball" and event_type in {"trade_eval", "trade_analysis"}:
         trade = str(m.get("trade") or summary or "").strip()
-        return f"Evaluated trade proposal: {trade}" if trade else "Evaluated a trade proposal"
+        return f"Evaluated trade proposal: {trade}" if trade else "Evaluated trade proposal"
 
     if event_type == "draft_prep" and app == "baseball":
         league = str(m.get("league") or m.get("team") or "").strip()
         return f"Completed fantasy draft prep ({league})" if league else "Completed fantasy draft prep"
 
-    if event_type == "sleeper_review" and app == "baseball":
+    if app == "baseball" and event_type in {"sleeper_review", "sleeper_research"}:
         return "Reviewed sleeper candidates"
 
     if event_type == "projection_report" and app == "baseball":
         focus = str(m.get("report") or m.get("projection") or page or "").strip()
         return f"Generated player projection report ({focus})" if focus else "Generated player projection report"
 
-    if event_type == "roster_built" and app == "baseball":
+    if app == "baseball" and event_type in {"roster_built", "roster_build"}:
         team = str(m.get("team") or m.get("league") or "").strip()
         return f"Built fantasy roster ({team})" if team else "Built fantasy roster"
+
+    if event_type == "trend_analysis" and app == "baseball":
+        player = str(m.get("player") or "").strip()
+        return f"Reviewed recent trends for {player}" if player else "Reviewed recent trends"
+
+    if event_type == "breakout_analysis" and app == "baseball":
+        return "Analyzed breakout candidates"
 
     if event_type == "simulation" and app == "future_lens":
         sim = str(m.get("simulation") or m.get("domain") or "").strip()
@@ -401,6 +411,18 @@ def format_activity_message(event: dict[str, Any], *, for_feed: bool = True) -> 
             return f"Simulated future of {sim}"
         line = _executive_summary(event)
         return line or "Completed a future scenario"
+
+    if event_type == "problem_solved" and app == "applied_intelligence":
+        topic = str(m.get("lesson") or m.get("analysis") or m.get("topic") or page or "").strip()
+        return f"Solved applied math problem: {topic}" if topic else "Solved applied math problem"
+
+    if event_type == "module_completed" and app == "applied_intelligence":
+        topic = str(m.get("lesson") or page or "").strip()
+        return f"Finished learning module: {topic}" if topic else "Finished learning module"
+
+    if event_type == "reasoning_exercise_completed" and app == "applied_intelligence":
+        topic = str(m.get("lesson") or page or "").strip()
+        return f"Completed reasoning exercise: {topic}" if topic else "Completed reasoning exercise"
 
     if event_type in ("analysis", "lesson_completed", "case_study_completed") and app == "applied_intelligence":
         topic = str(
@@ -422,13 +444,17 @@ def format_activity_message(event: dict[str, Any], *, for_feed: bool = True) -> 
         concept = str(m.get("concept") or m.get("topic") or page or "").strip()
         return f"Explored machine learning concept: {concept}" if concept else "Explored a new concept"
 
+    if app == "nba" and event_type in {"injury_review", "injury_analysis"}:
+        team = str(m.get("team") or "").strip()
+        return f"Reviewed injury report ({team})" if team else "Reviewed injury report"
+
+    if event_type == "playoff_tracker_review" and app == "nba":
+        team = str(m.get("team") or "").strip()
+        return f"Updated playoff tracker ({team})" if team else "Updated playoff tracker"
+
     if event_type == "matchup_analysis" and app == "nba":
         team = str(m.get("team") or "").strip()
         return f"Analyzed {team} matchup" if team else "Analyzed a game matchup"
-
-    if event_type == "injury_review" and app == "nba":
-        team = str(m.get("team") or "").strip()
-        return f"Reviewed injury report ({team})" if team else "Reviewed injury report"
 
     if event_type == "playoff_simulation" and app == "nba":
         label = str(m.get("series") or m.get("matchup") or "").strip()
@@ -445,15 +471,19 @@ def format_activity_message(event: dict[str, Any], *, for_feed: bool = True) -> 
     if event_type == "playoff_tracking" and app == "nba":
         return "Tracked playoff performance"
 
-    if event_type == "timeline_completed" and app == "future_lens":
+    if app == "future_lens" and event_type in {"timeline_completed", "technology_timeline_review"}:
         topic = str(m.get("simulation") or m.get("project") or page or "").strip()
         return f"Completed technology timeline: {topic}" if topic else "Completed technology timeline"
 
-    if event_type == "career_scenario" and app == "future_lens":
+    if app == "future_lens" and event_type in {"career_scenario", "career_analysis"}:
         label = str(m.get("scenario") or m.get("project") or "").strip()
-        return f"Compared future career scenarios ({label})" if label else "Compared future career scenarios"
+        return f"Compared future careers ({label})" if label else "Compared future career scenarios"
 
-    if event_type == "skill_review" and app == "future_lens":
+    if event_type == "future_comparison" and app == "future_lens":
+        label = str(m.get("scenario") or m.get("project") or "").strip()
+        return f"Compared future scenarios ({label})" if label else "Compared future scenarios"
+
+    if app == "future_lens" and event_type in {"skill_review", "skill_forecast_review"}:
         return "Reviewed future skill recommendations"
 
     if event_type == "page_view":
@@ -515,28 +545,41 @@ def _feed_priority(event: dict[str, Any]) -> int:
     if app == "baseball" and event_type in {
         "draft_prep",
         "trade_eval",
+        "trade_analysis",
         "projection_report",
         "roster_built",
+        "roster_build",
         "comparison",
+        "player_comparison",
         "sleeper_review",
+        "sleeper_research",
+        "trend_analysis",
+        "breakout_analysis",
     }:
         return 6
     if app == "nba" and event_type in {
         "matchup_analysis",
         "injury_review",
+        "injury_analysis",
         "playoff_simulation",
         "player_comparison",
         "game_outlook",
         "playoff_tracking",
+        "playoff_tracker_review",
     }:
         return 6
     if event_type in {"comparison", "trade_eval", "lineup_review"}:
         return 5
     if app == "future_lens" and event_type in {
         "simulation",
+        "simulation_completed",
         "timeline_completed",
+        "technology_timeline_review",
         "career_scenario",
+        "career_analysis",
         "skill_review",
+        "skill_forecast_review",
+        "future_comparison",
     }:
         return 5
     if app == "applied_intelligence" and event_type in {
@@ -544,6 +587,9 @@ def _feed_priority(event: dict[str, Any]) -> int:
         "lesson_completed",
         "case_study_completed",
         "concept_explored",
+        "problem_solved",
+        "module_completed",
+        "reasoning_exercise_completed",
     }:
         return 5
     if app == "investment" and event_type == "macro_environment_applied":
