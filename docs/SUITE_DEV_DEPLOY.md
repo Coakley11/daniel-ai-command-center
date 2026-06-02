@@ -53,9 +53,19 @@ Each repo should track branch **`dev`** on Streamlit Cloud. Pushing to `origin/d
 
 1. Command Center → expand **Deployment & link audit (admin)**  
    - `suite_activity section found` = true  
-   - `cloud_connected` / account mode = cloud  
+   - `supabase_url` / `supabase_key` found (required — not just `suite_user_id`)  
+   - account mode = **cloud**  
 2. Use Music on Cloud → save a chart → refresh Command Center → event appears under your `suite_user_id`.  
-3. `python scripts/verify_live_activity.py` (with local secrets.toml if testing locally)
+3. `python scripts/verify_account_memory.py` (local secrets.toml)  
+4. `python scripts/verify_live_activity.py`
+
+## 5. Cross-device test (phone → laptop)
+
+1. Confirm all **7** Streamlit apps have the full `[suite_activity]` block (URL, service_role key, `suite_user_id = "daniel"`, email) and were **rebooted** after saving.  
+2. On your **phone**, open **Music** (dev URL), pick a song, save a verified chart (or log a practice event).  
+3. On your **Dell**, open **Command Center** (dev URL), hard-refresh.  
+4. Check **Activity Summary** (music row) and **Continue Where You Left Off** — tap Continue; Music should open with `suite_pick_key` / `suite_page` in the URL.  
+5. Repeat with **Baseball** (run a player comparison) or **Investment** (portfolio health check) to confirm other apps write to the same account.
 
 ## App wiring (already in code)
 

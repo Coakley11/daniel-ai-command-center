@@ -289,12 +289,18 @@ def build_project_continue_cards(
     for priority, app, title, subtitle, dedupe in _projects_from_events(snapshot):
         if app not in meta or not meta[app]["url"]:
             continue
+        try:
+            from suite_deep_links import build_resume_action_url
+
+            deep = build_resume_action_url(app, resume_key=dedupe, page=subtitle)
+        except Exception:
+            deep = ""
         card = ContinueCard(
             app_key=app,
             app_name=meta[app]["name"],
             title=title,
             subtitle=subtitle,
-            action_url=meta[app]["url"],
+            action_url=deep or meta[app]["url"],
             emoji=themes.get(app, "▶"),
         )
         prev = merged.get(dedupe)
@@ -306,12 +312,13 @@ def build_project_continue_cards(
             continue
         title, subtitle, priority = _polish_resume(item)
         dedupe = f"resume:{item.app}:{item.item_key}"
+        url = (item.action_url or "").strip() or meta[item.app]["url"]
         card = ContinueCard(
             app_key=item.app,
             app_name=meta[item.app]["name"],
             title=title,
             subtitle=subtitle,
-            action_url=meta[item.app]["url"],
+            action_url=url,
             emoji=themes.get(item.app, "▶"),
         )
         prev = merged.get(dedupe)

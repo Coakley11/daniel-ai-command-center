@@ -15,6 +15,8 @@ MODULE_FILES = (
     "suite_activity_client.py",
     "suite_user.py",
     "suite_account.py",
+    "suite_deep_links.py",
+    "suite_resume_launch.py",
 )
 
 TARGET_REPOS = (
