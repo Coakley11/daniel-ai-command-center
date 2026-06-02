@@ -17,6 +17,7 @@ try:
 except ImportError:  # pragma: no cover
     requests = None
 
+from app_branding import app_icon
 from app_urls import (
     APP_BRANCH,
     APPLIED_INTELLIGENCE_GITHUB_URL,
@@ -115,7 +116,7 @@ APP_DEFINITIONS: tuple[AppDefinition, ...] = (
     AppDefinition(
         key="applied_intelligence",
         name="Applied Intelligence",
-        icon="🧠",
+        icon=app_icon("applied_intelligence"),
         status="Active",
         branch=APP_BRANCH["applied_intelligence"],
         github_url=APPLIED_INTELLIGENCE_GITHUB_URL,

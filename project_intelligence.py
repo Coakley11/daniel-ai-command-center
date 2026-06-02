@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 from typing import Any
 
 from activity_store import ActivitySnapshot, load_all_events
+from app_branding import suite_app_icons
 from suite_storage import ResumeItem, load_active_resume_items
 
 _PROJECT_STALE_DAYS = 14
@@ -281,14 +282,7 @@ def build_project_continue_cards(
 
     if meta is None:
         meta = {app.key: {"name": app.name, "url": app.streamlit_url.strip()} for app in APP_DEFINITIONS}
-    themes = {
-        "music": "🎵",
-        "investment": "📊",
-        "baseball": "⚾",
-        "nba": "🏀",
-        "applied_intelligence": "🧠",
-        "future_lens": "🔮",
-    }
+    themes = suite_app_icons()
 
     merged: dict[str, tuple[int, ContinueCard]] = {}
 

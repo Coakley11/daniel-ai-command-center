@@ -24,20 +24,14 @@ from activity_store import (
     load_activity_snapshot,
     load_all_events,
 )
+from app_branding import build_app_themes
 from app_registry import APP_DEFINITIONS, AppStatus, get_app_url, verify_connections
 from app_urls import BUILD_VERSION, HOMEPAGE_DEV_URL, HOMEPAGE_PRODUCTION_URL
 from coach_engine import CoachInsight, generate_coach_insights
 from continue_dashboard import ContinueCard, continue_cards_for_snapshot, recently_used_apps
 from project_intelligence import generate_cross_app_insights, weekly_accomplishment_lines
 
-APP_THEMES: dict[str, dict[str, str]] = {
-    "music": {"accent": "#a855f7", "bg": "#faf5ff", "border": "#e9d5ff", "emoji": "🎵"},
-    "investment": {"accent": "#0d9488", "bg": "#f0fdfa", "border": "#99f6e4", "emoji": "📊"},
-    "baseball": {"accent": "#16a34a", "bg": "#f0fdf4", "border": "#bbf7d0", "emoji": "⚾"},
-    "nba": {"accent": "#ea580c", "bg": "#fff7ed", "border": "#fed7aa", "emoji": "🏀"},
-    "applied_intelligence": {"accent": "#2563eb", "bg": "#eff6ff", "border": "#bfdbfe", "emoji": "🧠"},
-    "future_lens": {"accent": "#7c3aed", "bg": "#f5f3ff", "border": "#ddd6fe", "emoji": "🔮"},
-}
+APP_THEMES: dict[str, dict[str, str]] = build_app_themes()
 
 STATUS_STYLES: dict[AppStatus, dict[str, str]] = {
     "Active": {"bg": "#dcfce7", "text": "#166534", "border": "#86efac"},

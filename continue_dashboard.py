@@ -5,6 +5,7 @@ Continue-dashboard helpers for the Daniel AI Command Center homepage.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from app_branding import suite_app_icons
 from app_registry import APP_DEFINITIONS, get_app_url
 from activity_store import ActivitySnapshot, load_activity_snapshot
 from suite_storage import load_current_states
@@ -34,14 +35,7 @@ def build_continue_cards(limit: int = 6, snapshot: ActivitySnapshot | None = Non
     if cards:
         return cards
 
-    themes = {
-        "music": "🎵",
-        "investment": "📊",
-        "baseball": "⚾",
-        "nba": "🏀",
-        "applied_intelligence": "🧠",
-        "future_lens": "🔮",
-    }
+    themes = suite_app_icons()
     for app_key, state in load_current_states().items():
         if app_key not in meta or not meta[app_key]["url"]:
             continue

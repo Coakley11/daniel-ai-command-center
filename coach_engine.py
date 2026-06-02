@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from app_branding import app_icon
 from activity_store import ActivitySnapshot
 from suite_storage import load_active_resume_items
 
@@ -273,7 +274,7 @@ def generate_coach_insights(snapshot: ActivitySnapshot) -> list[CoachInsight]:
         candidates.append(
             CoachInsight(
                 key="applied_intelligence",
-                icon="🧠",
+                icon=app_icon("applied_intelligence"),
                 message=f"Continue Applied Intelligence: {snapshot.applied_intelligence_next_lesson}.",
                 priority=18,
             )
@@ -282,7 +283,7 @@ def generate_coach_insights(snapshot: ActivitySnapshot) -> list[CoachInsight]:
         candidates.append(
             CoachInsight(
                 key="applied_intelligence",
-                icon="🧠",
+                icon=app_icon("applied_intelligence"),
                 message="Return to Applied Intelligence — pick up your next modeling or reasoning exercise.",
                 priority=22,
             )
@@ -291,7 +292,7 @@ def generate_coach_insights(snapshot: ActivitySnapshot) -> list[CoachInsight]:
         candidates.append(
             CoachInsight(
                 key="applied_intelligence",
-                icon="🧠",
+                icon=app_icon("applied_intelligence"),
                 message="Block time for one Applied Intelligence analysis or problem-solving session.",
                 priority=24,
             )
