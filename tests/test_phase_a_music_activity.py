@@ -57,7 +57,7 @@ class TestPhaseAMusicActivity(unittest.TestCase):
             store.load_all_events = original
 
         self.assertIn("Hotel California", snapshot.music_directory_primary)
-        self.assertIn("Verified chart saved", snapshot.music_directory_primary)
+        self.assertIn("Saved verified chords", snapshot.music_directory_primary)
 
 
 if __name__ == "__main__":

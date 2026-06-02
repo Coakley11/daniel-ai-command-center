@@ -28,6 +28,7 @@ from app_registry import APP_DEFINITIONS, AppStatus, get_app_url, verify_connect
 from app_urls import BUILD_VERSION, HOMEPAGE_DEV_URL, HOMEPAGE_PRODUCTION_URL
 from coach_engine import CoachInsight, generate_coach_insights
 from continue_dashboard import ContinueCard, build_continue_cards, recently_used_apps
+from project_intelligence import generate_cross_app_insights, weekly_accomplishment_lines
 
 APP_THEMES: dict[str, dict[str, str]] = {
     "music": {"accent": "#a855f7", "bg": "#faf5ff", "border": "#e9d5ff", "emoji": "🎵"},
@@ -227,7 +228,7 @@ def _render_continue_section(snapshot: ActivitySnapshot, cards: list[ContinueCar
         unsafe_allow_html=True,
     )
     st.markdown(
-        '<div class="cc-section-sub">Active projects and recent work pulled from saved app state — no placeholder data.</div>',
+        '<div class="cc-section-sub">Active projects inferred from your work — edits, reviews, and analyses waiting for the next step.</div>',
         unsafe_allow_html=True,
     )
 
@@ -490,11 +491,12 @@ def _cached_connections():
 
 snapshot = load_activity_snapshot()
 insights = generate_coach_insights(snapshot)
-continue_cards = build_continue_cards()
+continue_cards = build_continue_cards(limit=6, snapshot=snapshot)
 connections = _cached_connections()
 
 _render_hero(snapshot)
 _render_continue_section(snapshot, continue_cards)
+_render_cross_app_section(snapshot)
 _render_coach_insights(insights)
 _render_recent_activity_feed()
 _render_weekly_summary(snapshot)

@@ -28,8 +28,7 @@ class TestMusicActivityFeed(unittest.TestCase):
         self.assertIsNotNone(msg)
         assert msg is not None
         self.assertIn("The Scientist", msg)
-        self.assertIn("Coldplay", msg)
-        self.assertIn("Verified chart saved", msg)
+        self.assertIn("Saved verified chords", msg)
 
     def test_lyrics_feed_line(self) -> None:
         event = {
@@ -42,7 +41,7 @@ class TestMusicActivityFeed(unittest.TestCase):
             },
         }
         msg = format_activity_message(event)
-        self.assertEqual(msg, "Lyrics updated: Autumn Leaves — Eric Clapton")
+        self.assertEqual(msg, "Saved verified lyrics for Autumn Leaves")
 
     def test_record_and_snapshot(self) -> None:
         from activity_feed import format_activity_message
@@ -72,7 +71,7 @@ class TestMusicActivityFeed(unittest.TestCase):
         self.assertIsNotNone(latest)
         msg = format_activity_message(latest)
         self.assertIn("Hotel California", msg or "")
-        self.assertIn("Eagles", msg or "")
+        self.assertIn("Saved verified chords", msg or "")
 
 
 if __name__ == "__main__":

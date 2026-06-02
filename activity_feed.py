@@ -29,8 +29,23 @@ FEED_SUPPRESSED: frozenset[tuple[str, str]] = frozenset(
         ("investment", "ticker_analyzed"),
         ("investment", "risk_profile_changed"),
         ("investment", "frontier_viewed"),
-        ("investment", "macro_environment_applied"),
     }
+)
+
+# Substrings that indicate low-value feed lines (opens, UI chrome).
+_FEED_NOISE_MARKERS: tuple[str, ...] = (
+    "opened ",
+    "opened:",
+    "viewed ",
+    "selected ",
+    "switched ",
+    "changed tab",
+    "changed filter",
+    "sorted ",
+    "clicked ",
+    "dropdown",
+    "minor holdings",
+    "parameter change",
 )
 
 INVESTMENT_SETUP_EVENTS = frozenset(
@@ -76,18 +91,37 @@ def _music_title_artist(metrics: dict[str, Any]) -> str:
     return title
 
 
+def _music_song_only(metrics: dict[str, Any]) -> str:
+    return str(metrics.get("song") or metrics.get("last_edited_song") or "").strip()
+
+
 def _music_edit_headline(event_type: str, metrics: dict[str, Any]) -> str:
     fields = metrics.get("edited_fields") or []
     if not isinstance(fields, list):
         fields = []
     field_set = {str(f) for f in fields}
     if event_type == "lyrics_saved" or (field_set == {"lyrics"}):
-        return "Lyrics updated"
+        return "Saved verified lyrics"
     if field_set >= {"chords", "lyrics"}:
-        return "Verified chart & lyrics saved"
-    if "chords" in field_set:
-        return "Verified chart saved"
-    return "Song edit saved"
+        return "Saved verified chart & lyrics"
+    if "chords" in field_set or event_type in ("verified_chart_saved", "chart_save", "chord_save"):
+        return "Saved verified chords"
+    return "Saved song edits"
+
+
+def _summary_is_noise(text: str) -> bool:
+    lower = text.strip().lower()
+    if not lower:
+        return True
+    return any(marker in lower for marker in _FEED_NOISE_MARKERS)
+
+
+def _executive_summary(event: dict[str, Any]) -> str | None:
+    """Use app-provided summary when it reads like an accomplishment, not a click."""
+    summary = str(event.get("summary") or "").strip()
+    if not summary or _summary_is_noise(summary):
+        return None
+    return summary
 
 
 def _player_pair(metrics: dict[str, Any]) -> str:
@@ -96,6 +130,69 @@ def _player_pair(metrics: dict[str, Any]) -> str:
     if a and b:
         return f"{a} vs {b}"
     return a or b
+
+
+def _page_view_executive(
+    app: str,
+    metrics: dict[str, Any],
+    page: str,
+    summary: str,
+) -> str | None:
+    """Map legacy page_view hooks to executive lines; return None for passive browsing."""
+    exec_summary = summary.strip()
+    if exec_summary and not _summary_is_noise(exec_summary):
+        return exec_summary
+
+    pg = str(metrics.get("page") or page or "").strip()
+    lower = pg.lower()
+    team = str(metrics.get("team") or "").strip()
+
+    if app == "nba":
+        if "injury" in lower:
+            return f"Reviewed injury report ({team})" if team else "Reviewed injury report"
+        if "matchup" in lower or "game" in lower:
+            return f"Analyzed {team} matchup" if team else "Analyzed a game matchup"
+        if "playoff" in lower or "series" in lower:
+            return "Simulated playoff series"
+        if "compare" in lower or "player" in lower:
+            pair = _player_pair(metrics)
+            return f"Compared players: {pair}" if pair else "Compared players"
+        if "outlook" in lower or "preview" in lower:
+            return f"Generated game outlook ({team})" if team else "Generated game outlook"
+        return None
+
+    if app == "baseball":
+        if "draft" in lower:
+            return "Completed fantasy draft prep"
+        if "sleeper" in lower:
+            return "Reviewed sleeper candidates"
+        if "trade" in lower:
+            return "Evaluated trade proposal"
+        if "projection" in lower or "report" in lower:
+            return "Generated player projection report"
+        if "roster" in lower or "lineup" in lower:
+            return "Built fantasy roster"
+        pair = _player_pair(metrics)
+        if pair or "compare" in lower:
+            return f"Compared {pair}" if pair else "Compared players"
+        return None
+
+    if app == "applied_intelligence":
+        return None
+
+    if app == "future_lens":
+        if "timeline" in lower:
+            return "Completed technology timeline"
+        if "career" in lower or "transition" in lower:
+            return "Compared future career scenarios"
+        if "skill" in lower:
+            return "Reviewed future skill recommendations"
+        if pg or metrics.get("simulation"):
+            sim = str(metrics.get("simulation") or pg or "").strip()
+            return f"Simulated future of {sim}" if sim else None
+        return None
+
+    return None
 
 
 def format_activity_message(event: dict[str, Any], *, for_feed: bool = True) -> str | None:
@@ -107,8 +204,6 @@ def format_activity_message(event: dict[str, Any], *, for_feed: bool = True) -> 
     m = _metrics(event)
 
     if for_feed and (app, event_type) in FEED_SUPPRESSED:
-        return None
-    if for_feed and event_type == "page_view" and app not in {"nba", "baseball"}:
         return None
 
     if event_type == "practice" and app == "music":
@@ -126,18 +221,16 @@ def format_activity_message(event: dict[str, Any], *, for_feed: bool = True) -> 
         return "Logged a practice session"
 
     if event_type == "video_uploaded" and app == "music":
-        line = _music_title_artist(m)
-        kind = str(m.get("upload_kind") or "performance video").strip()
-        if line:
-            return f"Uploaded {kind}: {line}"
-        return f"Uploaded {kind}"
+        song = _music_song_only(m)
+        if song:
+            return f"Uploaded performance of {song}"
+        return "Uploaded a performance recording"
 
     if event_type == "audio_uploaded" and app == "music":
-        line = _music_title_artist(m)
-        kind = str(m.get("upload_kind") or "audio recording").strip()
-        if line:
-            return f"Uploaded {kind}: {line}"
-        return f"Uploaded {kind}"
+        song = _music_song_only(m)
+        if song:
+            return f"Uploaded recording of {song}"
+        return "Uploaded an audio recording"
 
     if event_type == "display_key_changed" and app == "music":
         if for_feed:
@@ -166,8 +259,8 @@ def format_activity_message(event: dict[str, Any], *, for_feed: bool = True) -> 
 
     if event_type in ("verified_chart_saved", "lyrics_saved", "chart_save", "chord_save") and app == "music":
         label = _music_edit_headline(event_type, m)
-        line = _music_title_artist(m)
-        return f"{label}: {line}" if line else label
+        song = _music_song_only(m)
+        return f"{label} for {song}" if song else label
 
     if event_type == "song_added" and app == "music":
         if for_feed:
@@ -235,24 +328,24 @@ def format_activity_message(event: dict[str, Any], *, for_feed: bool = True) -> 
         if event_type == "allocation_reviewed":
             return "Reviewed allocation drift"
 
-        if event_type == "optimizer_run":
-            return "Ran portfolio optimizer"
-
         if event_type == "frontier_viewed":
             if for_feed:
                 return None
             return "Viewed efficient frontier"
 
         if event_type == "macro_environment_applied":
-            if for_feed:
-                return None
-            return "Applied current macro environment"
+            return "Applied macro environment to portfolio outlook"
 
         if event_type == "scenario_run":
-            ctx = str(m.get("scenario_type") or m.get("context") or "").strip()
+            ctx = str(m.get("scenario_type") or m.get("context") or "").strip().lower()
+            if "monte" in ctx or "carlo" in ctx:
+                return "Ran Monte Carlo simulation"
             if ctx:
-                return f"Ran investment scenario ({ctx})"
-            return "Ran investment scenario"
+                return f"Completed scenario analysis ({ctx})"
+            return "Completed scenario analysis"
+
+        if event_type == "optimizer_run":
+            return "Completed optimizer analysis"
 
         if event_type == "ticker_analyzed":
             if for_feed:
@@ -277,58 +370,108 @@ def format_activity_message(event: dict[str, Any], *, for_feed: bool = True) -> 
         return "Reviewed fantasy lineup"
 
     if event_type == "trade_eval" and app == "baseball":
-        return str(m.get("trade") or summary or "Evaluated a trade")
+        trade = str(m.get("trade") or summary or "").strip()
+        return f"Evaluated trade proposal: {trade}" if trade else "Evaluated a trade proposal"
+
+    if event_type == "draft_prep" and app == "baseball":
+        league = str(m.get("league") or m.get("team") or "").strip()
+        return f"Completed fantasy draft prep ({league})" if league else "Completed fantasy draft prep"
+
+    if event_type == "sleeper_review" and app == "baseball":
+        return "Reviewed sleeper candidates"
+
+    if event_type == "projection_report" and app == "baseball":
+        focus = str(m.get("report") or m.get("projection") or page or "").strip()
+        return f"Generated player projection report ({focus})" if focus else "Generated player projection report"
+
+    if event_type == "roster_built" and app == "baseball":
+        team = str(m.get("team") or m.get("league") or "").strip()
+        return f"Built fantasy roster ({team})" if team else "Built fantasy roster"
 
     if event_type == "simulation" and app == "future_lens":
-        sim = str(m.get("simulation") or "").strip()
-        project = str(m.get("project") or "").strip()
+        sim = str(m.get("simulation") or m.get("domain") or "").strip()
+        project = str(m.get("project") or m.get("area") or "").strip()
         if sim and project:
-            return f"Completed simulation: {sim} ({project})"
+            return f"Simulated future of {sim} ({project})"
         if sim:
-            return f"Completed simulation: {sim}"
-        return summary or "Ran a future scenario"
+            return f"Simulated future of {sim}"
+        line = _executive_summary(event)
+        return line or "Completed a future scenario"
 
-    if event_type == "analysis" and app == "applied_intelligence":
-        topic = str(m.get("analysis") or m.get("lesson") or page or "").strip()
-        return f"Solved problem: {topic}" if topic else "Completed an analysis"
+    if event_type in ("analysis", "lesson_completed", "case_study_completed") and app == "applied_intelligence":
+        topic = str(
+            m.get("lesson")
+            or m.get("analysis")
+            or m.get("topic")
+            or page
+            or ""
+        ).strip()
+        if event_type == "lesson_completed":
+            return f"Completed AI lesson: {topic}" if topic else "Completed an AI lesson"
+        if event_type == "case_study_completed":
+            return f"Finished case study: {topic}" if topic else "Finished a case study"
+        if m.get("concept"):
+            return f"Explored concept: {m.get('concept')}"
+        return f"Solved applied problem: {topic}" if topic else "Completed a reasoning exercise"
+
+    if event_type == "concept_explored" and app == "applied_intelligence":
+        concept = str(m.get("concept") or m.get("topic") or page or "").strip()
+        return f"Explored machine learning concept: {concept}" if concept else "Explored a new concept"
+
+    if event_type == "matchup_analysis" and app == "nba":
+        team = str(m.get("team") or "").strip()
+        return f"Analyzed {team} matchup" if team else "Analyzed a game matchup"
+
+    if event_type == "injury_review" and app == "nba":
+        team = str(m.get("team") or "").strip()
+        return f"Reviewed injury report ({team})" if team else "Reviewed injury report"
+
+    if event_type == "playoff_simulation" and app == "nba":
+        label = str(m.get("series") or m.get("matchup") or "").strip()
+        return f"Simulated playoff series ({label})" if label else "Simulated playoff series"
+
+    if event_type == "player_comparison" and app == "nba":
+        pair = _player_pair(m)
+        return f"Compared players: {pair}" if pair else "Compared players"
+
+    if event_type == "game_outlook" and app == "nba":
+        team = str(m.get("team") or "").strip()
+        return f"Generated game outlook ({team})" if team else "Generated game outlook"
+
+    if event_type == "playoff_tracking" and app == "nba":
+        return "Tracked playoff performance"
+
+    if event_type == "timeline_completed" and app == "future_lens":
+        topic = str(m.get("simulation") or m.get("project") or page or "").strip()
+        return f"Completed technology timeline: {topic}" if topic else "Completed technology timeline"
+
+    if event_type == "career_scenario" and app == "future_lens":
+        label = str(m.get("scenario") or m.get("project") or "").strip()
+        return f"Compared future career scenarios ({label})" if label else "Compared future career scenarios"
+
+    if event_type == "skill_review" and app == "future_lens":
+        return "Reviewed future skill recommendations"
 
     if event_type == "page_view":
-        if app == "nba":
-            team = str(m.get("team") or "").strip()
-            pg = str(m.get("page") or page or "").strip()
-            if "injury" in pg.lower():
-                return f"Viewed {team} injury report" if team else "Viewed injury report"
-            if "live" in pg.lower():
-                return f"Checked live games ({team})" if team else "Used Live Game Center"
-            if for_feed:
-                return None
-            if team and pg:
-                return f"Viewed {team} — {pg}"
-            if team:
-                return f"Viewed {team}"
-        if app == "baseball":
-            player = str(m.get("player") or "").strip()
-            report = str(m.get("report") or page or "").strip()
-            if player and report:
-                return f"Viewed {player} on {report}"
-            if player:
-                return f"Searched player {player}"
-            if report:
-                return f"Opened {report}"
+        if for_feed:
+            line = _page_view_executive(app, m, page, summary)
+            return line
         if app == "applied_intelligence":
-            if for_feed:
-                return None
-            lesson = str(m.get("lesson") or page or "").strip()
-            if lesson:
-                return f"Opened topic: {lesson}"
-        if summary:
-            return summary
-        if page and app != "nba":
             return None
-        return None
+        return _page_view_executive(app, m, page, summary) or summary or None
+
+    if event_type == "session":
+        line = _executive_summary(event)
+        if line:
+            return line
 
     if summary:
-        return summary
+        line = _executive_summary(event)
+        if line:
+            return line
+        if not for_feed:
+            return summary
+        return None
     if page and event_type:
         return f"{event_type.replace('_', ' ').title()}: {page}"
     return None
@@ -365,17 +508,48 @@ def _feed_priority(event: dict[str, Any]) -> int:
         return 6
     if app == "investment" and event_type == "portfolio_created":
         return 3
+    if app == "baseball" and event_type in {
+        "draft_prep",
+        "trade_eval",
+        "projection_report",
+        "roster_built",
+        "comparison",
+        "sleeper_review",
+    }:
+        return 6
+    if app == "nba" and event_type in {
+        "matchup_analysis",
+        "injury_review",
+        "playoff_simulation",
+        "player_comparison",
+        "game_outlook",
+        "playoff_tracking",
+    }:
+        return 6
     if event_type in {"comparison", "trade_eval", "lineup_review"}:
         return 5
-    if event_type == "simulation" and app == "future_lens":
+    if app == "future_lens" and event_type in {
+        "simulation",
+        "timeline_completed",
+        "career_scenario",
+        "skill_review",
+    }:
         return 5
-    if event_type == "analysis" and app == "applied_intelligence":
+    if app == "applied_intelligence" and event_type in {
+        "analysis",
+        "lesson_completed",
+        "case_study_completed",
+        "concept_explored",
+    }:
         return 5
-    if app == "nba" and event_type == "page_view":
+    if app == "investment" and event_type == "macro_environment_applied":
         return 4
-    if (app, event_type) in FEED_SUPPRESSED:
-        return 0
     if event_type == "page_view":
+        line = _page_view_executive(app, _metrics(event), str(event.get("page") or ""), str(event.get("summary") or ""))
+        return 4 if line else 0
+    if event_type == "session":
+        return 4 if _executive_summary(event) else 0
+    if (app, event_type) in FEED_SUPPRESSED:
         return 0
     return 2
 

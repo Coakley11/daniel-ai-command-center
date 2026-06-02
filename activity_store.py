@@ -166,9 +166,18 @@ class ActivitySnapshot:
     future_project: str = ""
     last_simulation_name: str = ""
 
-    # Meta
+    # Meta / cross-app
     last_opened_app: str = ""
     last_opened_page: str = ""
+    week_activity_by_app: dict[str, int] = field(default_factory=dict)
+    top_project_label: str = ""
+    top_research_area: str = ""
+    pending_review_count: int = 0
+    music_practice_sessions_this_week: int = 0
+    baseball_analyses_this_week: int = 0
+    nba_analyses_this_week: int = 0
+    applied_lessons_completed_this_week: int = 0
+    investment_rebalance_reviews_this_week: int = 0
 
 
 def _parse_date(value: str) -> date | None:
@@ -584,33 +593,45 @@ def _ingest_music_logs(snapshot: ActivitySnapshot) -> None:
 MEANINGFUL_WEEK_EVENTS = frozenset(
     {
         "session",
-        "page_view",
         "analysis",
         "practice",
         "simulation",
         "portfolio_check",
         "portfolio_health_checked",
-        "investment_goal_selected",
         "portfolio_created",
-        "holdings_updated",
         "allocation_reviewed",
         "optimizer_run",
-        "frontier_viewed",
         "macro_environment_applied",
         "scenario_run",
-        "ticker_analyzed",
         "rebalance_reviewed",
-        "risk_profile_changed",
         "lineup_review",
         "comparison",
         "trade_eval",
-        "song_selected",
+        "draft_prep",
+        "sleeper_review",
+        "projection_report",
+        "roster_built",
         "chord_save",
         "chart_save",
         "backing_track",
+        "backing_track_completed",
         "verified_chart_saved",
         "lyrics_saved",
-        "song_added",
+        "video_uploaded",
+        "audio_uploaded",
+        "recording_reviewed",
+        "lesson_completed",
+        "case_study_completed",
+        "concept_explored",
+        "matchup_analysis",
+        "injury_review",
+        "playoff_simulation",
+        "player_comparison",
+        "game_outlook",
+        "playoff_tracking",
+        "timeline_completed",
+        "career_scenario",
+        "skill_review",
     }
 )
 
@@ -629,11 +650,11 @@ def _apply_music_edit_metrics(snapshot: ActivitySnapshot, metrics: dict[str, Any
         fields = []
     field_set = {str(f) for f in fields}
     if event_name == "lyrics_saved" or field_set == {"lyrics"}:
-        snapshot.last_music_edit_label = "Lyrics updated"
+        snapshot.last_music_edit_label = "Saved verified lyrics"
     elif field_set >= {"chords", "lyrics"}:
-        snapshot.last_music_edit_label = "Verified chart & lyrics"
+        snapshot.last_music_edit_label = "Saved verified chart & lyrics"
     elif "chords" in field_set or event_name == "verified_chart_saved":
-        snapshot.last_music_edit_label = "Verified chart saved"
+        snapshot.last_music_edit_label = "Saved verified chords"
     else:
         snapshot.last_music_edit_label = "Song edit saved"
     snapshot.last_music_practice_days_ago = 0
@@ -700,18 +721,18 @@ __all__ = (
 class WeeklySummary:
     music_minutes: float
     songs_practiced: int
+    music_practice_sessions: int
     music_uploads: int
     music_verified_edits: int
     music_lyrics_edits: int
     music_backing_sessions: int
-    baseball_reviews: int
+    baseball_analyses: int
     portfolio_checks: int
     investment_scenarios: int
     investment_optimizer_runs: int
-    investment_holdings_updates: int
-    investment_goals_selected: int
-    nba_sessions: int
-    applied_intelligence_sessions: int
+    investment_rebalance_reviews: int
+    nba_analyses: int
+    applied_lessons_completed: int
     future_simulations: int
 
     @property
@@ -720,18 +741,18 @@ class WeeklySummary:
             (
                 self.music_minutes > 0,
                 self.songs_practiced > 0,
+                self.music_practice_sessions > 0,
                 self.music_uploads > 0,
                 self.music_verified_edits > 0,
                 self.music_lyrics_edits > 0,
                 self.music_backing_sessions > 0,
-                self.baseball_reviews > 0,
+                self.baseball_analyses > 0,
                 self.portfolio_checks > 0,
                 self.investment_scenarios > 0,
                 self.investment_optimizer_runs > 0,
-                self.investment_holdings_updates > 0,
-                self.investment_goals_selected > 0,
-                self.nba_sessions > 0,
-                self.applied_intelligence_sessions > 0,
+                self.investment_rebalance_reviews > 0,
+                self.nba_analyses > 0,
+                self.applied_lessons_completed > 0,
                 self.future_simulations > 0,
             )
         )
@@ -741,18 +762,18 @@ def get_weekly_summary(snapshot: ActivitySnapshot) -> WeeklySummary:
     return WeeklySummary(
         music_minutes=snapshot.music_minutes_this_week,
         songs_practiced=snapshot.songs_practiced_this_week,
+        music_practice_sessions=snapshot.music_practice_sessions_this_week,
         music_uploads=snapshot.music_uploads_this_week,
         music_verified_edits=snapshot.music_verified_edits_this_week,
         music_lyrics_edits=snapshot.music_lyrics_edits_this_week,
         music_backing_sessions=snapshot.music_backing_sessions_this_week,
-        baseball_reviews=snapshot.baseball_reviews_this_week,
+        baseball_analyses=snapshot.baseball_analyses_this_week,
         portfolio_checks=snapshot.portfolio_checks_this_week,
         investment_scenarios=snapshot.investment_scenarios_this_week,
         investment_optimizer_runs=snapshot.investment_optimizer_runs_this_week,
-        investment_holdings_updates=snapshot.investment_holdings_updates_this_week,
-        investment_goals_selected=snapshot.investment_goals_selected_this_week,
-        nba_sessions=snapshot.nba_sessions_this_week,
-        applied_intelligence_sessions=snapshot.applied_intelligence_sessions_this_week,
+        investment_rebalance_reviews=snapshot.investment_rebalance_reviews_this_week,
+        nba_analyses=snapshot.nba_analyses_this_week,
+        applied_lessons_completed=snapshot.applied_lessons_completed_this_week,
         future_simulations=snapshot.future_simulations_this_week,
     )
 
@@ -837,6 +858,8 @@ def _ingest_suite_events(snapshot: ActivitySnapshot) -> None:
                     if artist:
                         snapshot.last_music_artist = artist
             elif event_name == "practice":
+                if ts >= week_start_dt:
+                    snapshot.music_practice_sessions_this_week += 1
                 if song_name:
                     snapshot.last_song = song_name
                     if ts >= week_start_dt:
@@ -946,8 +969,8 @@ def _ingest_suite_events(snapshot: ActivitySnapshot) -> None:
                     snapshot.investment_optimizer_runs_this_week += 1
                 elif event_name == "holdings_updated":
                     snapshot.investment_holdings_updates_this_week += 1
-                elif event_name == "investment_goal_selected":
-                    snapshot.investment_goals_selected_this_week += 1
+                elif event_name == "rebalance_reviewed":
+                    snapshot.investment_rebalance_reviews_this_week += 1
                 if metrics.get("review_type"):
                     snapshot.last_portfolio_review = str(metrics["review_type"])
                 if metrics.get("goal_title") or metrics.get("goal"):
@@ -963,6 +986,30 @@ def _ingest_suite_events(snapshot: ActivitySnapshot) -> None:
                     snapshot.last_investment_risk_profile = str(
                         metrics.get("risk_profile") or metrics.get("objective")
                     ).replace("_", " ").title()
+            if app == "baseball" and event_name in {
+                "comparison",
+                "trade_eval",
+                "draft_prep",
+                "sleeper_review",
+                "projection_report",
+                "roster_built",
+                "lineup_review",
+            }:
+                snapshot.baseball_analyses_this_week += 1
+            if app == "nba" and event_name in {
+                "matchup_analysis",
+                "injury_review",
+                "playoff_simulation",
+                "player_comparison",
+                "game_outlook",
+                "playoff_tracking",
+            }:
+                snapshot.nba_analyses_this_week += 1
+            if app == "applied_intelligence" and event_name in {
+                "lesson_completed",
+                "case_study_completed",
+            }:
+                snapshot.applied_lessons_completed_this_week += 1
             if app == "baseball" and metrics.get("player"):
                 snapshot.last_baseball_player = str(metrics["player"])
             if app == "baseball" and metrics.get("report"):
@@ -1049,11 +1096,67 @@ def _ingest_suite_events(snapshot: ActivitySnapshot) -> None:
     if snapshot.last_music_practice_days_ago is None:
         snapshot.last_music_practice_days_ago = _latest_days("music")
 
-    snapshot.portfolio_checks_this_week = inv_health_week or week_counts["investment"]
-    snapshot.baseball_reviews_this_week = week_counts["baseball"]
-    snapshot.nba_sessions_this_week = week_counts["nba"]
-    snapshot.applied_intelligence_sessions_this_week = week_counts["applied_intelligence"]
-    snapshot.future_simulations_this_week = week_counts["future_lens"]
+    snapshot.portfolio_checks_this_week = inv_health_week
+    snapshot.baseball_reviews_this_week = snapshot.baseball_analyses_this_week
+    snapshot.nba_sessions_this_week = snapshot.nba_analyses_this_week
+    snapshot.applied_intelligence_sessions_this_week = snapshot.applied_lessons_completed_this_week
+    snapshot.future_simulations_this_week = week_counts.get("future_lens", 0)
+
+    snapshot.week_activity_by_app = {k: v for k, v in week_counts.items() if v > 0}
+
+    if snapshot.last_song and (
+        snapshot.music_verified_edits_this_week
+        or snapshot.songs_practiced_this_week
+        or snapshot.music_uploads_this_week
+    ):
+        snapshot.top_project_label = snapshot.last_song
+    elif snapshot.future_project or snapshot.last_simulation_name:
+        snapshot.top_project_label = snapshot.future_project or snapshot.last_simulation_name
+
+    if snapshot.portfolio_checks_this_week or snapshot.investment_optimizer_runs_this_week:
+        snapshot.top_research_area = "portfolio analysis"
+    elif snapshot.baseball_analyses_this_week:
+        snapshot.top_research_area = "baseball research"
+    elif snapshot.nba_analyses_this_week:
+        snapshot.top_research_area = "basketball analysis"
+
+    pending = 0
+    if (
+        snapshot.last_music_upload_days_ago is not None
+        and (
+            snapshot.last_recording_review_days_ago is None
+            or snapshot.last_recording_review_days_ago > snapshot.last_music_upload_days_ago
+        )
+    ):
+        pending += 1
+    if (
+        snapshot.last_music_edit_days_ago is not None
+        and snapshot.last_song
+        and (
+            snapshot.last_music_practice_days_ago is None
+            or snapshot.last_music_practice_days_ago > snapshot.last_music_edit_days_ago
+        )
+    ):
+        pending += 1
+    if (
+        snapshot.investment_last_holdings_update_days_ago is not None
+        and (
+            snapshot.last_portfolio_check_days_ago is None
+            or snapshot.investment_last_holdings_update_days_ago
+            < snapshot.last_portfolio_check_days_ago
+        )
+    ):
+        pending += 1
+    if (
+        snapshot.investment_last_scenario_days_ago is not None
+        and (
+            snapshot.investment_last_rebalance_review_days_ago is None
+            or snapshot.investment_last_scenario_days_ago
+            < snapshot.investment_last_rebalance_review_days_ago
+        )
+    ):
+        pending += 1
+    snapshot.pending_review_count = pending
 
 
 def load_activity_snapshot() -> ActivitySnapshot:

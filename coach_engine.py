@@ -30,20 +30,33 @@ def generate_coach_insights(snapshot: ActivitySnapshot) -> list[CoachInsight]:
             CoachInsight(
                 key="baseball",
                 icon="⚾",
-                message="Review and set your fantasy baseball lineups for the week.",
+                message="Finalize weekly fantasy lineups — Sunday is lineup day.",
                 priority=5,
             )
         )
-    elif snapshot.last_baseball_review_days_ago is not None and snapshot.last_baseball_review_days_ago >= 5:
-        focus = snapshot.last_baseball_report or snapshot.last_baseball_projection or "projections"
-        candidates.append(
-            CoachInsight(
-                key="baseball",
-                icon="⚾",
-                message=f"Update your lineup calls — check the latest {focus}.",
-                priority=20 + snapshot.last_baseball_review_days_ago,
+    elif snapshot.last_baseball_player and snapshot.last_baseball_review_days_ago is not None:
+        if snapshot.last_baseball_review_days_ago <= 2:
+            candidates.append(
+                CoachInsight(
+                    key="baseball",
+                    icon="⚾",
+                    message=(
+                        "You reviewed projections but have not finalized rankings — "
+                        "lock your draft board next."
+                    ),
+                    priority=12,
+                )
             )
-        )
+        elif snapshot.last_baseball_review_days_ago >= 5:
+            focus = snapshot.last_baseball_report or snapshot.last_baseball_projection or "pitching"
+            candidates.append(
+                CoachInsight(
+                    key="baseball",
+                    icon="⚾",
+                    message=f"{focus.title()} analysis has not been updated recently.",
+                    priority=20 + snapshot.last_baseball_review_days_ago,
+                )
+            )
 
     if (
         snapshot.investment_last_portfolio_created_days_ago is not None
@@ -68,6 +81,23 @@ def generate_coach_insights(snapshot: ActivitySnapshot) -> list[CoachInsight]:
         snapshot.investment_last_holdings_update_days_ago is not None
         and snapshot.investment_last_holdings_update_days_ago <= 7
         and (
+            snapshot.last_portfolio_check_days_ago is None
+            or snapshot.investment_last_holdings_update_days_ago
+            < snapshot.last_portfolio_check_days_ago
+        )
+    ):
+        candidates.append(
+            CoachInsight(
+                key="investment",
+                icon="📊",
+                message="Your portfolio was updated but not health-checked — run a review.",
+                priority=7,
+            )
+        )
+    elif (
+        snapshot.investment_last_holdings_update_days_ago is not None
+        and snapshot.investment_last_holdings_update_days_ago <= 7
+        and (
             snapshot.investment_last_allocation_review_days_ago is None
             or snapshot.investment_last_holdings_update_days_ago
             < snapshot.investment_last_allocation_review_days_ago
@@ -77,7 +107,7 @@ def generate_coach_insights(snapshot: ActivitySnapshot) -> list[CoachInsight]:
             CoachInsight(
                 key="investment",
                 icon="📊",
-                message="You changed holdings but have not reviewed allocation drift.",
+                message="Holdings changed — review allocation drift before the next trade.",
                 priority=9,
             )
         )
@@ -108,11 +138,10 @@ def generate_coach_insights(snapshot: ActivitySnapshot) -> list[CoachInsight]:
             CoachInsight(
                 key="investment",
                 icon="📊",
-                message="You ran a scenario but did not review recommendations.",
+                message="Scenario analysis completed — review recommendations next.",
                 priority=10,
             )
         )
-
     if (
         snapshot.last_music_edit_days_ago is not None
         and snapshot.last_music_edit_days_ago <= 2
@@ -127,8 +156,7 @@ def generate_coach_insights(snapshot: ActivitySnapshot) -> list[CoachInsight]:
                 key="music",
                 icon="🎵",
                 message=(
-                    f"You edited {snapshot.last_song} recently but haven't practiced it yet — "
-                    "run a focused session."
+                    f"You edited {snapshot.last_song} but have not practiced it yet."
                 ),
                 priority=6,
             )
@@ -147,22 +175,9 @@ def generate_coach_insights(snapshot: ActivitySnapshot) -> list[CoachInsight]:
                 key="music",
                 icon="🎵",
                 message=(
-                    f"You uploaded a performance of {snapshot.last_song} — review it and "
-                    "compare with older recordings."
+                    f"You uploaded a recording of {snapshot.last_song} but have not reviewed feedback yet."
                 ),
                 priority=7,
-            )
-        )
-    elif snapshot.music_minutes_this_week >= 90 or snapshot.songs_practiced_this_week >= 4:
-        candidates.append(
-            CoachInsight(
-                key="music",
-                icon="🎵",
-                message=(
-                    f"Strong practice week ({snapshot.songs_practiced_this_week} songs, "
-                    f"{snapshot.music_minutes_this_week:.0f} min) — keep the momentum."
-                ),
-                priority=12,
             )
         )
     elif (
@@ -193,54 +208,26 @@ def generate_coach_insights(snapshot: ActivitySnapshot) -> list[CoachInsight]:
                 priority=9,
             )
         )
-    elif (
-        snapshot.last_music_edit_label
-        and snapshot.last_song
-        and snapshot.last_music_edit_days_ago is not None
-        and snapshot.last_music_edit_days_ago <= 3
-    ):
-        candidates.append(
-            CoachInsight(
-                key="music",
-                icon="🎵",
-                message=f"You recently {snapshot.last_music_edit_label.lower()} for {snapshot.last_song}.",
-                priority=18,
-            )
-        )
-    elif snapshot.last_music_practice_days_ago is not None and snapshot.last_music_practice_days_ago >= 2:
-        if snapshot.last_song:
-            message = f"Block 30 minutes to practice {snapshot.last_song}."
-        else:
-            message = "Block 30 minutes for a focused practice session."
-        candidates.append(
-            CoachInsight(
-                key="music",
-                icon="🎵",
-                message=message,
-                priority=10 + snapshot.last_music_practice_days_ago,
-            )
-        )
-    elif (
-        snapshot.last_music_practice_days_ago is not None
-        and snapshot.last_music_practice_days_ago <= 1
-        and snapshot.last_song
-    ):
-        candidates.append(
-            CoachInsight(
-                key="music",
-                icon="🎵",
-                message=f"You practiced music recently — continue {snapshot.last_song} for 20 minutes.",
-                priority=20,
-            )
-        )
-
     if snapshot.last_nba_team:
+        page_hint = (snapshot.last_nba_page or "").lower()
+        if "playoff" in page_hint or "series" in page_hint:
+            msg = f"Continue playoff analysis for {snapshot.last_nba_team}."
+            priority = 10
+        elif "injury" in page_hint:
+            msg = "Injury updates may affect your matchup outlook — review before tip-off."
+            priority = 9
+        elif "matchup" in page_hint or "game" in page_hint:
+            msg = f"{snapshot.last_nba_team} has a game on the slate — revisit your matchup outlook."
+            priority = 11
+        else:
+            msg = f"Pick up where you left off with {snapshot.last_nba_team} analysis."
+            priority = 14
         candidates.append(
             CoachInsight(
                 key="nba",
                 icon="🏀",
-                message=f"Check today's {snapshot.last_nba_team} injury report before the slate.",
-                priority=12,
+                message=msg,
+                priority=priority,
             )
         )
     elif snapshot.last_nba_session_days_ago is not None and snapshot.last_nba_session_days_ago >= 4:
@@ -248,7 +235,7 @@ def generate_coach_insights(snapshot: ActivitySnapshot) -> list[CoachInsight]:
             CoachInsight(
                 key="nba",
                 icon="🏀",
-                message="Review today's Knicks injury report and playoff matchup context.",
+                message="Return to game analysis — injury and matchup context may have changed.",
                 priority=25,
             )
         )
@@ -295,24 +282,23 @@ def generate_coach_insights(snapshot: ActivitySnapshot) -> list[CoachInsight]:
 
     if snapshot.future_project or snapshot.last_simulation_name:
         label = snapshot.future_project or snapshot.last_simulation_name
+        lower = label.lower()
+        if "teach" in lower or "education" in lower:
+            msg = "Teaching simulation suggests stronger focus on AI-assisted instruction."
+        elif "research" in lower:
+            msg = "Research skills remain valuable across the scenarios you explored."
+        elif any(w in lower for w in ("quant", "math", "analytic", "data")):
+            msg = "Quantitative analysis appears consistently resilient in your scenarios."
+        else:
+            msg = f"Continue your {label} simulation — try one new assumption."
         candidates.append(
             CoachInsight(
                 key="future_lens",
                 icon="🔮",
-                message=f"Stress-test your {label} scenario with one new assumption.",
-                priority=28,
+                message=msg,
+                priority=16,
             )
         )
-    elif snapshot.last_future_lens_days_ago is not None and snapshot.last_future_lens_days_ago >= 7:
-        candidates.append(
-            CoachInsight(
-                key="future_lens",
-                icon="🔮",
-                message="Run one new Future Simulator scenario this week.",
-                priority=26,
-            )
-        )
-
     best: dict[str, CoachInsight] = {}
     for item in candidates:
         if item.key not in best or item.priority < best[item.key].priority:
