@@ -65,6 +65,22 @@ class TestImportSmoke(unittest.TestCase):
         source = COMMAND_CENTER.read_text(encoding="utf-8")
         ast.parse(source, filename=str(COMMAND_CENTER))
 
+    def test_build_continue_cards_accepts_snapshot(self) -> None:
+        import inspect
+
+        from continue_dashboard import build_continue_cards, continue_cards_for_snapshot
+        from activity_store import ActivitySnapshot, load_activity_snapshot
+
+        sig = inspect.signature(build_continue_cards)
+        self.assertIn("snapshot", sig.parameters)
+
+        snap = load_activity_snapshot()
+        self.assertIsInstance(snap, ActivitySnapshot)
+        cards_kw = build_continue_cards(limit=3, snapshot=snap)
+        cards_fn = continue_cards_for_snapshot(snap, limit=3)
+        self.assertIsInstance(cards_kw, list)
+        self.assertIsInstance(cards_fn, list)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -5,10 +5,8 @@ Continue-dashboard helpers for the Daniel AI Command Center homepage.
 from __future__ import annotations
 
 from dataclasses import dataclass
-
 from app_registry import APP_DEFINITIONS, get_app_url
 from activity_store import ActivitySnapshot, load_activity_snapshot
-from project_intelligence import build_project_continue_cards
 from suite_storage import load_current_states
 
 
@@ -28,6 +26,8 @@ def _app_meta() -> dict[str, dict[str, str]]:
 
 def build_continue_cards(limit: int = 6, snapshot: ActivitySnapshot | None = None) -> list[ContinueCard]:
     """Active projects derived from events + resume — not raw last-click titles."""
+    from project_intelligence import build_project_continue_cards
+
     meta = _app_meta()
     snap = snapshot if snapshot is not None else load_activity_snapshot()
     cards = build_project_continue_cards(snap, limit=limit, meta=meta)
@@ -62,6 +62,11 @@ def build_continue_cards(limit: int = 6, snapshot: ActivitySnapshot | None = Non
         if len(cards) >= limit:
             break
     return cards[:limit]
+
+
+def continue_cards_for_snapshot(snapshot: ActivitySnapshot, *, limit: int = 6) -> list[ContinueCard]:
+    """Preferred entry point from the homepage — always accepts a loaded snapshot."""
+    return build_continue_cards(limit=limit, snapshot=snapshot)
 
 
 def recently_used_apps(limit: int = 4) -> list[tuple[str, str, str]]:

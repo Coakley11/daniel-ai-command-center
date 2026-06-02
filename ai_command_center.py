@@ -27,7 +27,7 @@ from activity_store import (
 from app_registry import APP_DEFINITIONS, AppStatus, get_app_url, verify_connections
 from app_urls import BUILD_VERSION, HOMEPAGE_DEV_URL, HOMEPAGE_PRODUCTION_URL
 from coach_engine import CoachInsight, generate_coach_insights
-from continue_dashboard import ContinueCard, build_continue_cards, recently_used_apps
+from continue_dashboard import ContinueCard, continue_cards_for_snapshot, recently_used_apps
 from project_intelligence import generate_cross_app_insights, weekly_accomplishment_lines
 
 APP_THEMES: dict[str, dict[str, str]] = {
@@ -196,7 +196,11 @@ def _status_badge_html(status: AppStatus) -> str:
 def _render_go_button(label: str, url: str, key: str) -> None:
     cleaned = url.strip()
     if cleaned:
-        st.link_button(label, cleaned, use_container_width=True, key=key)
+        try:
+            st.link_button(label, cleaned, use_container_width=True, key=key)
+        except TypeError:
+            # Older Streamlit: link_button has no key= parameter
+            st.link_button(label, cleaned, use_container_width=True)
     else:
         st.button(label, disabled=True, use_container_width=True, key=key)
         st.caption("Not connected")
@@ -491,7 +495,7 @@ def _cached_connections():
 
 snapshot = load_activity_snapshot()
 insights = generate_coach_insights(snapshot)
-continue_cards = build_continue_cards(limit=6, snapshot=snapshot)
+continue_cards = continue_cards_for_snapshot(snapshot, limit=6)
 connections = _cached_connections()
 
 _render_hero(snapshot)
