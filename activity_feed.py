@@ -5,13 +5,15 @@ Human-readable activity feed lines from suite event logs.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
+
+from activity_time import parse_activity_timestamp, utc_iso_from_datetime
 
 APP_LABELS: dict[str, str] = {
     "music": "Music",
     "baseball": "Baseball",
-    "nba": "Basketball",
+    "nba": "NBA",
     "investment": "Investment",
     "applied_intelligence": "Applied Intelligence",
     "future_lens": "Future Lens",
@@ -60,6 +62,84 @@ INVESTMENT_SETUP_EVENTS = frozenset(
 SETUP_CLUSTER_WINDOW = timedelta(minutes=45)
 DEDUPE_WINDOW = timedelta(minutes=20)
 MESSAGE_DEDUPE_WINDOW = timedelta(minutes=45)
+HIGHLIGHT_MAX_AGE = timedelta(days=7)
+TODAY_ROLLUP_WINDOW = timedelta(hours=24)
+SESSION_GAP = timedelta(minutes=90)
+RECENT_ROLLUP_WINDOW = timedelta(minutes=90)
+
+# Milestone events promoted to the Highlights section (when recent enough).
+HIGHLIGHT_EVENTS: frozenset[tuple[str, str]] = frozenset(
+    {
+        ("investment", "investment_goal_selected"),
+        ("investment", "portfolio_created"),
+        ("investment", "portfolio_health_checked"),
+        ("investment", "portfolio_check"),
+        ("investment", "optimizer_run"),
+        ("investment", "scenario_run"),
+        ("music", "verified_chart_saved"),
+        ("music", "lyrics_saved"),
+        ("music", "chart_save"),
+        ("music", "chord_save"),
+        ("music", "practice"),
+        ("music", "backing_track_completed"),
+        ("music", "video_uploaded"),
+        ("music", "audio_uploaded"),
+        ("music", "recording_reviewed"),
+        ("baseball", "draft_prep"),
+        ("baseball", "trade_analysis"),
+        ("baseball", "trade_eval"),
+        ("baseball", "projection_report"),
+        ("baseball", "roster_built"),
+        ("baseball", "roster_build"),
+        ("nba", "matchup_analysis"),
+        ("nba", "injury_analysis"),
+        ("nba", "playoff_simulation"),
+        ("nba", "game_outlook"),
+        ("future_lens", "simulation_completed"),
+        ("future_lens", "timeline_completed"),
+        ("future_lens", "simulation"),
+        ("applied_intelligence", "lesson_completed"),
+        ("applied_intelligence", "module_completed"),
+        ("applied_intelligence", "problem_solved"),
+    }
+)
+
+COMPARISON_ROLLUP_EVENTS: frozenset[tuple[str, str]] = frozenset(
+    {
+        ("baseball", "player_comparison"),
+        ("baseball", "comparison"),
+        ("nba", "player_comparison"),
+    }
+)
+
+MUSIC_PRACTICE_ROLLUP_EVENTS: frozenset[tuple[str, str]] = frozenset(
+    {
+        ("music", "song_selected"),
+        ("music", "practice"),
+        ("music", "backing_track_completed"),
+    }
+)
+
+INVESTMENT_PORTFOLIO_SESSION_EVENTS: frozenset[str] = frozenset(
+    {
+        "portfolio_health_checked",
+        "portfolio_check",
+        "allocation_reviewed",
+        "rebalance_reviewed",
+        "optimizer_run",
+    }
+)
+
+NBA_ANALYSIS_ROLLUP_EVENTS: frozenset[str] = frozenset(
+    {
+        "matchup_analysis",
+        "injury_analysis",
+        "game_outlook",
+        "playoff_simulation",
+        "playoff_tracker_review",
+        "playoff_tracking",
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -69,6 +149,17 @@ class ActivityFeedItem:
     timestamp: str
     message: str
     sort_key: datetime
+    is_highlight: bool = False
+    is_rollup: bool = False
+
+
+@dataclass(frozen=True)
+class ActivityDashboard:
+    """Executive activity view: today's summary, highlights, and recent rollups."""
+
+    today_summaries: tuple[str, ...]
+    highlights: tuple[ActivityFeedItem, ...]
+    recent: tuple[ActivityFeedItem, ...]
 
 
 def _metrics(event: dict[str, Any]) -> dict[str, Any]:
@@ -77,11 +168,10 @@ def _metrics(event: dict[str, Any]) -> dict[str, Any]:
 
 
 def _parse_ts(event: dict[str, Any]) -> datetime:
-    ts_raw = str(event.get("timestamp") or "")
-    try:
-        return datetime.fromisoformat(ts_raw)
-    except ValueError:
-        return datetime.min
+    dt = parse_activity_timestamp(str(event.get("timestamp") or ""))
+    if dt is None:
+        return datetime.min.replace(tzinfo=timezone.utc)
+    return dt
 
 
 def _music_title_artist(metrics: dict[str, Any]) -> str:
@@ -639,7 +729,7 @@ def music_directory_rank(event_type: str) -> int:
 def _summarize_investment_setup(cluster: list[dict[str, Any]]) -> str | None:
     goal = ""
     holdings = 0
-    latest_ts = datetime.min
+    latest_ts = datetime.min.replace(tzinfo=timezone.utc)
     for event in cluster:
         m = _metrics(event)
         g = str(m.get("goal_title") or m.get("goal") or "").strip()
@@ -748,6 +838,475 @@ def _dedupe_items_by_message(
     return kept
 
 
+def _event_key(event: dict[str, Any]) -> tuple[str, str]:
+    return (str(event.get("app") or ""), str(event.get("event") or ""))
+
+
+def _is_highlight_event(event: dict[str, Any], *, now: datetime) -> bool:
+    app, event_type = _event_key(event)
+    if (app, event_type) not in HIGHLIGHT_EVENTS:
+        return False
+    ts = _parse_ts(event)
+    if ts == datetime.min.replace(tzinfo=timezone.utc):
+        return False
+    if now - ts > HIGHLIGHT_MAX_AGE:
+        return False
+    if (app, event_type) in COMPARISON_ROLLUP_EVENTS:
+        return False
+    if app == "music" and event_type == "practice":
+        m = _metrics(event)
+        if not m.get("minutes") and not m.get("song"):
+            return False
+    return True
+
+
+def _make_feed_item(
+    event: dict[str, Any] | None,
+    *,
+    app: str,
+    message: str,
+    sort_key: datetime,
+    is_highlight: bool = False,
+    is_rollup: bool = False,
+) -> ActivityFeedItem:
+    ts_iso = utc_iso_from_datetime(sort_key)
+    return ActivityFeedItem(
+        app=app,
+        app_label=APP_LABELS.get(app, app.replace("_", " ").title()),
+        timestamp=ts_iso,
+        message=message,
+        sort_key=sort_key,
+        is_highlight=is_highlight,
+        is_rollup=is_rollup,
+    )
+
+
+def _format_item_message(event: dict[str, Any], *, for_highlight: bool = False) -> str | None:
+    if for_highlight and _event_key(event) in HIGHLIGHT_EVENTS:
+        msg = format_activity_message(event, for_feed=False)
+        if msg and not _summary_is_noise(msg):
+            return msg
+    return format_activity_message(event, for_feed=True)
+
+
+def _events_today(
+    events: list[dict[str, Any]], *, now: datetime
+) -> list[dict[str, Any]]:
+    from activity_time import to_display_local
+
+    local_now = to_display_local(now)
+    today = local_now.date()
+    out: list[dict[str, Any]] = []
+    for event in events:
+        ts = _parse_ts(event)
+        if ts == datetime.min.replace(tzinfo=timezone.utc):
+            continue
+        if to_display_local(ts).date() == today:
+            out.append(event)
+    return out
+
+
+def _session_spans(events: list[dict[str, Any]]) -> list[tuple[list[dict[str, Any]], datetime, datetime]]:
+    """Split chronologically sorted events into sessions separated by SESSION_GAP."""
+    if not events:
+        return []
+    ordered = sorted(events, key=_parse_ts)
+    sessions: list[list[dict[str, Any]]] = []
+    current: list[dict[str, Any]] = [ordered[0]]
+    for event in ordered[1:]:
+        if _parse_ts(event) - _parse_ts(current[-1]) > SESSION_GAP:
+            sessions.append(current)
+            current = [event]
+        else:
+            current.append(event)
+    sessions.append(current)
+    spans: list[tuple[list[dict[str, Any]], datetime, datetime]] = []
+    for block in sessions:
+        start = _parse_ts(block[0])
+        end = _parse_ts(block[-1])
+        spans.append((block, start, end))
+    return spans
+
+
+def _minutes_between(start: datetime, end: datetime) -> int:
+    return max(1, int((end - start).total_seconds()) // 60)
+
+
+def _app_label_for_summary(app: str) -> str:
+    labels = {
+        "music": "Music Coach",
+        "investment": "Investment App",
+        "baseball": "Baseball",
+        "nba": "NBA Companion",
+        "future_lens": "Future Lens",
+        "applied_intelligence": "Applied Intelligence",
+    }
+    return labels.get(app, APP_LABELS.get(app, app.title()))
+
+
+def build_today_summaries(
+    events: list[dict[str, Any]],
+    *,
+    now: datetime | None = None,
+) -> tuple[str, ...]:
+    """Build the Today's Work summary strip from today's events."""
+    if now is None:
+        now = datetime.now(timezone.utc)
+    today_events = _events_today(events, now=now)
+    if not today_events:
+        return ()
+
+    summaries: list[str] = []
+    by_app: dict[str, list[dict[str, Any]]] = {}
+    for event in today_events:
+        app = str(event.get("app") or "")
+        if app:
+            by_app.setdefault(app, []).append(event)
+
+    for app, app_events in by_app.items():
+        spans = _session_spans(app_events)
+        total_minutes = sum(_minutes_between(s, e) for _, s, e in spans)
+        if app == "investment":
+            portfolio_events = [
+                e
+                for e in app_events
+                if str(e.get("event") or "") in INVESTMENT_PORTFOLIO_SESSION_EVENTS
+            ]
+            if portfolio_events:
+                summaries.append("Completed portfolio analysis")
+            elif total_minutes >= 5:
+                summaries.append(
+                    f"Worked on {_app_label_for_summary(app)} for {total_minutes} minutes"
+                )
+            continue
+
+        if app == "music":
+            songs: set[str] = set()
+            practice_mins = 0
+            for event in app_events:
+                et = str(event.get("event") or "")
+                m = _metrics(event)
+                song = str(m.get("song") or "").strip()
+                if et in {"song_selected", "practice", "backing_track_completed"} and song:
+                    songs.add(song)
+                try:
+                    practice_mins += int(m.get("minutes") or 0)
+                except (TypeError, ValueError):
+                    pass
+            if songs:
+                n = len(songs)
+                summaries.append(
+                    f"Practiced {n} song{'s' if n != 1 else ''}"
+                    + (f" ({practice_mins} min)" if practice_mins else "")
+                )
+            elif total_minutes >= 5:
+                summaries.append(
+                    f"Worked on {_app_label_for_summary(app)} for {total_minutes} minutes"
+                )
+            continue
+
+        if app == "baseball":
+            comparisons = sum(
+                1 for e in app_events if _event_key(e) in COMPARISON_ROLLUP_EVENTS
+            )
+            if comparisons >= 2:
+                summaries.append(f"Ran {comparisons} player comparisons in Baseball")
+            elif comparisons == 1:
+                summaries.append("Ran a player comparison in Baseball")
+            elif total_minutes >= 5:
+                summaries.append(
+                    f"Worked on {_app_label_for_summary(app)} for {total_minutes} minutes"
+                )
+            continue
+
+        if app == "nba":
+            analyses = sum(
+                1 for e in app_events if str(e.get("event") or "") in NBA_ANALYSIS_ROLLUP_EVENTS
+            )
+            if analyses >= 2:
+                summaries.append(f"Ran {analyses} NBA analyses")
+            elif analyses == 1:
+                summaries.append("Ran an NBA analysis")
+            elif total_minutes >= 5:
+                summaries.append(
+                    f"Worked on {_app_label_for_summary(app)} for {total_minutes} minutes"
+                )
+            continue
+
+        if total_minutes >= 10:
+            summaries.append(
+                f"Worked on {_app_label_for_summary(app)} for {total_minutes} minutes"
+            )
+
+    return tuple(summaries[:6])
+
+
+def _rollup_comparison_message(app: str, count: int) -> str:
+    label = APP_LABELS.get(app, app.title())
+    if count == 1:
+        return f"Ran a player comparison in {label}"
+    return f"Ran {count} player comparisons in {label}"
+
+
+def _rollup_music_practice_message(events: list[dict[str, Any]]) -> str:
+    songs: set[str] = set()
+    total_mins = 0
+    for event in events:
+        m = _metrics(event)
+        song = str(m.get("song") or "").strip()
+        if song:
+            songs.add(song)
+        try:
+            total_mins += int(m.get("minutes") or 0)
+        except (TypeError, ValueError):
+            pass
+    n = len(songs) or len(events)
+    if total_mins:
+        return f"Practiced {n} song{'s' if n != 1 else ''} ({total_mins} min total)"
+    return f"Practiced {n} song{'s' if n != 1 else ''}"
+
+
+def _rollup_portfolio_session_message(events: list[dict[str, Any]]) -> str:
+    types = {str(e.get("event") or "") for e in events}
+    if types & {"portfolio_health_checked", "portfolio_check"}:
+        if types & {"allocation_reviewed", "rebalance_reviewed", "optimizer_run"}:
+            return "Worked on portfolio analysis session"
+        return "Completed portfolio health review"
+    if "optimizer_run" in types:
+        return "Ran portfolio optimizer analysis"
+    return "Reviewed portfolio allocation and rebalance"
+
+
+def _rollup_nba_analysis_message(count: int) -> str:
+    if count == 1:
+        return "Ran an NBA analysis"
+    return f"Ran {count} NBA analyses"
+
+
+def _group_rollup_events(
+    events: list[dict[str, Any]],
+    *,
+    window: timedelta,
+    predicate: Any,
+) -> list[tuple[list[dict[str, Any]], datetime]]:
+    """Group consecutive matching events within ``window`` (chronological)."""
+    ordered = sorted([e for e in events if predicate(e)], key=_parse_ts)
+    groups: list[tuple[list[dict[str, Any]], datetime]] = []
+    current: list[dict[str, Any]] = []
+    for event in ordered:
+        if not current:
+            current = [event]
+            continue
+        if _parse_ts(event) - _parse_ts(current[-1]) <= window:
+            current.append(event)
+        else:
+            if len(current) >= 2:
+                groups.append((current, max(_parse_ts(e) for e in current)))
+            current = [event]
+    if len(current) >= 2:
+        groups.append((current, max(_parse_ts(e) for e in current)))
+    return groups
+
+
+def _event_identity(event: dict[str, Any]) -> tuple[str, str, str]:
+    return (
+        str(event.get("app") or ""),
+        str(event.get("event") or ""),
+        str(event.get("timestamp") or ""),
+    )
+
+
+def _build_rollup_items(
+    events: list[dict[str, Any]],
+    *,
+    now: datetime,
+) -> tuple[set[tuple[str, str, str]], list[ActivityFeedItem]]:
+    rollup_items: list[ActivityFeedItem] = []
+    consumed: set[tuple[str, str, str]] = set()
+    pool = [e for e in events if _parse_ts(e) != datetime.min.replace(tzinfo=timezone.utc)]
+    pool = [e for e in pool if now - _parse_ts(e) <= TODAY_ROLLUP_WINDOW]
+
+    for app in ("baseball", "nba"):
+        app_pool = [e for e in pool if str(e.get("app") or "") == app]
+        for cluster, latest in _group_rollup_events(
+            app_pool,
+            window=RECENT_ROLLUP_WINDOW,
+            predicate=lambda e, a=app: _event_key(e) in COMPARISON_ROLLUP_EVENTS
+            and str(e.get("app") or "") == a,
+        ):
+            msg = _rollup_comparison_message(app, len(cluster))
+            rollup_items.append(
+                _make_feed_item(None, app=app, message=msg, sort_key=latest, is_rollup=True)
+            )
+            for e in cluster:
+                consumed.add(_event_identity(e))
+
+    for cluster, latest in _group_rollup_events(
+        [e for e in pool if str(e.get("app") or "") == "music"],
+        window=RECENT_ROLLUP_WINDOW,
+        predicate=lambda e: _event_key(e) in MUSIC_PRACTICE_ROLLUP_EVENTS,
+    ):
+        msg = _rollup_music_practice_message(cluster)
+        rollup_items.append(
+            _make_feed_item(None, app="music", message=msg, sort_key=latest, is_rollup=True)
+        )
+        for e in cluster:
+            consumed.add(_event_identity(e))
+
+    for cluster, latest in _group_rollup_events(
+        [e for e in pool if str(e.get("app") or "") == "investment"],
+        window=RECENT_ROLLUP_WINDOW,
+        predicate=lambda e: str(e.get("event") or "") in INVESTMENT_PORTFOLIO_SESSION_EVENTS,
+    ):
+        msg = _rollup_portfolio_session_message(cluster)
+        rollup_items.append(
+            _make_feed_item(None, app="investment", message=msg, sort_key=latest, is_rollup=True)
+        )
+        for e in cluster:
+            consumed.add(_event_identity(e))
+
+    for cluster, latest in _group_rollup_events(
+        [e for e in pool if str(e.get("app") or "") == "nba"],
+        window=RECENT_ROLLUP_WINDOW,
+        predicate=lambda e: str(e.get("event") or "") in NBA_ANALYSIS_ROLLUP_EVENTS,
+    ):
+        msg = _rollup_nba_analysis_message(len(cluster))
+        rollup_items.append(
+            _make_feed_item(None, app="nba", message=msg, sort_key=latest, is_rollup=True)
+        )
+        for e in cluster:
+            consumed.add(_event_identity(e))
+
+    return consumed, rollup_items
+
+
+def build_activity_dashboard(
+    events: list[dict[str, Any]],
+    *,
+    highlight_limit: int = 8,
+    recent_limit: int = 15,
+    now: datetime | None = None,
+) -> ActivityDashboard:
+    """Build Today's Work, Highlights, and Recent Activity sections."""
+    if now is None:
+        now = datetime.now(timezone.utc)
+
+    today_summaries = build_today_summaries(events, now=now)
+    remaining, synthetic_lines = _cluster_investment_setup(events)
+
+    consumed_rollup_ids, rollup_items = _build_rollup_items(remaining, now=now)
+
+    highlights: list[ActivityFeedItem] = []
+    recent_candidates: list[ActivityFeedItem] = []
+
+    for sort_key, app, message in synthetic_lines:
+        if now - sort_key <= HIGHLIGHT_MAX_AGE:
+            highlights.append(
+                _make_feed_item(
+                    None,
+                    app=app,
+                    message=message,
+                    sort_key=sort_key,
+                    is_highlight=True,
+                )
+            )
+
+    sorted_events = sorted(remaining, key=_parse_ts, reverse=True)
+    seen: list[tuple[str, datetime, int]] = []
+
+    for event in sorted_events:
+        if _event_identity(event) in consumed_rollup_ids:
+            continue
+
+        ts = _parse_ts(event)
+        app = str(event.get("app") or "")
+        priority = _feed_priority(event)
+
+        if _is_highlight_event(event, now=now):
+            msg = _format_item_message(event, for_highlight=True)
+            if msg:
+                highlights.append(
+                    _make_feed_item(
+                        event,
+                        app=app,
+                        message=msg,
+                        sort_key=ts,
+                        is_highlight=True,
+                    )
+                )
+            continue
+
+        message = format_activity_message(event, for_feed=True)
+        if not message:
+            continue
+        if priority <= 0:
+            continue
+        if (app, str(event.get("event") or "")) in COMPARISON_ROLLUP_EVENTS:
+            continue
+        if (app, str(event.get("event") or "")) in MUSIC_PRACTICE_ROLLUP_EVENTS:
+            continue
+        if str(event.get("event") or "") in INVESTMENT_PORTFOLIO_SESSION_EVENTS and app == "investment":
+            continue
+        if str(event.get("event") or "") in NBA_ANALYSIS_ROLLUP_EVENTS and app == "nba":
+            continue
+
+        key = _dedupe_key(event)
+        skip = False
+        for prev_key, prev_ts, prev_pri in seen:
+            if prev_key == key and abs((ts - prev_ts).total_seconds()) <= DEDUPE_WINDOW.total_seconds():
+                if priority <= prev_pri:
+                    skip = True
+                    break
+        if skip:
+            continue
+        seen.append((key, ts, priority))
+
+        recent_candidates.append(
+            _make_feed_item(event, app=app, message=message, sort_key=ts)
+        )
+
+    recent_candidates.extend(rollup_items)
+
+    # Deduplicate highlights by message within window
+    hl_ranked = sorted(highlights, key=lambda i: i.sort_key, reverse=True)
+    hl_deduped: list[ActivityFeedItem] = []
+    hl_seen: list[tuple[str, str, datetime]] = []
+    for item in hl_ranked:
+        norm = _normalize_feed_message(item.message)
+        dup = False
+        for app, prev_norm, prev_ts in hl_seen:
+            if app == item.app and prev_norm == norm:
+                if abs((item.sort_key - prev_ts).total_seconds()) <= MESSAGE_DEDUPE_WINDOW.total_seconds():
+                    dup = True
+                    break
+        if dup:
+            continue
+        hl_deduped.append(item)
+        hl_seen.append((item.app, norm, item.sort_key))
+
+    recent_ranked = sorted(recent_candidates, key=lambda i: i.sort_key, reverse=True)
+    recent_deduped: list[ActivityFeedItem] = []
+    rc_seen: list[tuple[str, str, datetime]] = []
+    for item in recent_ranked:
+        norm = _normalize_feed_message(item.message)
+        dup = False
+        for app, prev_norm, prev_ts in rc_seen:
+            if app == item.app and prev_norm == norm:
+                if abs((item.sort_key - prev_ts).total_seconds()) <= MESSAGE_DEDUPE_WINDOW.total_seconds():
+                    dup = True
+                    break
+        if dup:
+            continue
+        recent_deduped.append(item)
+        rc_seen.append((item.app, norm, item.sort_key))
+
+    return ActivityDashboard(
+        today_summaries=today_summaries,
+        highlights=tuple(hl_deduped[:highlight_limit]),
+        recent=tuple(recent_deduped[:recent_limit]),
+    )
+
+
 def _dedupe_key(event: dict[str, Any]) -> str:
     app = str(event.get("app") or "")
     event_type = str(event.get("event") or "")
@@ -761,62 +1320,22 @@ def _dedupe_key(event: dict[str, Any]) -> str:
 
 
 def build_activity_feed(events: list[dict[str, Any]], *, limit: int = 20) -> list[ActivityFeedItem]:
-    remaining, synthetic_lines = _cluster_investment_setup(events)
-
-    items: list[tuple[int, datetime, ActivityFeedItem]] = []
-    for sort_key, app, message in synthetic_lines:
-        items.append(
-            (
-                4,
-                sort_key,
-                ActivityFeedItem(
-                    app=app,
-                    app_label=APP_LABELS.get(app, app.replace("_", " ").title()),
-                    timestamp=sort_key.isoformat(timespec="seconds"),
-                    message=message,
-                    sort_key=sort_key,
-                ),
-            )
-        )
-
-    sorted_events = sorted(remaining, key=_parse_ts, reverse=True)
-    seen: list[tuple[str, datetime, int]] = []
-
-    for event in sorted_events:
-        message = format_activity_message(event, for_feed=True)
-        if not message:
+    """Backward-compatible flat feed: highlights then recent, sorted by recency."""
+    dashboard = build_activity_dashboard(
+        events,
+        highlight_limit=max(8, limit // 2),
+        recent_limit=limit,
+    )
+    combined = list(dashboard.highlights) + [
+        item for item in dashboard.recent if item not in dashboard.highlights
+    ]
+    combined.sort(key=lambda i: i.sort_key, reverse=True)
+    seen_msgs: set[tuple[str, str]] = set()
+    deduped: list[ActivityFeedItem] = []
+    for item in combined:
+        key = (item.app, _normalize_feed_message(item.message))
+        if key in seen_msgs:
             continue
-        app = str(event.get("app") or "")
-        sort_key = _parse_ts(event)
-        priority = _feed_priority(event)
-        if priority <= 0:
-            continue
-
-        key = _dedupe_key(event)
-        skip = False
-        for prev_key, prev_ts, prev_pri in seen:
-            if prev_key == key and abs((sort_key - prev_ts).total_seconds()) <= DEDUPE_WINDOW.total_seconds():
-                if priority <= prev_pri:
-                    skip = True
-                    break
-        if skip:
-            continue
-        seen.append((key, sort_key, priority))
-
-        items.append(
-            (
-                priority,
-                sort_key,
-                ActivityFeedItem(
-                    app=app,
-                    app_label=APP_LABELS.get(app, app.replace("_", " ").title()),
-                    timestamp=str(event.get("timestamp") or ""),
-                    message=message,
-                    sort_key=sort_key,
-                ),
-            )
-        )
-
-    items = _dedupe_items_by_message(items)
-    items.sort(key=lambda row: (row[0], row[1]), reverse=True)
-    return [row[2] for row in items[:limit]]
+        seen_msgs.add(key)
+        deduped.append(item)
+    return deduped[:limit]

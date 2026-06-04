@@ -18,14 +18,14 @@ Central hub repo (`daniel-ai-command-center`) for suite homepage, activity aggre
 
 - [x] Create `cursor-prompts/` roadmap system (this commit)
 - [x] Add `.cursor/rules/command-center-roadmap-docs.mdc`
-- [ ] Link root [README.md](../README.md) → `cursor-prompts/app_roadmap.md`
+- [x] Link root [README.md](../README.md) → `cursor-prompts/app_roadmap.md`
 
-### P1 — Activity Feed Phase B (local / uncommitted)
+### P1 — Activity Feed Phase B
 
-- [ ] Review and commit: `activity_time.py`, `activity_feed.py`, `activity_store.py`, `ai_command_center.py`, `homepage_sections.py`, suite storage clients, tests
-- [ ] Run `pytest tests/test_activity_time.py tests/test_activity_dashboard.py tests/test_activity_feed_noise.py`
-- [ ] Push `origin/dev` and verify homepage dev URL shows Today's Work / Highlights / Recent sections
-- [ ] Bump `BUILD_VERSION` in `app_urls.py` after deploy
+- [x] Review and commit: `activity_time.py`, `activity_feed.py`, `activity_store.py`, `ai_command_center.py`, `homepage_sections.py`, suite storage clients, tests
+- [x] Run activity pytest suite (time, dashboard, noise, priority, executive)
+- [ ] Push verified on Streamlit Cloud dev — Today's Work / Highlights / Recent visible after redeploy
+- [x] Bump `BUILD_VERSION` to `2026-06-03-v30`
 
 ### P2 — Suite deploy & cross-device verification
 
@@ -66,6 +66,7 @@ Recent task completions (see [app_completed_features.md](./app_completed_feature
 - [x] Account-memory deep links + `suite_resume_launch` (`6594dd4`)
 - [x] Supabase account memory with `user_id` on writes (`5bff893`)
 - [x] Roadmap documentation system (`cursor-prompts/`)
+- [x] Activity Feed Phase B — UTC timestamps, Today's Work, Highlights, Recent rollups (`2026-06-03-v30`)
 
 ---
 
@@ -80,7 +81,7 @@ Recent task completions (see [app_completed_features.md](./app_completed_feature
 | Plan | Status |
 |------|--------|
 | [plans/README.md](./plans/README.md) | Folder ready — add plans as work starts |
-| Activity Feed Phase B | In progress (local); commit pending |
+| Activity Feed Phase B | Shipped on `dev` — verify Streamlit Cloud deploy |
 
 ---
 

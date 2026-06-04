@@ -38,7 +38,8 @@ Historical record of shipped Command Center and shared-suite infrastructure capa
 - [x] Recently used apps caption + last opened app/page
 - [x] **Suite focus** — cross-app weekly insight cards (`project_intelligence.py`)
 - [x] **Coach Insights** — prioritized actionable messages (`coach_engine.py`)
-- [x] **Activity** section — feed with Highlights and Recent (rollup logic in `activity_feed.py`)
+- [x] **Activity** section — executive dashboard: **Today's Work**, **Highlights**, **Recent Activity** with rollups (`build_activity_dashboard`)
+- [x] **UTC activity timestamps** — `activity_time.py` (write, parse, normalize, relative display)
 - [x] **Weekly Summary** — accomplishment lines from real events
 - [x] **App Directory** — 6 apps, themed cards, highlights, Open buttons
 - [x] **Deployment & link audit (admin)** expander — secrets probe, Supabase diagnostics, Phase A tables, connection table
@@ -55,8 +56,10 @@ Historical record of shipped Command Center and shared-suite infrastructure capa
 
 - [x] `activity_store.py` — snapshot loading, weekly summary, directory card highlights
 - [x] `activity_feed.py` — human-readable messages, noise suppression, dedupe, rollups, highlights
-- [x] `activity_feed.py` — `ActivityDashboard` (Today's Work, Highlights, Recent) — *deploy commit may be pending*
-- [x] `activity_time.py` — UTC normalization and relative display formatting — *deploy commit may be pending*
+- [x] `activity_feed.py` — `ActivityDashboard` (Today's Work, Highlights, Recent rollups)
+- [x] `activity_time.py` — UTC normalization, `sort_key_for_event`, relative display (`format_activity_display_time`)
+- [x] Supabase `load_events` — filter by `user_id`, order by `timestamp.desc`, normalize timestamps
+- [x] SQLite account migrations — `user_id` columns, composite PK/UNIQUE, index-after-migrate fix
 - [x] `activity_diagnostics.py` — live pipeline diagnostics for admin panel
 - [x] Phase A verification tables: Music, Investment, Baseball, NBA, Applied Intelligence, Future Lens
 
@@ -109,7 +112,7 @@ Historical record of shipped Command Center and shared-suite infrastructure capa
 3. **Coach + continue intelligence** — no duplicate fact lines in coach section
 4. **Account memory + resume** — unified `suite_user_id`, deep links, `suite_resume_launch`
 5. **Cloud full_session** — cross-device session persistence contract for sibling apps
-6. **Activity executive dashboard** — Today's Work / Highlights / Recent (Phase B)
+6. **Activity executive dashboard (Phase B)** — Today's Work / Highlights / Recent rollups — build `2026-06-03-v30`
 7. **Roadmap system** — `cursor-prompts/` + Cursor rule (2026-06-03)
 
 ---
@@ -117,4 +120,4 @@ Historical record of shipped Command Center and shared-suite infrastructure capa
 # Notes
 
 - Sibling app features (Music practice studio, Baseball Lahman tools, etc.) are **not** listed here — only Command Center and shared suite modules in this repo.
-- When Phase B activity feed commits land, remove "deploy commit may be pending" markers above.
+- Uncommitted locally (separate from Phase B): `suite_cloud_state.py`, `suite_user_persistence.py` restore/debug improvements — sync when ready.

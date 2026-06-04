@@ -16,7 +16,8 @@ from datetime import datetime
 
 import streamlit as st
 
-from activity_feed import build_activity_feed
+from activity_feed import ActivityFeedItem, build_activity_dashboard
+from activity_time import format_activity_display_time
 from activity_store import (
     ActivitySnapshot,
     get_app_directory_card,
@@ -166,6 +167,28 @@ st.markdown(
     }
     .cc-feed-meta { font-size: 0.72rem; font-weight: 700; color: #94a3b8; text-transform: uppercase;
         letter-spacing: 0.04em; margin-bottom: 0.2rem; }
+    .cc-feed-item-highlight {
+        border-left: 4px solid #6366f1;
+        background: linear-gradient(90deg, #eef2ff 0%, #ffffff 40%);
+    }
+    .cc-feed-item-rollup { font-style: normal; color: #475569; }
+    .cc-today-work {
+        background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 50%, #ffffff 100%);
+        border: 1px solid #bbf7d0; border-radius: 14px; padding: 0.85rem 1.1rem;
+        margin-bottom: 1rem;
+    }
+    .cc-today-work-title {
+        font-size: 0.72rem; font-weight: 800; text-transform: uppercase;
+        letter-spacing: 0.06em; color: #15803d; margin-bottom: 0.45rem;
+    }
+    .cc-today-work-item {
+        font-size: 0.92rem; color: #166534; font-weight: 600; line-height: 1.45;
+        margin: 0.15rem 0;
+    }
+    .cc-feed-section-label {
+        font-size: 0.78rem; font-weight: 800; text-transform: uppercase;
+        letter-spacing: 0.05em; color: #64748b; margin: 1rem 0 0.45rem 0;
+    }
     .cc-weekly-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.65rem; }
     .cc-weekly-stat {
         background: white; border-radius: 14px; padding: 0.85rem 1rem; border: 1px solid #e2e8f0;
@@ -317,19 +340,37 @@ def _render_coach_insights(insights: list[CoachInsight]) -> None:
         )
 
 
+def _render_feed_items(items: tuple[ActivityFeedItem, ...] | list[ActivityFeedItem], *, highlight: bool = False) -> str:
+    if not items:
+        return ""
+    items_html = []
+    for item in items:
+        when = format_activity_display_time(item.timestamp)
+        css_class = "cc-feed-item"
+        if highlight or item.is_highlight:
+            css_class += " cc-feed-item-highlight"
+        if item.is_rollup:
+            css_class += " cc-feed-item-rollup"
+        items_html.append(
+            f'<li class="{css_class}"><div class="cc-feed-meta">{html.escape(item.app_label)}'
+            f'{f" · {html.escape(when)}" if when else ""}</div>{html.escape(item.message)}</li>'
+        )
+    return f'<ul class="cc-feed-list">{"".join(items_html)}</ul>'
+
+
 def _render_recent_activity_feed() -> None:
     st.markdown(
-        f'<div class="cc-section-title">{SECTION_ICONS["feed"]} Recent Activity</div>',
+        f'<div class="cc-section-title">{SECTION_ICONS["feed"]} Activity</div>',
         unsafe_allow_html=True,
     )
     st.markdown(
-        '<div class="cc-section-sub">Meaningful actions across your suite — newest first. '
-        "Music chart/lyrics saves appear after <strong>Save as user verified</strong> when repos run side-by-side locally.</div>",
+        '<div class="cc-section-sub">What you accomplished across the suite — milestones first, '
+        "then a chronological feed with rollups for repeated work.</div>",
         unsafe_allow_html=True,
     )
 
-    feed = build_activity_feed(load_all_events(), limit=20)
-    if not feed:
+    dashboard = build_activity_dashboard(load_all_events())
+    if not dashboard.today_summaries and not dashboard.highlights and not dashboard.recent:
         st.markdown(
             '<div class="cc-empty-box">No meaningful actions logged yet. Use your apps locally (sibling repos '
             "side-by-side) or add a cloud activity backend for Streamlit Cloud sync.</div>",
@@ -337,19 +378,25 @@ def _render_recent_activity_feed() -> None:
         )
         return
 
-    items_html = []
-    for item in feed:
-        when = ""
-        if item.timestamp:
-            try:
-                when = datetime.fromisoformat(item.timestamp).strftime("%b %d · %I:%M %p")
-            except ValueError:
-                when = item.timestamp[:16]
-        items_html.append(
-            f'<li class="cc-feed-item"><div class="cc-feed-meta">{html.escape(item.app_label)}'
-            f'{f" · {html.escape(when)}" if when else ""}</div>{html.escape(item.message)}</li>'
+    blocks: list[str] = []
+    if dashboard.today_summaries:
+        summary_lines = "".join(
+            f'<div class="cc-today-work-item">· {html.escape(line)}</div>'
+            for line in dashboard.today_summaries
         )
-    _render_unsafe_html(f'<ul class="cc-feed-list">{"".join(items_html)}</ul>')
+        blocks.append(
+            f'<div class="cc-today-work"><div class="cc-today-work-title">Today\'s Work</div>{summary_lines}</div>'
+        )
+
+    if dashboard.highlights:
+        blocks.append('<div class="cc-feed-section-label">Highlights</div>')
+        blocks.append(_render_feed_items(dashboard.highlights, highlight=True))
+
+    if dashboard.recent:
+        blocks.append('<div class="cc-feed-section-label">Recent Activity</div>')
+        blocks.append(_render_feed_items(dashboard.recent))
+
+    _render_unsafe_html("".join(blocks))
 
 
 def _render_cross_app_section(snapshot: ActivitySnapshot) -> None:

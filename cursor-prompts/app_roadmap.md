@@ -1,6 +1,6 @@
 # Daniel AI Command Center — Master Roadmap
 
-**Last updated:** 2026-06-03 · **Branch:** `dev` · **Entry app:** `ai_command_center.py` · **Build:** `2026-06-02-v29`
+**Last updated:** 2026-06-03 · **Branch:** `dev` · **Entry app:** `ai_command_center.py` · **Build:** `2026-06-03-v30`
 
 This is the master planning document. Related files:
 
@@ -24,7 +24,7 @@ This is the master planning document. Related files:
 
 # Current Priorities
 
-1. **Commit and deploy Activity Feed Phase B** — Today's Work, Highlights, Recent Activity rollups, UTC timestamps (`activity_time.py`); local changes may be uncommitted.
+1. **Verify Activity Feed Phase B on Streamlit Cloud dev** — Today's Work, Highlights, Recent after `2026-06-03-v30` deploy.
 2. **Suite-wide reset rollout verification** — Baseball and Future Lens reset pushed; confirm Cloud commit + visible sidebar button on deployed apps.
 3. **Cross-device account memory** — Same `[suite_activity]` secrets on all 7 Streamlit apps; verify via admin expander.
 4. **Keep `cursor-prompts/` in sync** when shipping homepage or storage changes.
@@ -123,7 +123,7 @@ Rendered top-to-bottom in `ai_command_center.py`:
 | Issue | Area | Notes |
 |-------|------|-------|
 | README claims "placeholder data" | Docs | Misleading when Supabase is live |
-| Activity Phase B may be local-only | Activity feed | Uncommitted changes on `dev` working tree |
+| Cloud deploy lag | Activity feed | Confirm Streamlit dev shows build `2026-06-03-v30` |
 | `APP_BRANCH` shows `DEV` not `dev` | `app_urls.py` | Display string only; Streamlit uses `dev` |
 | Coach insights can be empty with sparse events | Coach | Expected empty state; not a crash |
 | Connection probe timeouts | App registry | `verify_connections()` HTTP GET can false-negative |

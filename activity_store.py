@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any
 
 from activity_feed import format_activity_message, investment_directory_rank, music_directory_rank
+from activity_time import sort_key_for_event
 
 from app_registry import get_app_url
 from suite_storage import (
@@ -288,7 +289,7 @@ def load_all_events(limit: int = 500) -> list[dict[str, Any]]:
             continue
         seen.add(key)
         combined.append(event)
-    combined.sort(key=lambda e: str(e.get("timestamp") or ""))
+    combined.sort(key=lambda e: sort_key_for_event(e))
     return combined[-limit:]
 
 
@@ -844,10 +845,12 @@ def _ingest_suite_events(snapshot: ActivitySnapshot) -> None:
         if not app:
             continue
         ts_raw = str(event.get("timestamp", ""))
-        try:
-            ts = datetime.fromisoformat(ts_raw)
-        except ValueError:
+        from activity_time import parse_activity_timestamp
+
+        ts_parsed = parse_activity_timestamp(ts_raw)
+        if ts_parsed is None:
             continue
+        ts = ts_parsed.replace(tzinfo=None)  # snapshot stats use naive local comparison
 
         by_app.setdefault(app, []).append(ts)
 

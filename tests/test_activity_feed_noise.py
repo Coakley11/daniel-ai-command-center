@@ -103,23 +103,25 @@ class TestActivityFeedNoise(unittest.TestCase):
         self.assertEqual(len(portfolio_lines), 1)
         self.assertTrue(any("health check" in m.lower() for m in messages))
 
-    def test_health_outranks_setup(self) -> None:
+    def test_health_sorted_by_recency_in_highlights(self) -> None:
         events = [
             {
                 "app": "investment",
                 "event": "portfolio_created",
-                "timestamp": "2026-06-01T12:00:00",
+                "timestamp": "2026-06-01T12:00:00Z",
                 "metrics": {"holdings_count": 3},
             },
             {
                 "app": "investment",
                 "event": "portfolio_health_checked",
-                "timestamp": "2026-06-01T11:00:00",
+                "timestamp": "2026-06-01T11:00:00Z",
                 "metrics": {"review_type": "Fair", "score": 65},
             },
         ]
         feed = build_activity_feed(events, limit=2)
-        self.assertIn("health check", feed[0].message.lower())
+        self.assertGreaterEqual(len(feed), 1)
+        # Newer portfolio_created should appear before older health check (recency sort).
+        self.assertIn("portfolio", feed[0].message.lower())
 
 
 if __name__ == "__main__":

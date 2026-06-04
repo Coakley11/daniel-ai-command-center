@@ -4,7 +4,7 @@ Homepage data loading — safe to import without executing the Streamlit app bod
 
 from __future__ import annotations
 
-from activity_feed import build_activity_feed
+from activity_feed import ActivityDashboard, build_activity_dashboard, build_activity_feed
 from activity_store import ActivitySnapshot, get_weekly_summary, load_activity_snapshot, load_all_events
 from coach_engine import CoachInsight, generate_coach_insights
 from continue_dashboard import ContinueCard, continue_cards_for_snapshot
@@ -36,3 +36,7 @@ def weekly_lines_for_snapshot(snapshot: ActivitySnapshot) -> list[tuple[str, str
 
 def activity_feed_items(limit: int = 20) -> list:
     return build_activity_feed(load_all_events(), limit=limit)
+
+
+def activity_dashboard() -> ActivityDashboard:
+    return build_activity_dashboard(load_all_events())
