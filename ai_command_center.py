@@ -16,7 +16,8 @@ from datetime import datetime
 
 import streamlit as st
 
-from activity_feed import ActivityFeedItem, build_activity_dashboard
+from activity_models import ActivityFeedItem
+from activity_feed import build_activity_dashboard
 from activity_time import format_activity_display_time
 from activity_store import (
     ActivitySnapshot,

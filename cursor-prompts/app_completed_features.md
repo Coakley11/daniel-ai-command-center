@@ -58,6 +58,7 @@ Historical record of shipped Command Center and shared-suite infrastructure capa
 - [x] `activity_feed.py` — human-readable messages, noise suppression, dedupe, rollups, highlights
 - [x] `activity_feed.py` — `ActivityDashboard` (Today's Work, Highlights, Recent rollups)
 - [x] `activity_time.py` — UTC normalization, `sort_key_for_event`, relative display (`format_activity_display_time`)
+- [x] `activity_models.py` — `ActivityFeedItem`, `ActivityDashboard` (import-safe types module)
 - [x] Supabase `load_events` — filter by `user_id`, order by `timestamp.desc`, normalize timestamps
 - [x] SQLite account migrations — `user_id` columns, composite PK/UNIQUE, index-after-migrate fix
 - [x] `activity_diagnostics.py` — live pipeline diagnostics for admin panel
@@ -114,6 +115,7 @@ Historical record of shipped Command Center and shared-suite infrastructure capa
 5. **Cloud full_session** — cross-device session persistence contract for sibling apps
 6. **Activity executive dashboard (Phase B)** — Today's Work / Highlights / Recent rollups — build `2026-06-03-v30`
 7. **Roadmap system** — `cursor-prompts/` + Cursor rule (2026-06-03)
+8. **Import hotfix (v31)** — `activity_models.py`; `ActivityFeedItem` imported before `activity_feed`; `activity_time` fallback in `activity_feed`
 
 ---
 

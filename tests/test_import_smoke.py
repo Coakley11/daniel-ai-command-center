@@ -43,9 +43,22 @@ class TestImportSmoke(unittest.TestCase):
             self.assertIn(name, activity_store.__all__)
 
     def test_activity_feed_import(self) -> None:
-        from activity_feed import build_activity_feed
+        from activity_feed import ActivityFeedItem, build_activity_dashboard, build_activity_feed
+        from activity_models import ActivityFeedItem as FeedItemModel
 
+        self.assertIs(ActivityFeedItem, FeedItemModel)
         self.assertTrue(callable(build_activity_feed))
+        self.assertTrue(callable(build_activity_dashboard))
+
+    def test_command_center_phase_b_imports(self) -> None:
+        tree = ast.parse(COMMAND_CENTER.read_text(encoding="utf-8"))
+        import_from = {
+            (node.module, tuple(alias.name for alias in node.names))
+            for node in ast.walk(tree)
+            if isinstance(node, ast.ImportFrom) and node.module
+        }
+        self.assertIn(("activity_models", ("ActivityFeedItem",)), import_from)
+        self.assertIn(("activity_feed", ("build_activity_dashboard",)), import_from)
 
     @patch("activity_store._sync_disk_user_states_to_storage")
     def test_targeted_activity_store_import(self, _sync) -> None:

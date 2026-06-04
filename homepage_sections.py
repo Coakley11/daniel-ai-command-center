@@ -4,7 +4,8 @@ Homepage data loading — safe to import without executing the Streamlit app bod
 
 from __future__ import annotations
 
-from activity_feed import ActivityDashboard, build_activity_dashboard, build_activity_feed
+from activity_feed import build_activity_dashboard, build_activity_feed
+from activity_models import ActivityDashboard
 from activity_store import ActivitySnapshot, get_weekly_summary, load_activity_snapshot, load_all_events
 from coach_engine import CoachInsight, generate_coach_insights
 from continue_dashboard import ContinueCard, continue_cards_for_snapshot

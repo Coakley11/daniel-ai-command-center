@@ -24,8 +24,9 @@ Central hub repo (`daniel-ai-command-center`) for suite homepage, activity aggre
 
 - [x] Review and commit: `activity_time.py`, `activity_feed.py`, `activity_store.py`, `ai_command_center.py`, `homepage_sections.py`, suite storage clients, tests
 - [x] Run activity pytest suite (time, dashboard, noise, priority, executive)
-- [ ] Push verified on Streamlit Cloud dev — Today's Work / Highlights / Recent visible after redeploy
+- [ ] Push verified on Streamlit Cloud dev — Today's Work / Highlights / Recent visible after redeploy (build `2026-06-03-v31`)
 - [x] Bump `BUILD_VERSION` to `2026-06-03-v30`
+- [x] Hotfix: `ActivityFeedItem` import crash — `activity_models.py` + import order (`v31`)
 
 ### P2 — Suite deploy & cross-device verification
 

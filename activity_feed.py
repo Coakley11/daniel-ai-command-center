@@ -4,11 +4,37 @@ Human-readable activity feed lines from suite event logs.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from activity_time import parse_activity_timestamp, utc_iso_from_datetime
+from activity_models import ActivityDashboard, ActivityFeedItem
+
+try:
+    from activity_time import parse_activity_timestamp, utc_iso_from_datetime
+except ImportError:  # pragma: no cover — Streamlit deploy safety
+    from datetime import timezone as _tz
+
+    def parse_activity_timestamp(ts: str | None):
+        raw = str(ts or "").strip()
+        if not raw:
+            return None
+        text = raw.replace("Z", "+00:00")
+        try:
+            dt = datetime.fromisoformat(text[:26])
+        except ValueError:
+            return None
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=_tz.utc)
+        else:
+            dt = dt.astimezone(_tz.utc)
+        return dt
+
+    def utc_iso_from_datetime(dt: datetime) -> str:
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=_tz.utc)
+        else:
+            dt = dt.astimezone(_tz.utc)
+        return dt.replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 APP_LABELS: dict[str, str] = {
     "music": "Music",
@@ -140,26 +166,6 @@ NBA_ANALYSIS_ROLLUP_EVENTS: frozenset[str] = frozenset(
         "playoff_tracking",
     }
 )
-
-
-@dataclass(frozen=True)
-class ActivityFeedItem:
-    app: str
-    app_label: str
-    timestamp: str
-    message: str
-    sort_key: datetime
-    is_highlight: bool = False
-    is_rollup: bool = False
-
-
-@dataclass(frozen=True)
-class ActivityDashboard:
-    """Executive activity view: today's summary, highlights, and recent rollups."""
-
-    today_summaries: tuple[str, ...]
-    highlights: tuple[ActivityFeedItem, ...]
-    recent: tuple[ActivityFeedItem, ...]
 
 
 def _metrics(event: dict[str, Any]) -> dict[str, Any]:
@@ -1339,3 +1345,15 @@ def build_activity_feed(events: list[dict[str, Any]], *, limit: int = 20) -> lis
         seen_msgs.add(key)
         deduped.append(item)
     return deduped[:limit]
+
+
+__all__ = (
+    "APP_LABELS",
+    "ActivityDashboard",
+    "ActivityFeedItem",
+    "build_activity_dashboard",
+    "build_activity_feed",
+    "format_activity_message",
+    "investment_directory_rank",
+    "music_directory_rank",
+)
