@@ -1,0 +1,52 @@
+---
+description: Keep cursor-prompts roadmap docs updated when planning Command Center features
+globs:
+  - cursor-prompts/**/*.md
+  - ai_command_center.py
+  - activity_feed.py
+  - activity_store.py
+  - activity_time.py
+  - continue_dashboard.py
+  - coach_engine.py
+  - project_intelligence.py
+  - homepage_sections.py
+  - suite_storage.py
+  - suite_storage_supabase.py
+  - suite_activity_client.py
+  - suite_cloud_state.py
+  - suite_user_persistence.py
+  - suite_resume_launch.py
+  - suite_deep_links.py
+  - app_registry.py
+alwaysApply: true
+---
+
+# Command Center roadmap documentation
+
+When the user asks for a **roadmap**, **feature plan**, **implementation plan**, **enhancement plan**, **project strategy**, or **future ideas**:
+
+1. Read and update all four files under `cursor-prompts/`:
+   - `app_roadmap.md` (master summary)
+   - `app_tasks.md` (active priorities)
+   - `app_feature_backlog.md` (queued ideas)
+   - `app_completed_features.md` (shipped work)
+
+2. Each file must keep these sections (use `N/A` or pointers if empty):
+   - `# Project Description`
+   - `# Current Priorities`
+   - `# Next Features`
+   - `# Long-Term Vision`
+   - `# Completed Features`
+   - `# Notes`
+
+3. After implementing a feature, move bullets from tasks/backlog → completed; refresh roadmap status and known bugs.
+
+4. For **long implementation plans**:
+   - Put the full plan in a single markdown code block in the chat response, **and**
+   - Save the same content to `cursor-prompts/plans/YYYY-MM-DD-short-title.md` (create `plans/` if needed), linked from `app_tasks.md`.
+
+5. Document these product areas when relevant: Continue dashboard, Coach Insights, Activity feed (Today's Work / Highlights / Recent), Weekly Summary, Suite focus, App Directory, Deployment & link audit, Supabase account memory, suite module sync, deep links / resume launch.
+
+6. Work on branch `dev`; do not update production `main` unless the user explicitly requests a release.
+
+7. Bump **Last updated** dates in edited roadmap files.
