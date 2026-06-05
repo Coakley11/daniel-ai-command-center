@@ -55,3 +55,9 @@ APP_URLS: dict[str, str] = {
     "applied_intelligence": APPLIED_INTELLIGENCE_URL,
     "future_lens": FUTURE_LENS_URL,
 }
+
+
+def command_center_home_url() -> str:
+    """Suite homepage URL for sibling-app sidebar return links."""
+    base = (HOMEPAGE_DEV_URL or HOMEPAGE_PRODUCTION_URL or "").strip()
+    return base.rstrip("/")
