@@ -33,6 +33,12 @@ from app_urls import BUILD_VERSION, HOMEPAGE_DEV_URL, HOMEPAGE_PRODUCTION_URL
 from coach_engine import CoachInsight, generate_coach_insights
 from continue_dashboard import ContinueCard, continue_cards_for_snapshot, recently_used_apps
 from project_intelligence import generate_cross_app_insights, weekly_accomplishment_lines
+from suite_deploy_marker import (
+    GIT_BRANCH,
+    GIT_COMMIT_SHORT,
+    SUITE_BUILD_LABEL,
+    WORKFLOW_DIAGNOSTICS_LIVE,
+)
 
 APP_THEMES: dict[str, dict[str, str]] = build_app_themes()
 
@@ -57,7 +63,7 @@ st.set_page_config(
     page_title="Daniel Cohen AI Command Center",
     page_icon="🏠",
     layout="wide",
-    initial_sidebar_state="collapsed",
+    initial_sidebar_state="expanded",
 )
 
 st.markdown(
@@ -232,6 +238,49 @@ def _render_unsafe_html(block: str) -> None:
     st.markdown(block.strip(), unsafe_allow_html=True)
 
 
+def _diagnostics_import_probe() -> tuple[bool, str]:
+    try:
+        from project_intelligence import (  # noqa: WPS433
+            diagnose_baseball_continue,
+            diagnose_continue_workflow_candidates,
+        )
+
+        _ = diagnose_baseball_continue, diagnose_continue_workflow_candidates
+        return True, ""
+    except Exception as exc:
+        return False, str(exc)
+
+
+def _render_deploy_banner() -> None:
+    probe_ok, probe_err = _diagnostics_import_probe()
+    deploy_line = (
+        f"**Deploy marker:** `{SUITE_BUILD_LABEL}` · branch `{GIT_BRANCH}` · commit `{GIT_COMMIT_SHORT}` · "
+        f"Use **[Dev homepage]({HOMEPAGE_DEV_URL})** (not Production/main) for trend diagnostics."
+    )
+    if WORKFLOW_DIAGNOSTICS_LIVE and probe_ok:
+        st.success(f"**Workflow candidate diagnostics live** — {deploy_line}")
+    elif WORKFLOW_DIAGNOSTICS_LIVE:
+        st.error(
+            "**STALE DEPLOY detected** — the UI loaded but diagnostic modules are missing on the server mount. "
+            f"{deploy_line} Streamlit error: `{probe_err}`"
+        )
+    else:
+        st.info(deploy_line)
+
+
+def _render_workflow_diagnostics_table(snapshot: ActivitySnapshot) -> None:
+    try:
+        from project_intelligence import diagnose_continue_workflow_candidates
+
+        wf_rows = diagnose_continue_workflow_candidates(snapshot, display_limit=10, continue_limit=6)
+        if wf_rows:
+            st.dataframe(wf_rows, use_container_width=True, hide_index=True)
+        else:
+            st.caption("No meaningful workflow events in the activity store yet.")
+    except Exception as exc:
+        st.error(f"Workflow candidate trace unavailable: {exc}")
+
+
 def _render_hero(snapshot: ActivitySnapshot) -> None:
     activity_tag = "Live activity" if snapshot.has_real_data else "Waiting for activity data"
     st.markdown(
@@ -240,7 +289,7 @@ def _render_hero(snapshot: ActivitySnapshot) -> None:
             <div class="cc-hero-tag">👋 Welcome back</div>
             <h1>🏠 Daniel Cohen AI Command Center</h1>
             <p>Your cross-app activity dashboard — continue work, coach insights, and app launchers.
-            Build {BUILD_VERSION} · {activity_tag}.</p>
+            Build {SUITE_BUILD_LABEL} ({GIT_COMMIT_SHORT}) · {activity_tag}.</p>
         </div>
         """,
         unsafe_allow_html=True,
@@ -532,11 +581,7 @@ def _cached_connections():
 
 with st.sidebar:
     st.markdown("### Developer")
-    st.checkbox(
-        "Developer Mode",
-        key=CC_DEV_MODE_KEY,
-        help="Show Continue workflow candidate debugging on the homepage and in admin.",
-    )
+    st.caption("Use the **Developer Mode** toggle on the main page (below the hero).")
 
 snapshot = load_activity_snapshot()
 insights = generate_coach_insights(snapshot)
@@ -544,19 +589,19 @@ continue_cards = continue_cards_for_snapshot(snapshot, limit=6)
 connections = _cached_connections()
 
 _render_hero(snapshot)
+_render_deploy_banner()
+st.toggle(
+    "Developer Mode",
+    key=CC_DEV_MODE_KEY,
+    help="Shows the top-10 workflow candidate table directly below Continue.",
+)
+st.caption(
+    "When enabled, you will see timestamp, app, event_type, resume_key, priority, and included/excluded reason."
+)
 _render_continue_section(snapshot, continue_cards)
 if st.session_state.get(CC_DEV_MODE_KEY):
-    with st.expander("Developer: Continue workflow candidates (top 10)", expanded=True):
-        try:
-            from project_intelligence import diagnose_continue_workflow_candidates
-
-            wf_rows = diagnose_continue_workflow_candidates(snapshot, display_limit=10, continue_limit=6)
-            if wf_rows:
-                st.dataframe(wf_rows, use_container_width=True, hide_index=True)
-            else:
-                st.caption("No meaningful workflow events in the activity store yet.")
-        except Exception as exc:
-            st.warning(f"Workflow candidate trace unavailable: {exc}")
+    st.markdown("#### Developer: Continue workflow candidates (top 10)")
+    _render_workflow_diagnostics_table(snapshot)
 _render_cross_app_section(snapshot)
 _render_coach_insights(insights)
 _render_recent_activity_feed()
@@ -743,16 +788,7 @@ with st.expander("Deployment & link audit (admin)"):
 
     if st.session_state.get(CC_DEV_MODE_KEY):
         st.markdown("##### Continue workflow candidates (top 10)")
-        try:
-            from project_intelligence import diagnose_continue_workflow_candidates
-
-            wf_rows = diagnose_continue_workflow_candidates(snapshot, display_limit=10, continue_limit=6)
-            if wf_rows:
-                st.dataframe(wf_rows, use_container_width=True, hide_index=True)
-            else:
-                st.caption("No meaningful workflow events in the activity store yet.")
-        except Exception as exc:
-            st.warning(f"Workflow candidate trace unavailable: {exc}")
+        _render_workflow_diagnostics_table(snapshot)
 
     st.markdown("##### Last 10 raw events (Supabase)")
     for raw in diag.last_10_raw_supabase or ["—"]:
@@ -773,5 +809,6 @@ with st.expander("Deployment & link audit (admin)"):
         st.markdown(f"| {conn.name} | {conn.branch} | `{conn.open_url}` | {live} |")
 
 st.caption(
-    f"Daniel Cohen AI Command Center · {datetime.now().strftime('%B %d, %Y')} · build {BUILD_VERSION}"
+    f"Daniel Cohen AI Command Center · {datetime.now().strftime('%B %d, %Y')} · "
+    f"build {SUITE_BUILD_LABEL} · commit {GIT_COMMIT_SHORT} · branch {GIT_BRANCH}"
 )
