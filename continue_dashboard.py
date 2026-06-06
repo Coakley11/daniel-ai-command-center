@@ -59,6 +59,11 @@ def build_continue_cards(limit: int = 6, snapshot: ActivitySnapshot | None = Non
                 page = page or "Comparison Tool"
             elif "comparison" in page.lower():
                 resume_key = "compare:"
+            else:
+                trend_player = str(metrics.get("player") or "").strip()
+                if trend_player and ("trend" in page.lower() or "trend" in summary.lower()):
+                    resume_key = f"trend:{trend_player}"
+                    page = page or "Trend Value"
         elif app_key == "nba" and metrics.get("team"):
             team = str(metrics.get("team") or "").strip()
             if "live" in page.lower() and "game" in page.lower():

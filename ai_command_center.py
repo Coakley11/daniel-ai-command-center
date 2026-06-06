@@ -12,6 +12,7 @@ Run: streamlit run ai_command_center.py
 from __future__ import annotations
 
 import html
+import json
 from datetime import datetime
 
 import streamlit as st
@@ -49,6 +50,8 @@ SECTION_ICONS = {
     "apps": "📱",
     "continue": "⏯",
 }
+
+CC_DEV_MODE_KEY = "cc_developer_mode"
 
 st.set_page_config(
     page_title="Daniel Cohen AI Command Center",
@@ -527,6 +530,14 @@ def _cached_connections():
     return verify_connections()
 
 
+with st.sidebar:
+    st.markdown("### Developer")
+    st.checkbox(
+        "Developer Mode",
+        key=CC_DEV_MODE_KEY,
+        help="Show Continue workflow candidate debugging on the homepage and in admin.",
+    )
+
 snapshot = load_activity_snapshot()
 insights = generate_coach_insights(snapshot)
 continue_cards = continue_cards_for_snapshot(snapshot, limit=6)
@@ -534,6 +545,18 @@ connections = _cached_connections()
 
 _render_hero(snapshot)
 _render_continue_section(snapshot, continue_cards)
+if st.session_state.get(CC_DEV_MODE_KEY):
+    with st.expander("Developer: Continue workflow candidates (top 10)", expanded=True):
+        try:
+            from project_intelligence import diagnose_continue_workflow_candidates
+
+            wf_rows = diagnose_continue_workflow_candidates(snapshot, display_limit=10, continue_limit=6)
+            if wf_rows:
+                st.dataframe(wf_rows, use_container_width=True, hide_index=True)
+            else:
+                st.caption("No meaningful workflow events in the activity store yet.")
+        except Exception as exc:
+            st.warning(f"Workflow candidate trace unavailable: {exc}")
 _render_cross_app_section(snapshot)
 _render_coach_insights(insights)
 _render_recent_activity_feed()
@@ -691,6 +714,45 @@ with st.expander("Deployment & link audit (admin)"):
             use_container_width=True,
             hide_index=True,
         )
+
+    st.markdown("##### Baseball Continue workflow trace")
+    try:
+        from project_intelligence import diagnose_baseball_continue
+
+        bb_diag = diagnose_baseball_continue(snapshot)
+        st.markdown(
+            f"| Check | Value |\n|---|---|\n"
+            f"| Trend events in store | {bb_diag.trend_events_in_store} |\n"
+            f"| Workflow would emit | {bb_diag.workflow_would_emit} |\n"
+            f"| In top 6 Continue | {bb_diag.in_top_six} |\n"
+            f"| Blocked reason | {bb_diag.blocked_reason or '—'} |"
+        )
+        if bb_diag.latest_trend_event:
+            st.code(json.dumps(bb_diag.latest_trend_event, indent=2, ensure_ascii=False), language="json")
+        if bb_diag.latest_baseball_workflow:
+            st.markdown("**Latest trend workflow candidate:**")
+            st.json(bb_diag.latest_baseball_workflow)
+        if bb_diag.continue_rank_all_apps:
+            st.markdown("**Continue card ranking (all apps):**")
+            st.dataframe(bb_diag.continue_rank_all_apps, hide_index=True)
+        if bb_diag.resume_trend_items:
+            st.markdown("**Resume items (trend:*):**")
+            st.dataframe(bb_diag.resume_trend_items, hide_index=True)
+    except Exception as exc:
+        st.warning(f"Baseball Continue trace unavailable: {exc}")
+
+    if st.session_state.get(CC_DEV_MODE_KEY):
+        st.markdown("##### Continue workflow candidates (top 10)")
+        try:
+            from project_intelligence import diagnose_continue_workflow_candidates
+
+            wf_rows = diagnose_continue_workflow_candidates(snapshot, display_limit=10, continue_limit=6)
+            if wf_rows:
+                st.dataframe(wf_rows, use_container_width=True, hide_index=True)
+            else:
+                st.caption("No meaningful workflow events in the activity store yet.")
+        except Exception as exc:
+            st.warning(f"Workflow candidate trace unavailable: {exc}")
 
     st.markdown("##### Last 10 raw events (Supabase)")
     for raw in diag.last_10_raw_supabase or ["—"]:

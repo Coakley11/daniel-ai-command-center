@@ -7,7 +7,12 @@ from datetime import datetime, timedelta
 from unittest.mock import patch
 
 from activity_store import ActivitySnapshot, WeeklySummary, get_weekly_summary
-from project_intelligence import _polish_resume, _projects_from_events, weekly_accomplishment_lines
+from project_intelligence import (
+    _polish_resume,
+    _projects_from_events,
+    diagnose_continue_workflow_candidates,
+    weekly_accomplishment_lines,
+)
 from suite_storage import ResumeItem
 
 
@@ -36,6 +41,23 @@ class TestProjectIntelligence(unittest.TestCase):
         self.assertEqual(len(baseball), 1)
         self.assertIn("Lorenzo Cain", baseball[0][2])
         self.assertEqual(baseball[0][4], "trend:Lorenzo Cain")
+
+    def test_workflow_candidate_diagnostic_marks_included_trend(self) -> None:
+        snap = ActivitySnapshot()
+        recent = (datetime.now() - timedelta(hours=1)).isoformat(timespec="seconds")
+        events = [
+            {
+                "app": "baseball",
+                "event": "player_trend_viewed",
+                "timestamp": recent,
+                "metrics": {"player": "Lorenzo Cain"},
+            },
+        ]
+        with patch("project_intelligence.load_all_events", return_value=events):
+            rows = diagnose_continue_workflow_candidates(snap)
+        self.assertTrue(rows)
+        self.assertEqual(rows[0]["resume_key"], "trend:Lorenzo Cain")
+        self.assertIn(rows[0]["status"], {"included", "excluded"})
 
     def test_polish_music_chord_resume(self) -> None:
         item = ResumeItem(

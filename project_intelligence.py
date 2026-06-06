@@ -4,7 +4,7 @@ Derive active projects, cross-app insights, and accomplishment lines from real e
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Any
 
@@ -127,9 +127,370 @@ def _polish_resume(item: ResumeItem) -> tuple[str, str, int]:
 
     priority = 35
     if item.app == "applied_intelligence" and "lesson" in blob:
-        return title if not title.lower().startswith("continue") else f"Continue {title.split(':', 1)[-1].strip()}", subtitle, 48
+        return (
+            title
+            if not title.lower().startswith("continue")
+            else f"Continue {title.split(':', 1)[-1].strip()}",
+            subtitle,
+            48,
+        )
 
     return title, subtitle, priority
+
+
+_MEANINGFUL_WORKFLOW_EVENTS = frozenset(
+    {
+        "player_comparison",
+        "player_trend_viewed",
+        "trend_analysis",
+        "draft_prep",
+        "trade_eval",
+        "trade_analysis",
+        "breakout_analysis",
+        "portfolio_health_checked",
+        "portfolio_check",
+        "scenario_run",
+        "holdings_updated",
+        "allocation_reviewed",
+        "game_outlook",
+        "matchup_analysis",
+        "injury_review",
+        "injury_analysis",
+        "playoff_simulation",
+        "verified_chart_saved",
+        "practice",
+        "backing_track_started",
+        "backing_track_completed",
+        "lesson_completed",
+        "problem_solved",
+        "simulation_completed",
+    }
+)
+
+
+def _raw_event_workflow_candidate(event: dict[str, Any]) -> dict[str, Any] | None:
+    """Map a single stored event to a Continue-style workflow candidate (if possible)."""
+    app = str(event.get("app") or "").strip()
+    event_name = str(event.get("event") or "").strip()
+    if event_name not in _MEANINGFUL_WORKFLOW_EVENTS:
+        return None
+    ts_raw = str(event.get("timestamp") or "")
+    ts = _parse_ts(ts_raw)
+    if ts is None:
+        return None
+    m = _metrics(event)
+    resume_key = ""
+    priority = 40
+    title = event_name.replace("_", " ").title()
+
+    if app == "baseball":
+        if event_name == "player_comparison":
+            pa = str(m.get("player_a") or "").strip()
+            pb = str(m.get("player_b") or "").strip()
+            if not pa or not pb:
+                return None
+            resume_key = f"compare:{pa}:{pb}"
+            priority = 59
+            title = f"Continue {pa} vs {pb}"
+        elif event_name in {"player_trend_viewed", "trend_analysis"}:
+            player = str(m.get("player") or "").strip()
+            if not player:
+                return None
+            resume_key = f"trend:{player}"
+            priority = 58
+            title = f"Continue {player} trend chart"
+        elif event_name == "draft_prep":
+            resume_key = "bb:draft"
+            priority = 56
+            title = "Continue fantasy draft prep"
+        elif event_name in {"trade_eval", "trade_analysis"}:
+            resume_key = "bb:trade"
+            priority = 54
+            title = "Review trade analysis"
+        elif event_name == "breakout_analysis":
+            resume_key = "baseball:breakouts"
+            priority = 35
+            title = "Continue breakout candidate research"
+        else:
+            return None
+    elif app == "investment":
+        if event_name in {"portfolio_health_checked", "portfolio_check"}:
+            resume_key = "portfolio:health"
+            priority = 58
+            title = "Review portfolio health results"
+        elif event_name == "scenario_run":
+            resume_key = "inv:scenario"
+            priority = 50
+            title = "Continue scenario analysis"
+        elif event_name == "holdings_updated":
+            resume_key = "inv:allocation"
+            priority = 48
+            title = "Review allocation recommendations"
+        elif event_name == "allocation_reviewed":
+            resume_key = "inv:allocation"
+            priority = 48
+            title = "Review allocation recommendations"
+        else:
+            return None
+    elif app == "nba":
+        team = str(m.get("team") or "").strip()
+        if not team:
+            return None
+        if event_name == "game_outlook":
+            resume_key = f"nba:game:{team}"
+            priority = 60
+            title = f"Continue {team.split()[-1]} Live Game Center"
+        elif event_name in {"matchup_analysis", "injury_review", "injury_analysis"}:
+            resume_key = f"nba:matchup:{team}"
+            priority = 56
+            title = f"Continue {team} matchup analysis"
+        elif event_name == "playoff_simulation":
+            resume_key = f"nba:playoff:{team}"
+            priority = 54
+            title = f"Continue {team} playoff outlook"
+        else:
+            return None
+    elif app == "music":
+        song = _song(m)
+        pick = str(m.get("pick_key") or "").strip()
+        if event_name in {"verified_chart_saved", "lyrics_saved", "chart_save", "chord_save"}:
+            resume_key = f"song:{pick}" if pick else f"music:edit:{song or 'song'}"
+            priority = 60
+            title = f"Continue {song or 'song'} chord edits"
+        elif event_name == "practice":
+            resume_key = f"song:{pick}" if pick else f"music:practice:{song or 'song'}"
+            priority = 42
+            title = f"Continue {song or 'song'} practice plan"
+        elif event_name.startswith("backing_track"):
+            resume_key = f"backing:{pick}" if pick else f"backing:{song or 'song'}"
+            priority = 61
+            title = f"Continue {song or 'song'}"
+        else:
+            return None
+    else:
+        return None
+
+    return {
+        "timestamp": ts_raw[:19],
+        "app": app,
+        "event_type": event_name,
+        "resume_key": resume_key,
+        "priority": priority,
+        "title": title,
+        "stale": _stale(ts),
+    }
+
+
+def _merged_continue_rank_map(
+    snapshot: ActivitySnapshot,
+    *,
+    continue_limit: int = 6,
+) -> dict[str, tuple[int, int]]:
+    """resume_key -> (priority, rank) for slots that would appear in Continue."""
+    from app_registry import APP_DEFINITIONS
+
+    meta = {app.key: {"name": app.name, "url": app.streamlit_url.strip()} for app in APP_DEFINITIONS}
+    merged: dict[str, int] = {}
+
+    for priority, app, _title, _subtitle, resume_key, _page, _metrics in _projects_from_events(snapshot):
+        if app not in meta or not meta[app]["url"]:
+            continue
+        prev = merged.get(resume_key)
+        if prev is None or priority > prev:
+            merged[resume_key] = priority
+
+    for item in load_active_resume_items(limit=30):
+        if item.app not in meta or not meta[item.app]["url"]:
+            continue
+        _title, _subtitle, priority = _polish_resume(item)
+        dedupe = f"resume:{item.app}:{item.item_key}"
+        prev = merged.get(dedupe)
+        if prev is None or priority > prev:
+            merged[dedupe] = priority
+        prev_item = merged.get(item.item_key)
+        if prev_item is None or priority > prev_item:
+            merged[item.item_key] = priority
+
+    ordered = sorted(merged.items(), key=lambda row: row[1], reverse=True)
+    rank_map: dict[str, tuple[int, int]] = {}
+    for rank, (rk, pr) in enumerate(ordered[:continue_limit], start=1):
+        rank_map[rk] = (pr, rank)
+    return rank_map
+
+
+def diagnose_continue_workflow_candidates(
+    snapshot: ActivitySnapshot | None = None,
+    *,
+    display_limit: int = 10,
+    continue_limit: int = 6,
+) -> list[dict[str, Any]]:
+    """
+    Top recent meaningful workflow events with Continue inclusion/exclusion reasons.
+    """
+    snap = snapshot or ActivitySnapshot()
+    rank_map = _merged_continue_rank_map(snap, continue_limit=continue_limit)
+    included_keys = set(rank_map.keys())
+
+    events = sorted(load_all_events(limit=300), key=lambda e: str(e.get("timestamp") or ""), reverse=True)
+    rows: list[dict[str, Any]] = []
+    seen_event: set[tuple[str, str, str]] = set()
+
+    for event in events:
+        if len(rows) >= display_limit:
+            break
+        dedupe = (
+            str(event.get("app") or ""),
+            str(event.get("timestamp") or ""),
+            str(event.get("event") or ""),
+        )
+        if dedupe in seen_event:
+            continue
+        cand = _raw_event_workflow_candidate(event)
+        if cand is None:
+            continue
+        seen_event.add(dedupe)
+        rk = cand["resume_key"]
+        if cand["stale"]:
+            status = "excluded"
+            reason = f"Stale (>{_PROJECT_STALE_DAYS} days)"
+        elif rk in rank_map:
+            pr, rank = rank_map[rk]
+            status = "included"
+            reason = f"Continue rank {rank} (priority {pr})"
+        elif rk in included_keys:
+            status = "included"
+            reason = "Included via resume item merge"
+        else:
+            status = "excluded"
+            if rank_map and cand["priority"] < min(p for p, _ in rank_map.values()):
+                reason = f"Below top {continue_limit} (priority {cand['priority']})"
+            elif not rank_map:
+                reason = "No Continue cards emitted from current snapshot"
+            else:
+                reason = (
+                    f"Not in top {continue_limit} — aggregated out or lower priority "
+                    f"({cand['priority']})"
+                )
+        rows.append(
+            {
+                "timestamp": cand["timestamp"],
+                "app": cand["app"],
+                "event_type": cand["event_type"],
+                "resume_key": rk,
+                "priority": cand["priority"],
+                "status": status,
+                "reason": reason,
+            }
+        )
+
+    return rows
+
+
+@dataclass
+class BaseballContinueDiagnostic:
+    """End-to-end trace for Baseball trend → Continue card pipeline."""
+
+    trend_events_in_store: int = 0
+    latest_trend_event: dict[str, Any] | None = None
+    latest_baseball_workflow: dict[str, Any] | None = None
+    workflow_would_emit: bool = False
+    continue_cards_baseball: list[dict[str, Any]] = field(default_factory=list)
+    continue_rank_all_apps: list[dict[str, Any]] = field(default_factory=list)
+    in_top_six: bool = False
+    blocked_reason: str = ""
+    resume_trend_items: list[dict[str, Any]] = field(default_factory=list)
+
+
+def diagnose_baseball_continue(
+    snapshot: ActivitySnapshot | None = None,
+    *,
+    limit: int = 6,
+) -> BaseballContinueDiagnostic:
+    """Answer whether a Lorenzo Cain-style trend should appear in Continue."""
+    from continue_dashboard import build_continue_cards
+    from suite_storage import load_active_resume_items
+
+    snap = snapshot or ActivitySnapshot()
+    diag = BaseballContinueDiagnostic()
+    events = load_all_events(limit=500)
+    trend_events = [
+        e
+        for e in events
+        if str(e.get("app") or "") == "baseball"
+        and str(e.get("event") or "") in {"player_trend_viewed", "trend_analysis"}
+    ]
+    diag.trend_events_in_store = len(trend_events)
+    if trend_events:
+        diag.latest_trend_event = max(trend_events, key=lambda e: str(e.get("timestamp") or ""))
+
+    for item in load_active_resume_items(limit=30):
+        if item.app == "baseball" and (
+            item.item_key.startswith("trend:") or "trend chart" in item.title.lower()
+        ):
+            diag.resume_trend_items.append(
+                {
+                    "item_key": item.item_key,
+                    "title": item.title,
+                    "subtitle": item.subtitle,
+                    "updated_at": item.updated_at,
+                }
+            )
+
+    derived = _projects_from_events(snap)
+    baseball_derived = [c for c in derived if c[1] == "baseball"]
+    for pr, app, title, subtitle, rk, page, bm in baseball_derived:
+        diag.continue_cards_baseball.append(
+            {
+                "priority": pr,
+                "title": title,
+                "subtitle": subtitle,
+                "resume_key": rk,
+                "page": page,
+                "metrics_player": bm.get("player"),
+            }
+        )
+    for pr, app, title, subtitle, rk, page, bm in derived:
+        if "trend" in rk or "trend chart" in title.lower():
+            diag.latest_baseball_workflow = {
+                "priority": pr,
+                "app": app,
+                "title": title,
+                "resume_key": rk,
+                "event_type": bm.get("event") if isinstance(bm, dict) else None,
+                "player": bm.get("player") if isinstance(bm, dict) else None,
+            }
+            diag.workflow_would_emit = True
+            break
+
+    if not diag.workflow_would_emit and diag.latest_trend_event:
+        m = diag.latest_trend_event.get("metrics")
+        player = str((m or {}).get("player") or "").strip() if isinstance(m, dict) else ""
+        if not player:
+            diag.blocked_reason = "Latest trend event missing metrics.player"
+        else:
+            ts = _parse_ts(str(diag.latest_trend_event.get("timestamp") or ""))
+            if _stale(ts):
+                diag.blocked_reason = f"Trend event older than {_PROJECT_STALE_DAYS} days"
+            else:
+                diag.blocked_reason = "Trend event exists but was superseded by a newer baseball workflow"
+    elif not diag.latest_trend_event:
+        diag.blocked_reason = "No player_trend_viewed or trend_analysis events in Command Center store"
+
+    all_cards = build_continue_cards(limit=limit, snapshot=snap)
+    for i, card in enumerate(all_cards):
+        diag.continue_rank_all_apps.append(
+            {
+                "rank": i + 1,
+                "app": card.app_key,
+                "title": card.title,
+            }
+        )
+        if card.app_key == "baseball" and "trend" in card.title.lower():
+            diag.in_top_six = True
+    if diag.workflow_would_emit and not diag.in_top_six and not diag.blocked_reason:
+        diag.blocked_reason = f"Trend card computed but not in top {limit} Continue slots (priority cap)"
+
+    return diag
 
 
 def _projects_from_events(
