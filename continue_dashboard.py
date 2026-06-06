@@ -43,13 +43,50 @@ def build_continue_cards(limit: int = 6, snapshot: ActivitySnapshot | None = Non
         page = str(state.get("page") or "").strip()
         if not summary and not page:
             continue
+        metrics = state.get("metrics") if isinstance(state.get("metrics"), dict) else {}
+        resume_key = ""
+        if app_key == "music":
+            pk = str(metrics.get("pick_key") or "").strip()
+            if pk:
+                resume_key = f"song:{pk}"
+        elif app_key == "investment" and "health" in page.lower():
+            resume_key = "portfolio:health"
+        elif app_key == "baseball":
+            pa = str(metrics.get("player_a") or "").strip()
+            pb = str(metrics.get("player_b") or "").strip()
+            if pa and pb:
+                resume_key = f"compare:{pa}:{pb}"
+                page = page or "Comparison Tool"
+            elif "comparison" in page.lower():
+                resume_key = "compare:"
+        elif app_key == "nba" and metrics.get("team"):
+            team = str(metrics.get("team") or "").strip()
+            if "live" in page.lower() and "game" in page.lower():
+                resume_key = f"nba:game:{team}"
+            else:
+                resume_key = f"nba:matchup:{team}"
+        action_url = meta[app_key]["url"]
+        try:
+            from suite_deep_links import build_resume_action_url
+
+            deep = build_resume_action_url(
+                app_key,
+                resume_key=resume_key,
+                page=page,
+                metrics=metrics,
+                base_url=meta[app_key]["url"],
+            )
+            if deep:
+                action_url = deep
+        except Exception:
+            pass
         cards.append(
             ContinueCard(
                 app_key=app_key,
                 app_name=meta[app_key]["name"],
                 title=summary or f"Continue work in {meta[app_key]['name']}",
                 subtitle=page if page and page != summary else "",
-                action_url=meta[app_key]["url"],
+                action_url=action_url,
                 emoji=themes.get(app_key, "▶"),
             )
         )

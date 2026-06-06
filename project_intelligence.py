@@ -37,6 +37,37 @@ def _metrics(event: dict[str, Any]) -> dict[str, Any]:
     return raw if isinstance(raw, dict) else {}
 
 
+def _latest_music_metrics_for_song(song: str) -> dict[str, Any]:
+    """Most recent event metrics for a song — used when resume cards need pick_key/display_key."""
+    target = str(song or "").strip()
+    if not target:
+        return {}
+    for event in sorted(
+        load_all_events(),
+        key=lambda e: str(e.get("timestamp") or ""),
+        reverse=True,
+    ):
+        if str(event.get("app") or "").strip() != "music":
+            continue
+        m = _metrics(event)
+        if _song(m) == target:
+            return dict(m)
+    return {"song": target}
+
+
+def _music_resume_metrics(sm: dict[str, Any], song: str) -> dict[str, Any]:
+    return {
+        "song": song,
+        "artist": str(sm.get("artist") or ""),
+        "pick_key": str(sm.get("pick_key") or "").strip(),
+        "display_key": str(sm.get("display_key") or ""),
+        "instrument": str(sm.get("instrument") or ""),
+        "practice_focus_section": str(
+            sm.get("practice_focus_section") or sm.get("focus") or ""
+        ),
+    }
+
+
 def _stale(ts: datetime | None) -> bool:
     if ts is None:
         return True
@@ -97,15 +128,20 @@ def _polish_resume(item: ResumeItem) -> tuple[str, str, int]:
     return title, subtitle, priority
 
 
-def _projects_from_events(snapshot: ActivitySnapshot) -> list[tuple[int, str, str, str, str]]:
+def _projects_from_events(
+    snapshot: ActivitySnapshot,
+) -> list[tuple[int, str, str, str, str, str, dict[str, Any]]]:
     """
-    Scan events (newest first) and emit (priority, app, title, subtitle, dedupe_key).
+    Scan events (newest first) and emit
+    (priority, app, title, subtitle, resume_key, page, metrics).
     """
-    out: list[tuple[int, str, str, str, str]] = []
+    out: list[tuple[int, str, str, str, str, str, dict[str, Any]]] = []
     events = sorted(load_all_events(), key=lambda e: str(e.get("timestamp") or ""), reverse=True)
 
     song_state: dict[str, dict[str, datetime | None]] = {}
+    song_metrics: dict[str, dict[str, Any]] = {}
     inv_health: datetime | None = None
+    inv_health_metrics: dict[str, Any] = {}
     inv_scenario: datetime | None = None
     inv_scenario_monte = False
     inv_rebalance: datetime | None = None
@@ -114,10 +150,14 @@ def _projects_from_events(snapshot: ActivitySnapshot) -> list[tuple[int, str, st
     baseball_draft: datetime | None = None
     baseball_trade: datetime | None = None
     baseball_projection = False
+    baseball_compare: tuple[str, str, datetime, dict[str, Any]] | None = None
     nba_team = ""
     nba_injury = False
     nba_matchup = False
     nba_playoff = False
+    nba_game: datetime | None = None
+    nba_game_team = ""
+    nba_game_page = ""
     future_sim = ""
     future_career = False
     ai_lesson = ""
@@ -138,12 +178,15 @@ def _projects_from_events(snapshot: ActivitySnapshot) -> list[tuple[int, str, st
             if event_name in {"verified_chart_saved", "lyrics_saved", "chart_save", "chord_save"}:
                 if st["edit"] is None:
                     st["edit"] = ts
+                    song_metrics.setdefault(song, m)
             elif event_name == "practice":
                 if st["practice"] is None:
                     st["practice"] = ts
+                    song_metrics[song] = m
             elif event_name in {"video_uploaded", "audio_uploaded"}:
                 if st["upload"] is None:
                     st["upload"] = ts
+                    song_metrics.setdefault(song, m)
             elif event_name == "recording_reviewed":
                 if st["review"] is None:
                     st["review"] = ts
@@ -151,6 +194,7 @@ def _projects_from_events(snapshot: ActivitySnapshot) -> list[tuple[int, str, st
         elif app == "investment":
             if event_name in ("portfolio_health_checked", "portfolio_check") and inv_health is None:
                 inv_health = ts
+                inv_health_metrics = dict(m)
             elif event_name == "scenario_run":
                 if inv_scenario is None:
                     inv_scenario = ts
@@ -168,10 +212,14 @@ def _projects_from_events(snapshot: ActivitySnapshot) -> list[tuple[int, str, st
                 baseball_draft = ts
             elif event_name in {"trade_eval", "trade_analysis"} and baseball_trade is None:
                 baseball_trade = ts
+            elif event_name == "player_comparison":
+                pa = str(m.get("player_a") or "").strip()
+                pb = str(m.get("player_b") or "").strip()
+                if pa and pb and baseball_compare is None:
+                    baseball_compare = (pa, pb, ts, m)
             elif event_name in {
                 "projection_report",
                 "comparison",
-                "player_comparison",
                 "trend_analysis",
                 "breakout_analysis",
             }:
@@ -184,10 +232,15 @@ def _projects_from_events(snapshot: ActivitySnapshot) -> list[tuple[int, str, st
             pg = str(m.get("page") or event.get("page") or "").lower()
             if event_name == "injury_review" or "injury" in pg:
                 nba_injury = True
-            if event_name in {"matchup_analysis", "game_outlook"} or "matchup" in pg:
+            if event_name in {"matchup_analysis"} or ("matchup" in pg and "live" not in pg):
                 nba_matchup = True
             if event_name == "playoff_simulation" or "playoff" in pg:
                 nba_playoff = True
+            if event_name == "game_outlook" or ("live" in pg and "game" in pg):
+                if nba_game is None:
+                    nba_game = ts
+                    nba_game_team = team
+                    nba_game_page = str(m.get("page") or event.get("page") or "🔴 Live Game Center")
 
         elif app == "future_lens" and event_name in {"simulation", "simulation_completed"}:
             sim = str(m.get("simulation") or m.get("domain") or "").strip()
@@ -210,63 +263,138 @@ def _projects_from_events(snapshot: ActivitySnapshot) -> list[tuple[int, str, st
 
     for song, st in song_state.items():
         edit, practice, upload, review = st["edit"], st["practice"], st["upload"], st["review"]
+        sm = song_metrics.get(song) or {}
+        pick_key = str(sm.get("pick_key") or "").strip()
+        resume_metrics = _music_resume_metrics(sm, song)
         if edit and (practice is None or (practice and edit > practice)) and not _stale(edit):
-            out.append((60, "music", f"Continue {song} chord edits", "Reinforce verified chart work", f"music:edit:{song}"))
+            rk = f"song:{pick_key}" if pick_key else f"music:edit:{song}"
+            out.append(
+                (60, "music", f"Continue {song} chord edits", "Reinforce verified chart work", rk, "practice", resume_metrics)
+            )
         if upload and (review is None or (review and upload > review)) and not _stale(upload):
-            out.append((55, "music", f"Review uploaded {song} recording", "Listen back & note improvements", f"music:upload:{song}"))
+            rk = f"song:{pick_key}" if pick_key else f"music:upload:{song}"
+            out.append(
+                (55, "music", f"Review uploaded {song} recording", "Listen back & note improvements", rk, "recording", resume_metrics)
+            )
         if practice and not _stale(practice):
             if edit is None or (edit and practice >= edit):
-                out.append((42, "music", f"Continue {song} practice plan", "Build on your last session", f"music:practice:{song}"))
+                rk = f"song:{pick_key}" if pick_key else f"music:practice:{song}"
+                subtitle = str(sm.get("focus") or sm.get("artist") or "Build on your last session")
+                out.append(
+                    (42, "music", f"Continue {song} practice plan", subtitle, rk, "practice", resume_metrics)
+                )
 
     if inv_health and (inv_rebalance is None or (inv_rebalance and inv_health > inv_rebalance)) and not _stale(inv_health):
-        out.append((58, "investment", "Review portfolio health results", snapshot.last_portfolio_review or "Health & recommendations", "inv:health"))
+        subtitle = snapshot.last_portfolio_review or str(inv_health_metrics.get("review_type") or "Health & recommendations")
+        out.append(
+            (
+                58,
+                "investment",
+                "Review portfolio health results",
+                subtitle,
+                "portfolio:health",
+                "Portfolio Health",
+                inv_health_metrics,
+            )
+        )
     if inv_scenario and (inv_rebalance is None or (inv_rebalance and inv_scenario > inv_rebalance)) and not _stale(inv_scenario):
         title = "Continue Monte Carlo analysis" if inv_scenario_monte else "Continue scenario analysis"
-        out.append((50, "investment", title, "Review recommendations next", "inv:scenario"))
+        out.append((50, "investment", title, "Review recommendations next", "inv:scenario", "Efficient Frontier", {}))
     if inv_holdings and (inv_allocation is None or (inv_allocation and inv_holdings > inv_allocation)) and not _stale(inv_holdings):
-        out.append((48, "investment", "Review allocation recommendations", "Check drift after holdings changes", "inv:allocation"))
+        out.append(
+            (48, "investment", "Review allocation recommendations", "Check drift after holdings changes", "inv:allocation", "Portfolio Health", {})
+        )
 
+    if baseball_compare and not _stale(baseball_compare[2]):
+        pa, pb, _, bm = baseball_compare
+        pair = f"{pa} vs {pb}"
+        out.append(
+            (
+                59,
+                "baseball",
+                f"Continue {pair}",
+                "Comparison Tool",
+                f"compare:{pa}:{pb}",
+                "Comparison Tool",
+                {"player_a": pa, "player_b": pb, **bm},
+            )
+        )
     if baseball_draft and not _stale(baseball_draft):
-        out.append((56, "baseball", "Continue fantasy draft prep", snapshot.last_baseball_report or "Rankings & sleepers", "bb:draft"))
+        out.append((56, "baseball", "Continue fantasy draft prep", snapshot.last_baseball_report or "Rankings & sleepers", "bb:draft", "Draft Simulation", {}))
     if baseball_trade and not _stale(baseball_trade):
-        out.append((54, "baseball", "Review trade analysis", "Finalize accept/decline", "bb:trade"))
-    if baseball_projection:
-        out.append((50, "baseball", "Continue player projection research", snapshot.last_baseball_player or "Projections tab", "bb:proj"))
+        out.append((54, "baseball", "Review trade analysis", "Finalize accept/decline", "bb:trade", "Fantasy Lineup Assistant", {}))
+    if baseball_projection and not baseball_compare:
+        out.append((50, "baseball", "Continue player projection research", snapshot.last_baseball_player or "Projections tab", "bb:proj", "ML Projections", {}))
 
-    if nba_team:
+    if nba_game and not _stale(nba_game):
+        short = nba_game_team.split()[-1] if nba_game_team else "team"
+        out.append(
+            (
+                60,
+                "nba",
+                f"Continue {short} Live Game Center",
+                nba_game_page,
+                f"nba:game:{nba_game_team}",
+                "🔴 Live Game Center",
+                {"team": nba_game_team, "page": nba_game_page},
+            )
+        )
+    elif nba_team:
         if nba_matchup:
-            out.append((56, "nba", f"Continue {nba_team} matchup analysis", "Game outlook & rotations", f"nba:match:{nba_team}"))
+            out.append((56, "nba", f"Continue {nba_team} matchup analysis", "Game outlook & rotations", f"nba:matchup:{nba_team}", "🧠 Matchup Intelligence", {"team": nba_team}))
         if nba_injury:
-            out.append((52, "nba", f"Review injury report implications ({nba_team})", "Update lineup assumptions", f"nba:injury:{nba_team}"))
+            out.append((52, "nba", f"Review injury report implications ({nba_team})", "Update lineup assumptions", f"nba:injury:{nba_team}", "🧠 Matchup Intelligence", {"team": nba_team}))
         if nba_playoff:
-            out.append((54, "nba", f"Continue {nba_team} playoff outlook", "Series context & matchups", f"nba:playoff:{nba_team}"))
+            out.append((54, "nba", f"Continue {nba_team} playoff outlook", "Series context & matchups", f"nba:playoff:{nba_team}", "🏆 Playoff Bracket", {"team": nba_team}))
 
     if future_sim:
         lower = future_sim.lower()
         if "teach" in lower or "education" in lower:
-            out.append((55, "future_lens", "Continue teaching simulation", future_sim, "fl:teach"))
+            out.append((55, "future_lens", "Continue teaching simulation", future_sim, "fl:teach", "simulation", {"simulation": future_sim}))
         elif future_career:
-            out.append((54, "future_lens", "Continue AI career transition analysis", future_sim, "fl:career"))
+            out.append((54, "future_lens", "Continue AI career transition analysis", future_sim, "fl:career", "simulation", {"simulation": future_sim}))
         else:
-            out.append((50, "future_lens", f"Continue {future_sim} simulation", snapshot.future_project or "", "fl:sim"))
+            out.append((50, "future_lens", f"Continue {future_sim} simulation", snapshot.future_project or "", "fl:sim", "simulation", {"simulation": future_sim}))
 
     if ai_lesson:
-        out.append((48, "applied_intelligence", f"Continue: {ai_lesson}", "Next exercise in sequence", f"ai:{ai_lesson}"))
+        out.append((48, "applied_intelligence", f"Continue: {ai_lesson}", "Next exercise in sequence", f"ai:{ai_lesson}", "lessons", {"lesson": ai_lesson}))
 
     # Snapshot fallbacks when events are thin
     if snapshot.last_song and snapshot.last_music_edit_days_ago is not None and snapshot.last_music_edit_days_ago <= 5:
-        key = f"music:edit:{snapshot.last_song}"
-        if not any(x[4] == key for x in out):
-            out.append((45, "music", f"Continue {snapshot.last_song} chord edits", snapshot.last_music_edit_label, key))
+        sm = _latest_music_metrics_for_song(snapshot.last_song)
+        pick_key = str(sm.get("pick_key") or "").strip()
+        rk = f"song:{pick_key}" if pick_key else f"music:edit:{snapshot.last_song}"
+        if not any(x[4] == rk for x in out):
+            out.append(
+                (
+                    45,
+                    "music",
+                    f"Continue {snapshot.last_song} chord edits",
+                    snapshot.last_music_edit_label,
+                    rk,
+                    "practice",
+                    _music_resume_metrics(sm, snapshot.last_song),
+                )
+            )
     if snapshot.last_nba_team and not any(x[1] == "nba" for x in out):
-        out.append((40, "nba", f"Continue {snapshot.last_nba_team} matchup analysis", snapshot.last_nba_page, f"nba:{snapshot.last_nba_team}"))
+        out.append(
+            (
+                40,
+                "nba",
+                f"Continue {snapshot.last_nba_team} matchup analysis",
+                snapshot.last_nba_page,
+                f"nba:matchup:{snapshot.last_nba_team}",
+                "🧠 Matchup Intelligence",
+                {"team": snapshot.last_nba_team},
+            )
+        )
     if (snapshot.future_project or snapshot.last_simulation_name) and not any(x[1] == "future_lens" for x in out):
         label = snapshot.future_project or snapshot.last_simulation_name
         lower = label.lower()
         if "teach" in lower:
-            out.append((45, "future_lens", "Continue teaching simulation", label, "fl:teach"))
+            out.append((45, "future_lens", "Continue teaching simulation", label, "fl:teach", "simulation", {"simulation": label}))
         elif "career" in lower or "ai" in lower:
-            out.append((45, "future_lens", "Continue AI career transition analysis", label, "fl:career"))
+            out.append((45, "future_lens", "Continue AI career transition analysis", label, "fl:career", "simulation", {"simulation": label}))
 
     return out
 
@@ -286,13 +414,19 @@ def build_project_continue_cards(
 
     merged: dict[str, tuple[int, ContinueCard]] = {}
 
-    for priority, app, title, subtitle, dedupe in _projects_from_events(snapshot):
+    for priority, app, title, subtitle, resume_key, page, metrics in _projects_from_events(snapshot):
         if app not in meta or not meta[app]["url"]:
             continue
         try:
             from suite_deep_links import build_resume_action_url
 
-            deep = build_resume_action_url(app, resume_key=dedupe, page=subtitle)
+            deep = build_resume_action_url(
+                app,
+                resume_key=resume_key,
+                page=page,
+                metrics=metrics,
+                base_url=meta[app]["url"],
+            )
         except Exception:
             deep = ""
         card = ContinueCard(
@@ -303,16 +437,35 @@ def build_project_continue_cards(
             action_url=deep or meta[app]["url"],
             emoji=themes.get(app, "▶"),
         )
-        prev = merged.get(dedupe)
+        prev = merged.get(resume_key)
         if prev is None or priority > prev[0]:
-            merged[dedupe] = (priority, card)
+            merged[resume_key] = (priority, card)
 
     for item in load_active_resume_items(limit=30):
         if item.app not in meta or not meta[item.app]["url"]:
             continue
         title, subtitle, priority = _polish_resume(item)
         dedupe = f"resume:{item.app}:{item.item_key}"
-        url = (item.action_url or "").strip() or meta[item.app]["url"]
+        try:
+            from suite_deep_links import build_resume_action_url, resume_metrics_from_item_key
+
+            page_hint, metrics = resume_metrics_from_item_key(
+                item.app,
+                item.item_key,
+                subtitle=item.subtitle,
+            )
+            if item.app == "music" and item.title.lower().startswith("continue:"):
+                metrics.setdefault("song", item.title.split(":", 1)[-1].strip())
+            deep = build_resume_action_url(
+                item.app,
+                resume_key=item.item_key,
+                page=page_hint,
+                metrics=metrics,
+                base_url=meta[item.app]["url"],
+            )
+        except Exception:
+            deep = ""
+        url = deep or (item.action_url or "").strip() or meta[item.app]["url"]
         card = ContinueCard(
             app_key=item.app,
             app_name=meta[item.app]["name"],

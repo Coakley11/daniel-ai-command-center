@@ -421,8 +421,12 @@ def _disk_resume_from_block(app_key: str, block: dict[str, Any]) -> tuple[str, s
         metrics = {
             "song": song,
             "artist": artist,
+            "pick_key": pick_key,
             "instrument": str(block.get("instrument") or ""),
             "focus": str(block.get("focus") or block.get("practice_focus_section") or ""),
+            "practice_focus_section": str(
+                block.get("practice_focus_section") or block.get("focus") or ""
+            ),
             "display_key": str(block.get("display_key") or ""),
         }
         subtitle = " · ".join(p for p in [artist, page] if p)
@@ -439,20 +443,33 @@ def _disk_resume_from_block(app_key: str, block: dict[str, Any]) -> tuple[str, s
         holdings = block.get("holdings_df")
         n_holdings = len(holdings) if isinstance(holdings, list) else 0
         exp = str(block.get("experience") or "").strip()
+        tab = str(
+            block.get("investment_active_tab")
+            or block.get("health_active_tab")
+            or page
+            or ""
+        ).strip()
         val = block.get("sidebar_portfolio_value")
-        parts = [p for p in [exp, page or str(block.get("health_active_tab") or "")] if p]
+        hfp = str(block.get("holdings_fingerprint") or "").strip()
+        parts = [p for p in [exp, tab] if p]
         if isinstance(val, (int, float)) and val:
             parts.append(f"${float(val):,.0f}")
         if n_holdings:
             parts.append(f"{n_holdings} holdings")
-        if not parts and not page:
+        if not parts and not tab:
             return None
-        metrics = {"review_type": page or exp, "holdings": n_holdings}
+        health_tab = "portfolio health" in tab.lower()
+        resume_key = "portfolio:health" if health_tab else "portfolio:main"
+        metrics = {
+            "review_type": tab or exp,
+            "holdings": n_holdings,
+            "holdings_fingerprint": hfp,
+        }
         return (
-            page or "Portfolio Health",
+            tab or "Portfolio Health",
             "Portfolio review",
-            "portfolio:main",
-            "Continue portfolio review",
+            resume_key,
+            "Continue portfolio review" if health_tab else "Continue portfolio work",
             " · ".join(parts),
             metrics,
         )
@@ -473,6 +490,7 @@ def _disk_resume_from_block(app_key: str, block: dict[str, Any]) -> tuple[str, s
     if app_key == "nba":
         team = str(
             block.get("team")
+            or block.get("_nba_persist_team")
             or block.get("favorite_team")
             or block.get("favorite_team_sidebar")
             or ""
@@ -481,12 +499,27 @@ def _disk_resume_from_block(app_key: str, block: dict[str, Any]) -> tuple[str, s
         if not team and not nba_page:
             return None
         metrics = {"team": team, "page": nba_page}
-        title = f"Continue: {team}" if team else f"Return to {nba_page}"
+        lower_page = nba_page.lower()
+        if "live" in lower_page and "game" in lower_page:
+            resume_key = f"nba:game:{team}" if team else "nba:game"
+            title = f"Continue {team} game analysis" if team else "Continue Live Game Center"
+        elif "injury" in lower_page:
+            resume_key = f"nba:injury:{team}" if team else "nba:injury"
+            title = f"Review injury report implications ({team})" if team else "Review injury report"
+        elif "playoff" in lower_page or "bracket" in lower_page:
+            resume_key = f"nba:playoff:{team}" if team else "nba:playoff"
+            title = f"Continue {team} playoff outlook" if team else "Continue playoff analysis"
+        elif "matchup" in lower_page:
+            resume_key = f"nba:matchup:{team}" if team else "nba:matchup"
+            title = f"Continue {team} matchup analysis" if team else "Continue matchup analysis"
+        else:
+            resume_key = f"nba:matchup:{team}" if team else f"nba:{nba_page}"
+            title = f"Continue: {team}" if team else f"Return to {nba_page}"
         subtitle = nba_page if team and nba_page else team or nba_page
         return (
             nba_page or page,
             team or nba_page,
-            f"nba:{team or nba_page}",
+            resume_key,
             title,
             subtitle if subtitle != title else "",
             metrics,
@@ -521,12 +554,23 @@ def _sync_disk_user_states_to_storage() -> None:
             continue
         page, summary, resume_key, title, subtitle, metrics = payload
         save_current_state(app_key, page=page, summary=summary, metrics=metrics)
+        try:
+            from suite_deep_links import build_resume_action_url
+
+            action_url = build_resume_action_url(
+                app_key,
+                resume_key=resume_key,
+                page=page,
+                metrics=metrics,
+            )
+        except Exception:
+            action_url = get_app_url(app_key)
         upsert_resume_item(
             app_key,
             resume_key,
             title=title,
             subtitle=subtitle,
-            action_url=get_app_url(app_key),
+            action_url=action_url or get_app_url(app_key),
         )
 
 
