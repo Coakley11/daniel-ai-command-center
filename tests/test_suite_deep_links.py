@@ -91,6 +91,15 @@ class TestSuiteDeepLinks(unittest.TestCase):
         self.assertEqual(p["suite_page"], "🔴 Live Game Center")
         self.assertEqual(p["suite_team"], "New York Knicks")
 
+    def test_resume_metrics_from_trend_key(self) -> None:
+        page, metrics = resume_metrics_from_item_key(
+            "baseball",
+            "trend:Lorenzo Cain",
+            subtitle="Trend Value",
+        )
+        self.assertEqual(page, "Trend Value")
+        self.assertEqual(metrics["player"], "Lorenzo Cain")
+
     def test_resume_metrics_from_compare_key(self) -> None:
         page, metrics = resume_metrics_from_item_key(
             "baseball",

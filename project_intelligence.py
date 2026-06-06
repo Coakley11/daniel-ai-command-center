@@ -105,6 +105,10 @@ def _polish_resume(item: ResumeItem) -> tuple[str, str, int]:
             return f"Continue {sim} simulation", subtitle, 50
         return f"Continue {subject}", subtitle, 40
 
+    if item.app == "baseball" and (key.startswith("trend:") or "trend chart" in blob):
+        player = subtitle or key.split(":", 1)[-1].strip()
+        if player:
+            return f"Continue {player} trend chart", "Trend Value", 58
     if item.app == "baseball" and title.lower().startswith("return to"):
         page = title.replace("Return to", "").strip()
         if "draft" in blob:
@@ -152,6 +156,7 @@ def _projects_from_events(
     baseball_projection = False
     baseball_compare: tuple[str, str, datetime, dict[str, Any]] | None = None
     baseball_trend: tuple[str, datetime, dict[str, Any]] | None = None
+    latest_baseball_workflow: tuple[datetime, int, str, str, str, str, dict[str, Any]] | None = None
     latest_music_workflow: tuple[datetime, str, dict[str, Any], str] | None = None
     _MUSIC_WORKFLOW_PRIORITY = {
         "backing_track_started": 70,
@@ -227,20 +232,63 @@ def _projects_from_events(
                 inv_allocation = ts
 
         elif app == "baseball":
-            if event_name == "draft_prep" and baseball_draft is None:
-                baseball_draft = ts
-            elif event_name in {"trade_eval", "trade_analysis"} and baseball_trade is None:
-                baseball_trade = ts
-            elif event_name == "player_comparison":
+            if event_name == "player_comparison":
                 pa = str(m.get("player_a") or "").strip()
                 pb = str(m.get("player_b") or "").strip()
                 if pa and pb and (baseball_compare is None or ts >= baseball_compare[2]):
                     baseball_compare = (pa, pb, ts, m)
-            elif event_name == "trend_analysis":
+                    pair = f"{pa} vs {pb}"
+                    cand = (
+                        ts,
+                        59,
+                        f"Continue {pair}",
+                        "Comparison Tool",
+                        f"compare:{pa}:{pb}",
+                        "Comparison Tool",
+                        {"player_a": pa, "player_b": pb, **m},
+                    )
+                    if latest_baseball_workflow is None or ts >= latest_baseball_workflow[0]:
+                        latest_baseball_workflow = cand
+            elif event_name in {"player_trend_viewed", "trend_analysis"}:
                 baseball_projection = True
                 player = str(m.get("player") or "").strip()
                 if player and (baseball_trend is None or ts >= baseball_trend[1]):
                     baseball_trend = (player, ts, m)
+                    cand = (
+                        ts,
+                        58,
+                        f"Continue {player} trend chart",
+                        "Trend Value",
+                        f"trend:{player}",
+                        "Trend Value",
+                        {"player": player, **m},
+                    )
+                    if latest_baseball_workflow is None or ts >= latest_baseball_workflow[0]:
+                        latest_baseball_workflow = cand
+            elif event_name == "draft_prep":
+                cand = (
+                    ts,
+                    56,
+                    "Continue fantasy draft prep",
+                    snapshot.last_baseball_report or "Rankings & sleepers",
+                    "bb:draft",
+                    "Draft Simulation",
+                    dict(m),
+                )
+                if latest_baseball_workflow is None or ts >= latest_baseball_workflow[0]:
+                    latest_baseball_workflow = cand
+            elif event_name in {"trade_eval", "trade_analysis"}:
+                cand = (
+                    ts,
+                    54,
+                    "Review trade analysis",
+                    "Finalize accept/decline",
+                    "bb:trade",
+                    "Fantasy Lineup Assistant",
+                    dict(m),
+                )
+                if latest_baseball_workflow is None or ts >= latest_baseball_workflow[0]:
+                    latest_baseball_workflow = cand
             elif event_name in {
                 "projection_report",
                 "comparison",
@@ -356,38 +404,10 @@ def _projects_from_events(
             )
         )
 
-    if baseball_trend and not _stale(baseball_trend[1]):
-        player, _, tm = baseball_trend
-        out.append(
-            (
-                58,
-                "baseball",
-                f"Continue {player} trend chart",
-                "Trend Value",
-                f"trend:{player}",
-                "Trend Value",
-                {"player": player, **tm},
-            )
-        )
-    elif baseball_compare and not _stale(baseball_compare[2]):
-        pa, pb, _, bm = baseball_compare
-        pair = f"{pa} vs {pb}"
-        out.append(
-            (
-                59,
-                "baseball",
-                f"Continue {pair}",
-                "Comparison Tool",
-                f"compare:{pa}:{pb}",
-                "Comparison Tool",
-                {"player_a": pa, "player_b": pb, **bm},
-            )
-        )
-    if baseball_draft and not _stale(baseball_draft):
-        out.append((56, "baseball", "Continue fantasy draft prep", snapshot.last_baseball_report or "Rankings & sleepers", "bb:draft", "Draft Simulation", {}))
-    if baseball_trade and not _stale(baseball_trade):
-        out.append((54, "baseball", "Review trade analysis", "Finalize accept/decline", "bb:trade", "Fantasy Lineup Assistant", {}))
-    if baseball_projection and not baseball_compare:
+    if latest_baseball_workflow and not _stale(latest_baseball_workflow[0]):
+        ts, pr, title, subtitle, rk, page, bm = latest_baseball_workflow
+        out.append((pr, "baseball", title, subtitle, rk, page, bm))
+    elif baseball_projection and not baseball_compare:
         out.append((50, "baseball", "Continue player projection research", snapshot.last_baseball_player or "Projections tab", "bb:proj", "ML Projections", {}))
 
     if nba_game and not _stale(nba_game):

@@ -3,14 +3,40 @@
 from __future__ import annotations
 
 import unittest
+from datetime import datetime, timedelta
 from unittest.mock import patch
 
 from activity_store import ActivitySnapshot, WeeklySummary, get_weekly_summary
-from project_intelligence import _polish_resume, weekly_accomplishment_lines
+from project_intelligence import _polish_resume, _projects_from_events, weekly_accomplishment_lines
 from suite_storage import ResumeItem
 
 
 class TestProjectIntelligence(unittest.TestCase):
+    def test_baseball_player_trend_becomes_continue_card(self) -> None:
+        snap = ActivitySnapshot()
+        recent = (datetime.now() - timedelta(hours=1)).isoformat(timespec="seconds")
+        older = (datetime.now() - timedelta(days=2)).isoformat(timespec="seconds")
+        events = [
+            {
+                "app": "baseball",
+                "event": "player_comparison",
+                "timestamp": older,
+                "metrics": {"player_a": "Mike Piazza", "player_b": "Jeff Bagwell"},
+            },
+            {
+                "app": "baseball",
+                "event": "player_trend_viewed",
+                "timestamp": recent,
+                "metrics": {"player": "Lorenzo Cain"},
+            },
+        ]
+        with patch("project_intelligence.load_all_events", return_value=events):
+            cards = _projects_from_events(snap)
+        baseball = [c for c in cards if c[1] == "baseball"]
+        self.assertEqual(len(baseball), 1)
+        self.assertIn("Lorenzo Cain", baseball[0][2])
+        self.assertEqual(baseball[0][4], "trend:Lorenzo Cain")
+
     def test_polish_music_chord_resume(self) -> None:
         item = ResumeItem(
             app="music",
