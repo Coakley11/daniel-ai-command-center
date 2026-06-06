@@ -12,6 +12,7 @@ from activity_store import load_all_events
 _EVENT_PRIORITY_HINT: dict[str, int] = {
     "player_comparison": 59,
     "player_trend_viewed": 58,
+    "trend_comparison_viewed": 57,
     "trend_analysis": 58,
     "draft_prep": 56,
     "trade_eval": 54,
@@ -34,6 +35,8 @@ def infer_resume_key(event_type: str, metrics: dict[str, Any]) -> str:
         return f"trend:{player}"
     pa = str(metrics.get("player_a") or "").strip()
     pb = str(metrics.get("player_b") or "").strip()
+    if event_type == "trend_comparison_viewed" and pa and pb:
+        return f"trendcompare:{pa}:{pb}"
     if event_type == "player_comparison" and pa and pb:
         return f"compare:{pa}:{pb}"
     if event_type == "draft_prep":

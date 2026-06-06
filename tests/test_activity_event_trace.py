@@ -20,6 +20,13 @@ class ActivityEventTraceTests(unittest.TestCase):
         )
         self.assertEqual(rk, "compare:Mike Piazza:Jeff Bagwell")
 
+    def test_infer_resume_key_trend_comparison(self) -> None:
+        rk = infer_resume_key(
+            "trend_comparison_viewed",
+            {"player_a": "Juan Soto", "player_b": "Anthony Volpe"},
+        )
+        self.assertEqual(rk, "trendcompare:Juan Soto:Anthony Volpe")
+
     @patch("activity_event_trace.load_all_events")
     def test_raw_baseball_events_newest_first(self, load_mock) -> None:
         load_mock.return_value = [
