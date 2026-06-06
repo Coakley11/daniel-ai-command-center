@@ -15,6 +15,21 @@ def _params(url: str) -> dict[str, str]:
 
 
 class TestSuiteDeepLinks(unittest.TestCase):
+    def test_music_includes_instrument_param(self) -> None:
+        url = build_resume_action_url(
+            "music",
+            resume_key="song:Pop|Test",
+            page="practice",
+            metrics={
+                "pick_key": "Pop|Test",
+                "display_key": "Eb",
+                "instrument": "Piano",
+            },
+        )
+        p = _params(url)
+        self.assertEqual(p["suite_instrument"], "Piano")
+        self.assertEqual(p["suite_display_key"], "Eb")
+
     def test_music_perfect_practice(self) -> None:
         url = build_resume_action_url(
             "music",

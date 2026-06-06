@@ -234,7 +234,7 @@ def _projects_from_events(
             elif event_name == "player_comparison":
                 pa = str(m.get("player_a") or "").strip()
                 pb = str(m.get("player_b") or "").strip()
-                if pa and pb and baseball_compare is None:
+                if pa and pb and (baseball_compare is None or ts >= baseball_compare[2]):
                     baseball_compare = (pa, pb, ts, m)
             elif event_name == "trend_analysis":
                 baseball_projection = True
