@@ -225,6 +225,24 @@ def build_resume_action_url(
         lesson = str(m.get("lesson") or m.get("next_lesson") or "").strip()
         if lesson:
             params["suite_lesson"] = lesson[:120]
+        question = str(m.get("question") or "").strip()
+        if question:
+            params["suite_ai_question"] = question[:500]
+        source_app = str(m.get("source_app") or "").strip()
+        if source_app:
+            params["suite_ai_source_app"] = source_app[:40]
+        source_page = str(m.get("source_page") or "").strip()
+        if source_page:
+            params["suite_ai_source_page"] = source_page[:80]
+        area = str(m.get("quant_area") or m.get("area") or "").strip()
+        if area:
+            params["suite_ai_area"] = area[:40]
+        ctx = str(m.get("context_summary") or "").strip()
+        ctx_json = str(m.get("context_json") or "").strip()
+        if ctx_json:
+            params["suite_ai_context"] = ctx_json[:800]
+        elif ctx:
+            params["suite_ai_context"] = ctx[:400]
 
     if not params:
         return f"{base}/"

@@ -170,8 +170,40 @@ _MEANINGFUL_WORKFLOW_EVENTS = frozenset(
         "lesson_completed",
         "problem_solved",
         "simulation_completed",
+        "analytical_question",
     }
 )
+
+
+def _analytical_question_workflow(
+    app: str,
+    m: dict[str, Any],
+    ts: datetime,
+    ts_raw: str,
+) -> dict[str, Any] | None:
+    question = str(m.get("question") or "").strip()
+    if not question:
+        return None
+    qid = str(m.get("question_id") or "").strip()
+    resume_key = str(m.get("resume_key") or "").strip()
+    if not resume_key:
+        resume_key = f"ai:question:{qid}" if qid else ""
+    if not resume_key:
+        from suite_analytical_question import question_id as _qid
+
+        resume_key = f"ai:question:{_qid(question, source_app=app)}"
+    from suite_analytical_question import source_app_label
+
+    label = source_app_label(app)
+    return {
+        "timestamp": ts_raw[:19],
+        "app": "applied_intelligence",
+        "event_type": "analytical_question",
+        "resume_key": resume_key,
+        "priority": 55,
+        "title": f"Applied Math question from {label}",
+        "stale": _stale(ts),
+    }
 
 
 def _raw_event_workflow_candidate(event: dict[str, Any]) -> dict[str, Any] | None:
@@ -225,6 +257,8 @@ def _raw_event_workflow_candidate(event: dict[str, Any]) -> dict[str, Any] | Non
             resume_key = "baseball:breakouts"
             priority = 35
             title = "Continue breakout candidate research"
+        elif event_name == "analytical_question":
+            return _analytical_question_workflow(app, m, ts, ts_raw)
         else:
             return None
     elif app == "investment":
@@ -244,10 +278,14 @@ def _raw_event_workflow_candidate(event: dict[str, Any]) -> dict[str, Any] | Non
             resume_key = "inv:allocation"
             priority = 48
             title = "Review allocation recommendations"
+        elif event_name == "analytical_question":
+            return _analytical_question_workflow(app, m, ts, ts_raw)
         else:
             return None
     elif app == "nba":
         team = str(m.get("team") or "").strip()
+        if event_name == "analytical_question":
+            return _analytical_question_workflow(app, m, ts, ts_raw)
         if not team:
             return None
         if event_name == "game_outlook":
@@ -533,6 +571,7 @@ def _projects_from_events(
     baseball_trend: tuple[str, datetime, dict[str, Any]] | None = None
     latest_baseball_workflow: tuple[datetime, int, str, str, str, str, dict[str, Any]] | None = None
     latest_music_workflow: tuple[datetime, str, dict[str, Any], str] | None = None
+    latest_analytical: tuple[datetime, int, str, str, str, str, dict[str, Any]] | None = None
     _MUSIC_WORKFLOW_PRIORITY = {
         "backing_track_started": 70,
         "backing_track_completed": 68,
@@ -560,6 +599,28 @@ def _projects_from_events(
         if ts is None:
             continue
         m = _metrics(event)
+
+        if event_name == "analytical_question" and app in {"baseball", "nba", "investment"}:
+            question = str(m.get("question") or "").strip()
+            if question:
+                from suite_analytical_question import question_id as _qid_fn
+                from suite_analytical_question import source_app_label as _src_label
+
+                label = _src_label(app)
+                qid = str(m.get("question_id") or _qid_fn(question, source_app=app))
+                resume_key = str(m.get("resume_key") or f"ai:question:{qid}")
+                cand = (
+                    ts,
+                    55,
+                    f"Applied Math question from {label}",
+                    question[:120],
+                    resume_key,
+                    "Solve a Problem",
+                    dict(m),
+                )
+                if latest_analytical is None or ts >= latest_analytical[0]:
+                    latest_analytical = cand
+            continue
 
         if app == "music":
             song = _song(m)
@@ -833,6 +894,10 @@ def _projects_from_events(
 
     if ai_lesson:
         out.append((48, "applied_intelligence", f"Continue: {ai_lesson}", "Next exercise in sequence", f"ai:{ai_lesson}", "lessons", {"lesson": ai_lesson}))
+
+    if latest_analytical and not _stale(latest_analytical[0]):
+        ts, priority, title, subtitle, resume_key, page, metrics = latest_analytical
+        out.append((priority, "applied_intelligence", title, subtitle, resume_key, page, metrics))
 
     # Snapshot fallbacks when events are thin
     if snapshot.last_song and snapshot.last_music_edit_days_ago is not None and snapshot.last_music_edit_days_ago <= 5:
