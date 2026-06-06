@@ -64,6 +64,21 @@ class TestSuiteResumeLaunch(unittest.TestCase):
         self.assertEqual(st.session_state["_suite_investment_page"], "Portfolio Health")
         self.assertEqual(st.session_state["_suite_holdings_fp"], "SPY:60.0:Equity|BND:40.0:Bonds")
 
+    def test_baseball_trend_player_and_page(self) -> None:
+        st = self._st(
+            {
+                "suite_resume": "trend:Lorenzo Cain",
+                "suite_page": "Trend Value",
+                "suite_trend_player": "Lorenzo Cain",
+            }
+        )
+        from suite_resume_launch import apply_suite_resume_launch
+
+        self.assertTrue(apply_suite_resume_launch(st, "baseball"))
+        self.assertEqual(st.session_state["single_trend_dashboard_player"], "Lorenzo Cain")
+        self.assertEqual(st.session_state["pending_trend_player"], "Lorenzo Cain")
+        self.assertEqual(st.session_state["_navigate_to_page"], "Trend Value")
+
     def test_nba_knicks_live_game_center(self) -> None:
         st = self._st(
             {

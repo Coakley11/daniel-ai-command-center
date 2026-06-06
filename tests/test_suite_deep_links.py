@@ -86,6 +86,18 @@ class TestSuiteDeepLinks(unittest.TestCase):
         self.assertEqual(metrics["player_a"], "Aaron Judge")
         self.assertEqual(metrics["player_b"], "Juan Soto")
 
+    def test_baseball_trend_player(self) -> None:
+        url = build_resume_action_url(
+            "baseball",
+            resume_key="trend:Lorenzo Cain",
+            page="Trend Value",
+            metrics={"player": "Lorenzo Cain"},
+        )
+        p = _params(url)
+        self.assertEqual(p["suite_resume"], "trend:Lorenzo Cain")
+        self.assertEqual(p["suite_page"], "Trend Value")
+        self.assertEqual(p["suite_trend_player"], "Lorenzo Cain")
+
     def test_baseball_draft_resume_key_aliases(self) -> None:
         for key in ("baseball:draft", "baseball:draft_prep", "bb:draft"):
             url = build_resume_action_url("baseball", resume_key=key, page="")

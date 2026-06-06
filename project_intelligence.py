@@ -151,6 +151,17 @@ def _projects_from_events(
     baseball_trade: datetime | None = None
     baseball_projection = False
     baseball_compare: tuple[str, str, datetime, dict[str, Any]] | None = None
+    baseball_trend: tuple[str, datetime, dict[str, Any]] | None = None
+    latest_music_workflow: tuple[datetime, str, dict[str, Any], str] | None = None
+    _MUSIC_WORKFLOW_PRIORITY = {
+        "backing_track_started": 70,
+        "backing_track_completed": 68,
+        "practice": 65,
+        "display_key_changed": 62,
+        "instrument_changed": 60,
+        "studio_page_entered": 58,
+        "song_selected": 55,
+    }
     nba_team = ""
     nba_injury = False
     nba_matchup = False
@@ -190,6 +201,14 @@ def _projects_from_events(
             elif event_name == "recording_reviewed":
                 if st["review"] is None:
                     st["review"] = ts
+            elif event_name in _MUSIC_WORKFLOW_PRIORITY and song:
+                song_metrics[song] = {**song_metrics.get(song, {}), **m}
+                pr = _MUSIC_WORKFLOW_PRIORITY[event_name]
+                cur = latest_music_workflow
+                if cur is None or pr > _MUSIC_WORKFLOW_PRIORITY.get(cur[3], 0) or (
+                    pr == _MUSIC_WORKFLOW_PRIORITY.get(cur[3], 0) and ts > cur[0]
+                ):
+                    latest_music_workflow = (ts, song, m, event_name)
 
         elif app == "investment":
             if event_name in ("portfolio_health_checked", "portfolio_check") and inv_health is None:
@@ -217,10 +236,14 @@ def _projects_from_events(
                 pb = str(m.get("player_b") or "").strip()
                 if pa and pb and baseball_compare is None:
                     baseball_compare = (pa, pb, ts, m)
+            elif event_name == "trend_analysis":
+                baseball_projection = True
+                player = str(m.get("player") or "").strip()
+                if player and (baseball_trend is None or ts >= baseball_trend[1]):
+                    baseball_trend = (player, ts, m)
             elif event_name in {
                 "projection_report",
                 "comparison",
-                "trend_analysis",
                 "breakout_analysis",
             }:
                 baseball_projection = True
@@ -305,7 +328,48 @@ def _projects_from_events(
             (48, "investment", "Review allocation recommendations", "Check drift after holdings changes", "inv:allocation", "Portfolio Health", {})
         )
 
-    if baseball_compare and not _stale(baseball_compare[2]):
+    if latest_music_workflow and not _stale(latest_music_workflow[0]):
+        ts, song, wm, ev = latest_music_workflow
+        sm = {**song_metrics.get(song, {}), **wm}
+        resume_metrics = _music_resume_metrics(sm, song)
+        studio = str(sm.get("studio_page") or "").strip()
+        if ev.startswith("backing") or studio == "backing":
+            page = "backing"
+            pick = str(resume_metrics.get("pick_key") or "").strip()
+            rk = f"backing:{pick}" if pick else f"backing:{song}"
+        else:
+            page = "practice"
+            pick = str(resume_metrics.get("pick_key") or "").strip()
+            rk = f"song:{pick}" if pick else f"music:workflow:{song}"
+        inst = str(resume_metrics.get("instrument") or "")
+        dk = str(resume_metrics.get("display_key") or "")
+        subtitle = " · ".join(p for p in [dk, inst, page] if p)
+        out.append(
+            (
+                61,
+                "music",
+                f"Continue {song}",
+                subtitle or "Resume your last session",
+                rk,
+                page,
+                resume_metrics,
+            )
+        )
+
+    if baseball_trend and not _stale(baseball_trend[1]):
+        player, _, tm = baseball_trend
+        out.append(
+            (
+                58,
+                "baseball",
+                f"Continue {player} trend chart",
+                "Trend Value",
+                f"trend:{player}",
+                "Trend Value",
+                {"player": player, **tm},
+            )
+        )
+    elif baseball_compare and not _stale(baseball_compare[2]):
         pa, pb, _, bm = baseball_compare
         pair = f"{pa} vs {pb}"
         out.append(
