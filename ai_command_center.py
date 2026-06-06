@@ -34,6 +34,7 @@ from coach_engine import CoachInsight, generate_coach_insights
 from continue_dashboard import ContinueCard, continue_cards_for_snapshot, recently_used_apps
 from project_intelligence import generate_cross_app_insights, weekly_accomplishment_lines
 from suite_deploy_marker import (
+    DEPLOY_COMMITS_INCLUDED,
     GIT_BRANCH,
     GIT_COMMIT_SHORT,
     SUITE_BUILD_LABEL,
@@ -253,12 +254,14 @@ def _diagnostics_import_probe() -> tuple[bool, str]:
 
 def _render_deploy_banner() -> None:
     probe_ok, probe_err = _diagnostics_import_probe()
+    includes = ", ".join(DEPLOY_COMMITS_INCLUDED)
     deploy_line = (
-        f"**Deploy marker:** `{SUITE_BUILD_LABEL}` · branch `{GIT_BRANCH}` · commit `{GIT_COMMIT_SHORT}` · "
-        f"Use **[Dev homepage]({HOMEPAGE_DEV_URL})** (not Production/main) for trend diagnostics."
+        f"**Deploy marker:** build `{SUITE_BUILD_LABEL}` · branch `{GIT_BRANCH}` · "
+        f"commit `{GIT_COMMIT_SHORT}` · includes `{includes}`. "
+        f"Use **[Dev homepage]({HOMEPAGE_DEV_URL})** (not Production/main) for event trace."
     )
     if WORKFLOW_DIAGNOSTICS_LIVE and probe_ok:
-        st.success(f"**Workflow candidate diagnostics live** — {deploy_line}")
+        st.success(f"**Event trace + workflow diagnostics live** — {deploy_line}")
     elif WORKFLOW_DIAGNOSTICS_LIVE:
         st.error(
             "**STALE DEPLOY detected** — the UI loaded but diagnostic modules are missing on the server mount. "
@@ -266,6 +269,21 @@ def _render_deploy_banner() -> None:
         )
     else:
         st.info(deploy_line)
+
+
+def _render_raw_baseball_events_table() -> None:
+    from activity_event_trace import raw_baseball_events
+
+    st.markdown("#### Developer: Latest 20 Baseball Events (raw store)")
+    st.caption(
+        "Straight from `load_all_events()` — no Continue filtering, ranking, or suppression. "
+        "`resume_key` is inferred from metrics when not stored on the row."
+    )
+    rows = raw_baseball_events(limit=20)
+    if rows:
+        st.dataframe(rows, use_container_width=True, hide_index=True)
+    else:
+        st.caption("No baseball events in the loaded store yet.")
 
 
 def _render_workflow_diagnostics_table(snapshot: ActivitySnapshot) -> None:
@@ -593,15 +611,16 @@ _render_deploy_banner()
 st.toggle(
     "Developer Mode",
     key=CC_DEV_MODE_KEY,
-    help="Shows the top-10 workflow candidate table directly below Continue.",
+    help="Shows raw baseball events from the store and Continue workflow candidate table.",
 )
 st.caption(
-    "When enabled, you will see timestamp, app, event_type, resume_key, priority, and included/excluded reason."
+    "When enabled: (1) latest 20 baseball events with no filtering, (2) optional Continue workflow table."
 )
 _render_continue_section(snapshot, continue_cards)
 if st.session_state.get(CC_DEV_MODE_KEY):
-    st.markdown("#### Developer: Continue workflow candidates (top 10)")
-    _render_workflow_diagnostics_table(snapshot)
+    _render_raw_baseball_events_table()
+    with st.expander("Developer: Continue workflow candidates (top 10)", expanded=False):
+        _render_workflow_diagnostics_table(snapshot)
 _render_cross_app_section(snapshot)
 _render_coach_insights(insights)
 _render_recent_activity_feed()
