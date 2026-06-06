@@ -12,7 +12,7 @@ from activity_store import load_all_events
 _EVENT_PRIORITY_HINT: dict[str, int] = {
     "player_comparison": 59,
     "player_trend_viewed": 58,
-    "trend_comparison_viewed": 57,
+    "trend_comparison_viewed": 59,
     "trend_analysis": 58,
     "draft_prep": 56,
     "trade_eval": 54,

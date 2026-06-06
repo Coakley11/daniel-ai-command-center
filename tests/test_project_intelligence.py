@@ -42,6 +42,25 @@ class TestProjectIntelligence(unittest.TestCase):
         self.assertIn("Lorenzo Cain", baseball[0][2])
         self.assertEqual(baseball[0][4], "trend:Lorenzo Cain")
 
+    def test_baseball_trend_comparison_becomes_continue_card(self) -> None:
+        snap = ActivitySnapshot()
+        recent = (datetime.now() - timedelta(hours=1)).isoformat(timespec="seconds")
+        events = [
+            {
+                "app": "baseball",
+                "event": "trend_comparison_viewed",
+                "timestamp": recent,
+                "metrics": {"player_a": "Juan Soto", "player_b": "Anthony Volpe"},
+            },
+        ]
+        with patch("project_intelligence.load_all_events", return_value=events):
+            cards = _projects_from_events(snap)
+        baseball = [c for c in cards if c[1] == "baseball"]
+        self.assertEqual(len(baseball), 1)
+        self.assertIn("Juan Soto vs Anthony Volpe", baseball[0][2])
+        self.assertEqual(baseball[0][4], "trendcompare:Juan Soto:Anthony Volpe")
+        self.assertEqual(baseball[0][0], 59)
+
     def test_workflow_candidate_diagnostic_marks_included_trend(self) -> None:
         snap = ActivitySnapshot()
         recent = (datetime.now() - timedelta(hours=1)).isoformat(timespec="seconds")

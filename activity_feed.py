@@ -499,6 +499,13 @@ def format_activity_message(event: dict[str, Any], *, for_feed: bool = True) -> 
         player = str(m.get("player") or "").strip()
         return f"Opened trend chart for {player}" if player else "Opened player trend chart"
 
+    if event_type == "trend_comparison_viewed" and app == "baseball":
+        pa = str(m.get("player_a") or "").strip()
+        pb = str(m.get("player_b") or "").strip()
+        if pa and pb:
+            return f"Compared trend charts for {pa} vs {pb}"
+        return "Compared multi-player trend charts"
+
     if event_type == "breakout_analysis" and app == "baseball":
         return "Analyzed breakout candidates"
 

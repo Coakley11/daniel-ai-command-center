@@ -42,6 +42,7 @@ PHASE_A_BASEBALL_EVENTS = (
     "roster_build",
     "trend_analysis",
     "player_trend_viewed",
+    "trend_comparison_viewed",
     "breakout_analysis",
 )
 

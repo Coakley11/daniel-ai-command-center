@@ -1,6 +1,6 @@
 # Current Tasks — Daniel AI Command Center
 
-**Last updated:** 2026-06-03
+**Last updated:** 2026-06-06
 
 Actionable work items. Master context: [app_roadmap.md](./app_roadmap.md).
 
@@ -19,6 +19,13 @@ Central hub repo (`daniel-ai-command-center`) for suite homepage, activity aggre
 - [x] Create `cursor-prompts/` roadmap system (this commit)
 - [x] Add `.cursor/rules/command-center-roadmap-docs.mdc`
 - [x] Link root [README.md](../README.md) → `cursor-prompts/app_roadmap.md`
+
+### P1 — Workflow coverage (systematic)
+
+- [x] Suite workflow coverage audit — [plans/suite-workflow-coverage-audit.md](./plans/suite-workflow-coverage-audit.md) (2026-06-06)
+- [x] Baseball `trend_comparison_viewed` logging + Continue card (priority 59)
+- [ ] P1 backlog: Baseball Valuation, Live Draft picks, ML insight player hooks
+- [ ] Verify Future Lens / Applied Math UI calls existing activity hooks on each app
 
 ### P1 — Activity Feed Phase B
 

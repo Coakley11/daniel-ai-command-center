@@ -665,6 +665,7 @@ MEANINGFUL_WEEK_EVENTS = frozenset(
         "roster_build",
         "trend_analysis",
         "player_trend_viewed",
+        "trend_comparison_viewed",
         "breakout_analysis",
         "chord_save",
         "chart_save",
@@ -1083,6 +1084,7 @@ def _ingest_suite_events(snapshot: ActivitySnapshot) -> None:
                 "lineup_review",
                 "trend_analysis",
                 "player_trend_viewed",
+                "trend_comparison_viewed",
                 "breakout_analysis",
             }:
                 snapshot.baseball_analyses_this_week += 1

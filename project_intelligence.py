@@ -109,6 +109,11 @@ def _polish_resume(item: ResumeItem) -> tuple[str, str, int]:
         player = subtitle or key.split(":", 1)[-1].strip()
         if player:
             return f"Continue {player} trend chart", "Trend Value", 58
+    if item.app == "baseball" and key.startswith("trendcompare:"):
+        parts = key.split(":", 2)
+        if len(parts) >= 3:
+            pair = f"{parts[1]} vs {parts[2]}"
+            return f"Continue {pair} trend comparison", "Trend Value", 59
     if item.app == "baseball" and title.lower().startswith("return to"):
         page = title.replace("Return to", "").strip()
         if "draft" in blob:
@@ -142,6 +147,7 @@ _MEANINGFUL_WORKFLOW_EVENTS = frozenset(
     {
         "player_comparison",
         "player_trend_viewed",
+        "trend_comparison_viewed",
         "trend_analysis",
         "draft_prep",
         "trade_eval",
@@ -192,6 +198,14 @@ def _raw_event_workflow_candidate(event: dict[str, Any]) -> dict[str, Any] | Non
             resume_key = f"compare:{pa}:{pb}"
             priority = 59
             title = f"Continue {pa} vs {pb}"
+        elif event_name == "trend_comparison_viewed":
+            pa = str(m.get("player_a") or "").strip()
+            pb = str(m.get("player_b") or "").strip()
+            if not pa or not pb:
+                return None
+            resume_key = f"trendcompare:{pa}:{pb}"
+            priority = 59
+            title = f"Continue {pa} vs {pb} trend comparison"
         elif event_name in {"player_trend_viewed", "trend_analysis"}:
             player = str(m.get("player") or "").strip()
             if not player:
@@ -606,6 +620,22 @@ def _projects_from_events(
                         "Comparison Tool",
                         f"compare:{pa}:{pb}",
                         "Comparison Tool",
+                        {"player_a": pa, "player_b": pb, **m},
+                    )
+                    if latest_baseball_workflow is None or ts >= latest_baseball_workflow[0]:
+                        latest_baseball_workflow = cand
+            elif event_name == "trend_comparison_viewed":
+                pa = str(m.get("player_a") or "").strip()
+                pb = str(m.get("player_b") or "").strip()
+                if pa and pb:
+                    pair = f"{pa} vs {pb}"
+                    cand = (
+                        ts,
+                        59,
+                        f"Continue {pair} trend comparison",
+                        "Trend Value",
+                        f"trendcompare:{pa}:{pb}",
+                        "Trend Value",
                         {"player_a": pa, "player_b": pb, **m},
                     )
                     if latest_baseball_workflow is None or ts >= latest_baseball_workflow[0]:
