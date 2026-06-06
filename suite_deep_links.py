@@ -304,5 +304,14 @@ def resume_metrics_from_item_key(app: str, item_key: str, *, subtitle: str = "")
             page = "🧠 Matchup Intelligence"
         elif key.startswith("nba:playoff:"):
             page = "🏆 Playoff Bracket"
+    elif app_key == "applied_intelligence":
+        if key.startswith("ai:question:"):
+            page = "Solve a Problem"
+            if subtitle:
+                if subtitle.startswith("Question:"):
+                    metrics["question"] = subtitle.split("\n", 1)[0].replace("Question:", "", 1).strip()
+                else:
+                    metrics["question"] = subtitle[:500]
+                metrics["context_summary"] = subtitle
 
     return page, metrics

@@ -131,6 +131,10 @@ def _polish_resume(item: ResumeItem) -> tuple[str, str, int]:
         return f"Continue {team} matchup analysis", subtitle, 54
 
     priority = 35
+    if item.app == "applied_intelligence" and key.startswith("ai:question:"):
+        return title, subtitle, 64
+    if item.app == "applied_intelligence" and "applied math question" in blob:
+        return title, subtitle, 64
     if item.app == "applied_intelligence" and "lesson" in blob:
         return (
             title
@@ -195,13 +199,26 @@ def _analytical_question_workflow(
     from suite_analytical_question import source_app_label
 
     label = source_app_label(app)
+    from suite_analytical_question import (
+        ANALYTICAL_QUESTION_CONTINUE_PRIORITY,
+        analytical_question_continue_copy,
+    )
+
+    title, subtitle, _ = analytical_question_continue_copy(
+        {
+            "source_app": app,
+            "question": question,
+            "context": m.get("context") if isinstance(m.get("context"), dict) else {},
+            "context_summary": m.get("context_summary"),
+        }
+    )
     return {
         "timestamp": ts_raw[:19],
         "app": "applied_intelligence",
         "event_type": "analytical_question",
         "resume_key": resume_key,
-        "priority": 55,
-        "title": f"Applied Math question from {label}",
+        "priority": ANALYTICAL_QUESTION_CONTINUE_PRIORITY,
+        "title": title,
         "stale": _stale(ts),
     }
 
@@ -603,17 +620,27 @@ def _projects_from_events(
         if event_name == "analytical_question" and app in {"baseball", "nba", "investment"}:
             question = str(m.get("question") or "").strip()
             if question:
-                from suite_analytical_question import question_id as _qid_fn
-                from suite_analytical_question import source_app_label as _src_label
+                from suite_analytical_question import (
+                    ANALYTICAL_QUESTION_CONTINUE_PRIORITY,
+                    analytical_question_continue_copy,
+                    question_id as _qid_fn,
+                )
 
-                label = _src_label(app)
                 qid = str(m.get("question_id") or _qid_fn(question, source_app=app))
                 resume_key = str(m.get("resume_key") or f"ai:question:{qid}")
+                title, subtitle, _ = analytical_question_continue_copy(
+                    {
+                        "source_app": app,
+                        "question": question,
+                        "context": m.get("context") if isinstance(m.get("context"), dict) else {},
+                        "context_summary": m.get("context_summary"),
+                    }
+                )
                 cand = (
                     ts,
-                    55,
-                    f"Applied Math question from {label}",
-                    question[:120],
+                    ANALYTICAL_QUESTION_CONTINUE_PRIORITY,
+                    title,
+                    subtitle,
                     resume_key,
                     "Solve a Problem",
                     dict(m),
@@ -954,9 +981,25 @@ def build_project_continue_cards(
 
     merged: dict[str, tuple[int, ContinueCard]] = {}
 
+    from suite_analytical_question import (
+        ANALYTICAL_QUESTION_BUTTON_LABEL,
+        analytical_question_continue_copy,
+    )
+
     for priority, app, title, subtitle, resume_key, page, metrics in _projects_from_events(snapshot):
         if app not in meta or not meta[app]["url"]:
             continue
+        button_label = "Continue"
+        card_title, card_subtitle = title, subtitle
+        if str(resume_key).startswith("ai:question:"):
+            card_title, card_subtitle, button_label = analytical_question_continue_copy(
+                {
+                    "source_app": metrics.get("source_app") or "",
+                    "question": metrics.get("question") or card_subtitle,
+                    "context": metrics.get("context") if isinstance(metrics.get("context"), dict) else {},
+                    "context_summary": metrics.get("context_summary"),
+                }
+            )
         try:
             from suite_deep_links import build_resume_action_url
 
@@ -972,10 +1015,11 @@ def build_project_continue_cards(
         card = ContinueCard(
             app_key=app,
             app_name=meta[app]["name"],
-            title=title,
-            subtitle=subtitle,
+            title=card_title,
+            subtitle=card_subtitle,
             action_url=deep or meta[app]["url"],
             emoji=themes.get(app, "▶"),
+            button_label=button_label,
         )
         prev = merged.get(resume_key)
         if prev is None or priority > prev[0]:
@@ -1006,6 +1050,7 @@ def build_project_continue_cards(
         except Exception:
             deep = ""
         url = deep or (item.action_url or "").strip() or meta[item.app]["url"]
+        button_label = ANALYTICAL_QUESTION_BUTTON_LABEL if item.item_key.startswith("ai:question:") else "Continue"
         card = ContinueCard(
             app_key=item.app,
             app_name=meta[item.app]["name"],
@@ -1013,10 +1058,15 @@ def build_project_continue_cards(
             subtitle=subtitle,
             action_url=url,
             emoji=themes.get(item.app, "▶"),
+            button_label=button_label,
         )
-        prev = merged.get(dedupe)
-        if prev is None or priority > prev[0]:
-            merged[dedupe] = (priority, card)
+        merge_keys = [dedupe]
+        if item.item_key.startswith("ai:question:"):
+            merge_keys.append(item.item_key)
+        for merge_key in merge_keys:
+            prev = merged.get(merge_key)
+            if prev is None or priority > prev[0]:
+                merged[merge_key] = (priority, card)
 
     ordered = sorted(merged.values(), key=lambda row: row[0], reverse=True)
     return [card for _, card in ordered[:limit]]

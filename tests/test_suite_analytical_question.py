@@ -6,6 +6,8 @@ import unittest
 import unittest.mock
 
 from suite_analytical_question import (
+    ANALYTICAL_QUESTION_BUTTON_LABEL,
+    analytical_question_continue_copy,
     build_applied_math_resume_url,
     build_question_payload,
     default_area_for_source,
@@ -47,9 +49,22 @@ class TestSuiteAnalyticalQuestion(unittest.TestCase):
         self.assertIn("suite_ai_source_app=nba", url)
         self.assertIn("suite_ai_area=sports", url)
 
+    def test_analytical_question_continue_copy(self) -> None:
+        payload = build_question_payload(
+            source_app="baseball",
+            source_page="Draft Simulation",
+            question="Should I draft Juan Soto in Round 1?",
+            context={"draft_format": "OBP League", "draft_round": 1, "player": "Juan Soto"},
+        )
+        title, subtitle, btn = analytical_question_continue_copy(payload)
+        self.assertIn("Baseball", title)
+        self.assertIn("Juan Soto", subtitle)
+        self.assertIn("Question:", subtitle)
+        self.assertEqual(btn, ANALYTICAL_QUESTION_BUTTON_LABEL)
+
     def test_submit_analytical_question_records(self) -> None:
         with unittest.mock.patch("suite_activity_client.record_activity") as rec:
-            with unittest.mock.patch("suite_storage.upsert_resume_item"):
+            with unittest.mock.patch("suite_analytical_question._upsert_applied_intelligence_resume"):
                 result = submit_analytical_question(
                     source_app="baseball",
                     source_page="Comparison Tool",
@@ -57,11 +72,12 @@ class TestSuiteAnalyticalQuestion(unittest.TestCase):
                     context={"player_a": "Mike Piazza", "player_b": "Jeff Bagwell"},
                 )
         self.assertIn("action_url", result)
+        self.assertIn("suite_ai_question", result["action_url"])
         rec.assert_called_once()
         args, kwargs = rec.call_args
         self.assertEqual(args[0], "baseball")
         self.assertEqual(args[1], "analytical_question")
-        self.assertIn("suite_ai_question", kwargs.get("action_url") or result["action_url"])
+        self.assertNotIn("resume_key", kwargs)
 
 
 if __name__ == "__main__":

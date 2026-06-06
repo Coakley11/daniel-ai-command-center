@@ -19,6 +19,7 @@ class ContinueCard:
     subtitle: str
     action_url: str
     emoji: str
+    button_label: str = "Continue"
 
 
 def _app_meta() -> dict[str, dict[str, str]]:

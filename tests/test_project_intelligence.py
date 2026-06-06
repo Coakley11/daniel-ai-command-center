@@ -61,6 +61,35 @@ class TestProjectIntelligence(unittest.TestCase):
         self.assertEqual(baseball[0][4], "trendcompare:Juan Soto:Anthony Volpe")
         self.assertEqual(baseball[0][0], 59)
 
+    def test_analytical_question_becomes_applied_intelligence_continue(self) -> None:
+        snap = ActivitySnapshot()
+        recent = (datetime.now() - timedelta(minutes=5)).isoformat(timespec="seconds")
+        events = [
+            {
+                "app": "baseball",
+                "event": "analytical_question",
+                "timestamp": recent,
+                "metrics": {
+                    "question": "Should I draft Juan Soto in Round 1?",
+                    "source_app": "baseball",
+                    "source_page": "Draft Simulation",
+                    "context": {
+                        "draft_format": "OBP League",
+                        "draft_round": 1,
+                        "player": "Juan Soto",
+                    },
+                },
+            },
+        ]
+        with patch("project_intelligence.load_all_events", return_value=events):
+            cards = _projects_from_events(snap)
+        ami = [c for c in cards if c[1] == "applied_intelligence"]
+        self.assertEqual(len(ami), 1)
+        self.assertIn("Applied Math question from Baseball", ami[0][2])
+        self.assertIn("Juan Soto", ami[0][3])
+        self.assertTrue(str(ami[0][4]).startswith("ai:question:"))
+        self.assertEqual(ami[0][0], 64)
+
     def test_workflow_candidate_diagnostic_marks_included_trend(self) -> None:
         snap = ActivitySnapshot()
         recent = (datetime.now() - timedelta(hours=1)).isoformat(timespec="seconds")

@@ -354,7 +354,7 @@ def _render_continue_section(snapshot: ActivitySnapshot, cards: list[ContinueCar
             theme = APP_THEMES.get(card.app_key, {"accent": "#6366f1", "emoji": card.emoji})
             with cols[idx]:
                 sub = (
-                    f'<p class="cc-continue-sub">{html.escape(card.subtitle)}</p>'
+                    f'<p class="cc-continue-sub" style="white-space:pre-line">{html.escape(card.subtitle)}</p>'
                     if card.subtitle
                     else ""
                 )
@@ -364,7 +364,8 @@ def _render_continue_section(snapshot: ActivitySnapshot, cards: list[ContinueCar
                     f'<div class="cc-continue-title">{theme.get("emoji", card.emoji)} '
                     f"{html.escape(card.title)}</div>{sub}</div>"
                 )
-                _render_go_button("Continue", card.action_url, f"continue_{card.app_key}_{idx}_{group_start}")
+                btn_label = getattr(card, "button_label", None) or "Continue"
+                _render_go_button(btn_label, card.action_url, f"continue_{card.app_key}_{idx}_{group_start}")
 
 
 def _render_coach_insights(insights: list[CoachInsight]) -> None:
