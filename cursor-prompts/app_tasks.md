@@ -31,7 +31,8 @@ Central hub repo (`daniel-ai-command-center`) for suite homepage, activity aggre
 - [x] AMI cloud reset (shipped `32c2158`)
 - [x] P0 fixes: Music non-core override, Future Lens early restore + `_suite_fl_sim`, NBA team widget
 - [x] P0: Investment cloud drift reconcile + EOR autosave guard
-- [ ] E2E smoke: refresh / reboot / cross-device per app
+- [x] P1: Future Lens tab (`88d937e`), Music restore (`f0720e2`), Investment holdings (`cd5fa92`), Baseball enum (`51d5bf6`)
+- [ ] Manual smoke after P1 redeploy: Music, Future Lens, Investment, Baseball
 
 ### P3 — Investment UI transparency (audit first, no formula changes)
 

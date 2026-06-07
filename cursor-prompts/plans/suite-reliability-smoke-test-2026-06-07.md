@@ -146,11 +146,17 @@ All 7 Streamlit Cloud URLs returned **HTTP 200**.
 
 ---
 
-## P1 fixes (after manual confirm, before CC ranking)
+## P1 fixes (shipped 2026-06-07)
 
-1. **Future Lens** — apply `_suite_fl_view` to tab selection  
-2. **Music** — surface restore errors; no default song after failed restore  
-3. **Investment** — do not overwrite holdings with SPY/BND when blob field absent  
-4. **Baseball** — migrate filter enums on restore after redeploy  
+| App | Commit | Fix |
+|-----|--------|-----|
+| Future Lens | `88d937e` | `_suite_fl_view` → section radio; tab persists on refresh |
+| Music | `f0720e2` | No silent default on restore failure |
+| Investment | `cd5fa92` | Empty saved holdings ≠ factory default |
+| Baseball | `51d5bf6` | Tolerant `validate_state_option` |
 
-No architecture changes recommended in this pass.
+## Remaining gaps (P2+)
+
+1. Music — cross-device content resync (optional)
+2. Investment — promote `cloud_resync_needed` to other apps
+3. AMI — view_mode widget key
