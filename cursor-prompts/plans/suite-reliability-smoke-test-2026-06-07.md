@@ -138,7 +138,7 @@ All 7 Streamlit Cloud URLs returned **HTTP 200**.
 
 1. **Music** — non-core song → custom progression → F5 → Reboot app → second device  
 2. **NBA** — non-Knicks + Live Game Center → F5 → Reboot  
-3. **Future Lens** — full wizard + sim 2050 → F5 (**expect tab on Evolution, not Simulation**)  
+3. **Future Lens** — full wizard + sim 2050 + **Simulation tab** → F5 (**expect Simulation tab returns**)  
 4. **Investment** — Advanced on phone → laptop (same `suite_user_id`)  
 5. **Baseball** — Draft Room + trend comparison → F5 → Continue from CC  
 6. **AMI** — Practical Lab + problem → F5 → Reset  
