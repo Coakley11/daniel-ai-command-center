@@ -1,7 +1,7 @@
 # Suite session persistence audit (deep)
 
 **Last updated:** 2026-06-07  
-**Status:** Read-only audit — fixes prioritized, not implemented (except Baseball restore order + AMI reset, shipped `16fbe29` / `32c2158`)
+**Status:** P0 fixes implemented — pending deploy verification
 
 ## Rule
 
@@ -13,16 +13,14 @@ Apps must **never** revert to defaults unless **Reset to Default** is pressed. A
 
 | App | Persists correctly | Still resets incorrectly | Cause | Exact fix required |
 |-----|-------------------|--------------------------|-------|-------------------|
-| **Music** | Song pick_key, instrument, studio page, filters, favorites, snapshots | **Non-core song → first core default** | `streamlit_music_practice_app.py:1174–1183` trusted-core guard after restore | Skip override when `SUITE_LOCAL_STATE_RESTORED_KEY` or restored `pick_key` is set |
-| **Music** | `active_music_source` | **Custom progression name/sections lost** | `cpl_active_progression` / `cpl_saved_progressions` not in `music_persistent_state.py` persist keys; re-seeded at `:1168–1171` | Add CPL keys to disk/cloud blob; apply before CPL init |
+| **Music** | Song, CPL, filters | **Fixed** non-core override + CPL keys | was `:1174–1183` | **Shipped** — skip override when restored pick_key |
+| **Music** | Custom progression | **Fixed** CPL persist | missing keys | **Shipped** — `cpl_*` in disk blob |
 | **Music** | Cloud sync when configured | Default song on silent restore failure | Bare `except` at `:1095–1100` → `ensure_master_song_initialized` | Log/surface errors; no default init after partial restore |
 | **Baseball** | Page, draft room, `page_filter_state` | Invalid filter enum → widget default | `streamlit_app.py:10825+` `validate_state_option` | Migrate enums on restore or extend catalogs (expected after redeploy) |
 | **Baseball** | *(was Continue wipe)* | **Fixed** | Resume before restore | Shipped — QA only |
-| **NBA** | Team on disk (`favorite_team`), page prefs | **Knicks when restore fails** | `:17951` hardcoded Knicks index; `:17905` silent restore failure | Fail loudly; fallback to last saved team not Knicks |
-| **NBA** | `_nba_persist_team` at autosave | **Team selectbox not stably bound** | `:17995–18000` no widget `key=`; `_nba_restore_team` one-shot pop | Add `key="nba_favorite_team_sidebar"`; seed session state before render |
-| **NBA** | Page override | Helpers assume Knicks | `:5858` `favorite_team` never written to session (only `_nba_persist_team`) | Set `session_state["favorite_team"]` after selectbox |
-| **Investment** | Holdings, dates, macro, goals, workflow | **Cross-device Beginner/Advanced drift** | `restore_once` timestamp skip; only Investment has `cloud_resync_needed` | Sync content-resync pattern to all apps; verify `suite_user_id` |
-| **Investment** | Most scalars | **EOR autosave may clobber cloud mode** | `streamlit_app.py:2940` end-of-run autosave | Guard when in-memory mode ≠ cloud without local edit |
+| **NBA** | Team, page | **Fixed** Knicks reset | hardcoded index, no widget key | **Shipped** — stable selectbox/radio keys |
+| **Future Lens** | Wizard, sim | **Fixed** restore order + `_suite_fl_sim` | late sidebar restore | **Shipped** — restore at startup |
+| **Investment** | Cross-device mode | **Fixed** cloud drift guard | EOR autosave + timestamp skip | **Shipped** — reconcile + block EOR clobber |
 | **Investment** | | Default SPY/BND if blob empty | `investment_persistent_state.py:421–422` | Keep existing holdings when field absent |
 | **AMI** | `view_mode`, `ps_area_id`, `ps_library_problem` | AI preload cleared on reopen | Preload keys not persisted (by design) | OK for CC questions |
 | **AMI** | | `view_mode` overwritten by sidebar radio | `streamlit_app.py:99` after restore `:38` | Seed widget key from restore before radio |

@@ -29,8 +29,8 @@ Central hub repo (`daniel-ai-command-center`) for suite homepage, activity aggre
 - [x] Deep audit — [plans/suite-session-persistence-audit.md](./plans/suite-session-persistence-audit.md)
 - [x] Baseball restore-before-resume (shipped `16fbe29`)
 - [x] AMI cloud reset (shipped `32c2158`)
-- [ ] P0 fixes: Music non-core override, Future Lens early restore + `_suite_fl_sim`, NBA team widget
-- [ ] P1: Music custom progression keys, Investment cloud_resync promotion
+- [x] P0 fixes: Music non-core override, Future Lens early restore + `_suite_fl_sim`, NBA team widget
+- [x] P0: Investment cloud drift reconcile + EOR autosave guard
 - [ ] E2E smoke: refresh / reboot / cross-device per app
 
 ### P3 — Investment UI transparency (audit first, no formula changes)
