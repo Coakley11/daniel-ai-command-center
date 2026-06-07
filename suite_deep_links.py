@@ -307,11 +307,40 @@ def resume_metrics_from_item_key(app: str, item_key: str, *, subtitle: str = "")
     elif app_key == "applied_intelligence":
         if key.startswith("ai:question:"):
             page = "Solve a Problem"
+            qid = key.split(":", 2)[-1].strip() if key.count(":") >= 2 else ""
+            if qid:
+                metrics["question_id"] = qid
+                metrics["dedupe_fingerprint"] = qid
             if subtitle:
                 if subtitle.startswith("Question:"):
-                    metrics["question"] = subtitle.split("\n", 1)[0].replace("Question:", "", 1).strip()
+                    first_line, _, rest = subtitle.partition("\n")
+                    metrics["question"] = first_line.replace("Question:", "", 1).strip()
+                    metrics["context_summary"] = rest.strip() or subtitle
                 else:
                     metrics["question"] = subtitle[:500]
-                metrics["context_summary"] = subtitle
+                    metrics["context_summary"] = subtitle
+                ctx: dict[str, Any] = {}
+                for line in subtitle.splitlines():
+                    stripped = line.strip().lstrip("•").strip()
+                    if ":" in stripped:
+                        label, _, val = stripped.partition(":")
+                        label_key = label.strip().lower().replace(" ", "_")
+                        val = val.strip()
+                        if label_key == "source_app":
+                            ctx["source_app"] = val
+                            metrics.setdefault("source_app", val.lower())
+                        elif label_key == "page":
+                            ctx["page"] = val
+                            metrics.setdefault("source_page", val)
+                        elif val:
+                            ctx[label_key] = val
+                if ctx:
+                    metrics["context"] = ctx
+                    try:
+                        import json
+
+                        metrics["context_json"] = json.dumps(ctx, ensure_ascii=False)
+                    except Exception:
+                        pass
 
     return page, metrics

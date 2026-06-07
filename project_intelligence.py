@@ -195,7 +195,8 @@ def _analytical_question_workflow(
     if not resume_key:
         from suite_analytical_question import question_id as _qid
 
-        resume_key = f"ai:question:{_qid(question, source_app=app)}"
+        ctx = m.get("context") if isinstance(m.get("context"), dict) else {}
+        resume_key = f"ai:question:{_qid(question, source_app=app, source_page=str(m.get('source_page') or ''), context=ctx)}"
     from suite_analytical_question import source_app_label
 
     label = source_app_label(app)
@@ -626,7 +627,16 @@ def _projects_from_events(
                     question_id as _qid_fn,
                 )
 
-                qid = str(m.get("question_id") or _qid_fn(question, source_app=app))
+                ctx = m.get("context") if isinstance(m.get("context"), dict) else {}
+                qid = str(
+                    m.get("question_id")
+                    or _qid_fn(
+                        question,
+                        source_app=app,
+                        source_page=str(m.get("source_page") or ""),
+                        context=ctx,
+                    )
+                )
                 resume_key = str(m.get("resume_key") or f"ai:question:{qid}")
                 title, subtitle, _ = analytical_question_continue_copy(
                     {
@@ -984,7 +994,26 @@ def build_project_continue_cards(
     from suite_analytical_question import (
         ANALYTICAL_QUESTION_BUTTON_LABEL,
         analytical_question_continue_copy,
+        question_id as analytical_question_id,
     )
+
+    def _ami_question_merge_key(resume_key: str, metrics: dict[str, Any]) -> str:
+        rk = str(resume_key or "").strip()
+        if rk.startswith("ai:question:"):
+            return rk
+        q = str(metrics.get("question") or "").strip()
+        if not q:
+            return rk or f"resume:unknown:{id(metrics)}"
+        qid = str(metrics.get("question_id") or metrics.get("dedupe_fingerprint") or "").strip()
+        if not qid:
+            ctx = metrics.get("context") if isinstance(metrics.get("context"), dict) else {}
+            qid = analytical_question_id(
+                q,
+                source_app=str(metrics.get("source_app") or ""),
+                source_page=str(metrics.get("source_page") or ""),
+                context=ctx,
+            )
+        return f"ai:question:{qid}"
 
     for priority, app, title, subtitle, resume_key, page, metrics in _projects_from_events(snapshot):
         if app not in meta or not meta[app]["url"]:
@@ -1021,15 +1050,15 @@ def build_project_continue_cards(
             emoji=themes.get(app, "▶"),
             button_label=button_label,
         )
-        prev = merged.get(resume_key)
+        merge_key = _ami_question_merge_key(resume_key, metrics)
+        prev = merged.get(merge_key)
         if prev is None or priority > prev[0]:
-            merged[resume_key] = (priority, card)
+            merged[merge_key] = (priority, card)
 
     for item in load_active_resume_items(limit=30):
         if item.app not in meta or not meta[item.app]["url"]:
             continue
         title, subtitle, priority = _polish_resume(item)
-        dedupe = f"resume:{item.app}:{item.item_key}"
         try:
             from suite_deep_links import build_resume_action_url, resume_metrics_from_item_key
 
@@ -1060,13 +1089,10 @@ def build_project_continue_cards(
             emoji=themes.get(item.app, "▶"),
             button_label=button_label,
         )
-        merge_keys = [dedupe]
-        if item.item_key.startswith("ai:question:"):
-            merge_keys.append(item.item_key)
-        for merge_key in merge_keys:
-            prev = merged.get(merge_key)
-            if prev is None or priority > prev[0]:
-                merged[merge_key] = (priority, card)
+        merge_key = _ami_question_merge_key(item.item_key, metrics)
+        prev = merged.get(merge_key)
+        if prev is None or priority > prev[0]:
+            merged[merge_key] = (priority, card)
 
     ordered = sorted(merged.values(), key=lambda row: row[0], reverse=True)
     return [card for _, card in ordered[:limit]]
