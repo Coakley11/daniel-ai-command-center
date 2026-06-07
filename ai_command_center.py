@@ -74,7 +74,7 @@ st.markdown(
     .stApp {
         background: linear-gradient(180deg, #fff7ed 0%, #f8fafc 18%, #f0f9ff 100%);
     }
-    .block-container { padding-top: 1rem; padding-bottom: 2.5rem; max-width: 1200px; }
+    .block-container { padding-top: 1rem; padding-bottom: 2.5rem; max-width: min(96vw, 1400px); }
     #MainMenu, footer { visibility: hidden; }
     header[data-testid="stHeader"] { background: transparent; }
 
@@ -301,13 +301,15 @@ def _render_workflow_diagnostics_table(snapshot: ActivitySnapshot) -> None:
 
 def _render_hero(snapshot: ActivitySnapshot) -> None:
     activity_tag = "Live activity" if snapshot.has_real_data else "Waiting for activity data"
+    build_note = ""
+    if st.session_state.get(CC_DEV_MODE_KEY):
+        build_note = f" Build {SUITE_BUILD_LABEL} ({GIT_COMMIT_SHORT}) ·"
     st.markdown(
         f"""
         <div class="cc-hero">
             <div class="cc-hero-tag">👋 Welcome back</div>
             <h1>🏠 Daniel Cohen AI Command Center</h1>
-            <p>Your cross-app activity dashboard — continue work, coach insights, and app launchers.
-            Build {SUITE_BUILD_LABEL} ({GIT_COMMIT_SHORT}) · {activity_tag}.</p>
+            <p>Your cross-app activity dashboard — continue work, coach insights, and app launchers.{build_note} {activity_tag}.</p>
         </div>
         """,
         unsafe_allow_html=True,
@@ -598,37 +600,7 @@ def _cached_connections():
     return verify_connections()
 
 
-with st.sidebar:
-    st.markdown("### Developer")
-    st.caption("Use the **Developer Mode** toggle on the main page (below the hero).")
-
-snapshot = load_activity_snapshot()
-insights = generate_coach_insights(snapshot)
-continue_cards = continue_cards_for_snapshot(snapshot, limit=6)
-connections = _cached_connections()
-
-_render_hero(snapshot)
-_render_deploy_banner()
-st.toggle(
-    "Developer Mode",
-    key=CC_DEV_MODE_KEY,
-    help="Shows raw baseball events from the store and Continue workflow candidate table.",
-)
-st.caption(
-    "When enabled: (1) latest 20 baseball events with no filtering, (2) optional Continue workflow table."
-)
-_render_continue_section(snapshot, continue_cards)
-if st.session_state.get(CC_DEV_MODE_KEY):
-    _render_raw_baseball_events_table()
-    with st.expander("Developer: Continue workflow candidates (top 10)", expanded=False):
-        _render_workflow_diagnostics_table(snapshot)
-_render_cross_app_section(snapshot)
-_render_coach_insights(insights)
-_render_recent_activity_feed()
-_render_weekly_summary(snapshot)
-_render_app_directory(snapshot)
-
-with st.expander("Deployment & link audit (admin)"):
+def _render_deployment_admin_panel(snapshot: ActivitySnapshot, connections) -> None:
     from activity_diagnostics import run_live_activity_diagnostics
     from activity_feed import APP_LABELS
 
@@ -646,181 +618,42 @@ with st.expander("Deployment & link audit (admin)"):
             f"| **Sync mode** | **{acct['mode']}** |\n"
             f"| Display name | {html.escape(acct['display_name'])} |"
         )
-        st.caption(
-            "Use the same `suite_user_id` in [suite_activity] secrets on phone, laptop, and every suite app. "
-            "Run `supabase/migrations/002_suite_account_memory.sql` after migration 001."
-        )
     except Exception:
         pass
     st.markdown("#### Live activity diagnostics (Supabase ↔ Command Center)")
     if probe is not None:
-        st.markdown("##### Secrets detection (values never shown)")
         st.markdown(
             f"| Check | Result |\n|---|---|\n"
-            f"| `st.secrets` available | {probe.streamlit_secrets_available} |\n"
             f"| **`[suite_activity]` section found** | **{probe.suite_activity_section_found}** |\n"
             f"| **`supabase_url` found** | **{probe.supabase_url_found}** |\n"
             f"| **`supabase_key` found** | **{probe.supabase_key_found}** |\n"
-            f"| Top-level `supabase_url` (fallback) | {probe.top_level_url_found} |\n"
-            f"| Top-level `supabase_key` (fallback) | {probe.top_level_key_found} |\n"
-            f"| Env `SUITE_SUPABASE_URL` set | {probe.env_supabase_url_set} |\n"
-            f"| Env `SUITE_SUPABASE_KEY` set | {probe.env_supabase_key_set} |\n"
             f"| Resolved source | `{probe.resolved_source}` |"
         )
         if probe.secrets_error:
             st.warning(probe.secrets_error)
-        from suite_storage_config import EXPECTED_SECRETS_TOML
-
-        st.markdown("##### Expected Streamlit Cloud Secrets (paste exactly)")
-        st.code(EXPECTED_SECRETS_TOML, language="toml")
-        st.caption(
-            "Streamlit Cloud → this Command Center app → Settings → Secrets. "
-            "Save, then Reboot app. Same block must be on Music and other suite apps."
-        )
     st.markdown(
         f"| Check | Result |\n|---|---|\n"
         f"| Deployment mode | `{diag.deployment_mode}` |\n"
         f"| **Supabase configured** | **{diag.cloud_storage_configured}** |\n"
         f"| **Supabase reachable** | **{diag.cloud_storage_reachable}** |\n"
-        f"| Supabase event count | {diag.supabase_event_count} |\n"
-        f"| Command Center event count | {diag.command_center_event_count} |\n"
-        f"| Verified in Recent Activity format | {diag.verified_in_feed} |\n"
         f"| Pipeline status | **{diag.failure_step}** |"
     )
     if diag.supabase_error:
         st.error(f"Supabase read error: {diag.supabase_error}")
     st.info(diag.recommendation)
-
-    st.markdown("##### Event count by app")
-    app_cols = st.columns(2)
-    with app_cols[0]:
-        st.caption("Supabase (direct)")
-        if diag.counts_by_app_supabase:
-            st.table(
-                [{"app": k, "count": v} for k, v in sorted(diag.counts_by_app_supabase.items())]
-            )
-        else:
-            st.write("—")
-    with app_cols[1]:
-        st.caption("Command Center (`load_all_events`)")
-        if diag.counts_by_app_command_center:
-            st.table(
-                [
-                    {"app": k, "count": v}
-                    for k, v in sorted(diag.counts_by_app_command_center.items())
-                ]
-            )
-        else:
-            st.write("—")
-
-    st.markdown("##### Most recent event by app")
-    recent_cols = st.columns(2)
-    with recent_cols[0]:
-        st.caption("Supabase")
-        for app in sorted(diag.last_event_by_app_supabase):
-            label = APP_LABELS.get(app, app)
-            st.text(f"{label}: {diag.last_event_by_app_supabase[app]}")
-    with recent_cols[1]:
-        st.caption("Command Center")
-        for app in sorted(diag.last_event_by_app_command_center):
-            label = APP_LABELS.get(app, app)
-            st.text(f"{label}: {diag.last_event_by_app_command_center[app]}")
-
-    st.markdown("##### Phase A — Music event verification")
-    st.dataframe(
-        [
-            {
-                "Event": row.event_type,
-                "In Supabase": row.in_supabase,
-                "CC reads row": row.in_command_center,
-                "Recent Activity preview": row.feed_preview,
-                "Latest": row.latest_timestamp,
-            }
-            for row in diag.phase_a_music
-        ],
-        use_container_width=True,
-        hide_index=True,
-    )
-
-    st.markdown("##### Phase A — Investment event verification")
-    st.dataframe(
-        [
-            {
-                "Event": row.event_type,
-                "In Supabase": row.in_supabase,
-                "CC reads row": row.in_command_center,
-                "Recent Activity preview": row.feed_preview,
-                "Latest": row.latest_timestamp,
-            }
-            for row in diag.phase_a_investment
-        ],
-        use_container_width=True,
-        hide_index=True,
-    )
-
-    for title, rows in (
-        ("Baseball", diag.phase_a_baseball),
-        ("NBA", diag.phase_a_nba),
-        ("Applied Intelligence", diag.phase_a_applied),
-        ("Future Lens", diag.phase_a_future_lens),
-    ):
-        st.markdown(f"##### Phase A — {title} event verification")
-        st.dataframe(
-            [
-                {
-                    "Event": row.event_type,
-                    "In Supabase": row.in_supabase,
-                    "CC reads row": row.in_command_center,
-                    "Recent Activity preview": row.feed_preview,
-                    "Latest": row.latest_timestamp,
-                }
-                for row in rows
-            ],
-            use_container_width=True,
-            hide_index=True,
-        )
-
-    st.markdown("##### Baseball Continue workflow trace")
     try:
         from project_intelligence import diagnose_baseball_continue
 
         bb_diag = diagnose_baseball_continue(snapshot)
+        st.markdown("##### Baseball Continue workflow trace")
         st.markdown(
             f"| Check | Value |\n|---|---|\n"
             f"| Trend events in store | {bb_diag.trend_events_in_store} |\n"
-            f"| Workflow would emit | {bb_diag.workflow_would_emit} |\n"
             f"| In top 6 Continue | {bb_diag.in_top_six} |\n"
             f"| Blocked reason | {bb_diag.blocked_reason or '—'} |"
         )
-        if bb_diag.latest_trend_event:
-            st.code(json.dumps(bb_diag.latest_trend_event, indent=2, ensure_ascii=False), language="json")
-        if bb_diag.latest_baseball_workflow:
-            st.markdown("**Latest trend workflow candidate:**")
-            st.json(bb_diag.latest_baseball_workflow)
-        if bb_diag.continue_rank_all_apps:
-            st.markdown("**Continue card ranking (all apps):**")
-            st.dataframe(bb_diag.continue_rank_all_apps, hide_index=True)
-        if bb_diag.resume_trend_items:
-            st.markdown("**Resume items (trend:*):**")
-            st.dataframe(bb_diag.resume_trend_items, hide_index=True)
     except Exception as exc:
         st.warning(f"Baseball Continue trace unavailable: {exc}")
-
-    if st.session_state.get(CC_DEV_MODE_KEY):
-        st.markdown("##### Continue workflow candidates (top 10)")
-        _render_workflow_diagnostics_table(snapshot)
-
-    st.markdown("##### Last 10 raw events (Supabase)")
-    for raw in diag.last_10_raw_supabase or ["—"]:
-        st.code(raw, language="json")
-    st.markdown("##### Last 10 raw events (Command Center)")
-    for raw in diag.last_10_raw_command_center or ["—"]:
-        st.code(raw, language="json")
-
-    st.divider()
-    st.markdown(f"**Homepage Production:** {HOMEPAGE_PRODUCTION_URL} · branch `main`")
-    dev_line = HOMEPAGE_DEV_URL or "Not deployed yet — create on Streamlit Cloud from branch `dev`"
-    st.markdown(f"**Homepage Dev:** {dev_line}")
     st.divider()
     st.markdown("| App | Branch | Button URL | Live |")
     st.markdown("|---|---|---|---|")
@@ -828,7 +661,42 @@ with st.expander("Deployment & link audit (admin)"):
         live = "Yes" if conn.streamlit_live else "No"
         st.markdown(f"| {conn.name} | {conn.branch} | `{conn.open_url}` | {live} |")
 
-st.caption(
-    f"Daniel Cohen AI Command Center · {datetime.now().strftime('%B %d, %Y')} · "
-    f"build {SUITE_BUILD_LABEL} · commit {GIT_COMMIT_SHORT} · branch {GIT_BRANCH}"
-)
+
+with st.sidebar:
+    with st.expander("Advanced", expanded=False):
+        st.toggle(
+            "Developer Mode",
+            key=CC_DEV_MODE_KEY,
+            help="Shows raw baseball events and Continue workflow diagnostics.",
+        )
+
+snapshot = load_activity_snapshot()
+insights = generate_coach_insights(snapshot)
+continue_cards = continue_cards_for_snapshot(snapshot, limit=6)
+connections = _cached_connections()
+
+_render_hero(snapshot)
+if st.session_state.get(CC_DEV_MODE_KEY):
+    _render_deploy_banner()
+_render_continue_section(snapshot, continue_cards)
+if st.session_state.get(CC_DEV_MODE_KEY):
+    _render_raw_baseball_events_table()
+    with st.expander("Continue workflow candidates (top 10)", expanded=False):
+        _render_workflow_diagnostics_table(snapshot)
+_render_cross_app_section(snapshot)
+_render_coach_insights(insights)
+_render_recent_activity_feed()
+_render_weekly_summary(snapshot)
+_render_app_directory(snapshot)
+
+if st.session_state.get(CC_DEV_MODE_KEY):
+    with st.expander("Deployment & link audit (admin)"):
+        _render_deployment_admin_panel(snapshot, connections)
+
+if st.session_state.get(CC_DEV_MODE_KEY):
+    st.caption(
+        f"Daniel Cohen AI Command Center · {datetime.now().strftime('%B %d, %Y')} · "
+        f"build {SUITE_BUILD_LABEL} · commit {GIT_COMMIT_SHORT} · branch {GIT_BRANCH}"
+    )
+else:
+    st.caption(f"Daniel Cohen AI Command Center · {datetime.now().strftime('%B %d, %Y')}")

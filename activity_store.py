@@ -1039,9 +1039,18 @@ def _ingest_suite_events(snapshot: ActivitySnapshot) -> None:
             if app == "applied_intelligence" and metrics.get("next_lesson"):
                 snapshot.applied_intelligence_next_lesson = str(metrics["next_lesson"])
             if app == "applied_intelligence" and metrics.get("lesson"):
-                snapshot.last_applied_intelligence_lesson = str(metrics["lesson"])
+                lesson_text = str(metrics["lesson"])
+                if len(lesson_text) <= 72 and "?" not in lesson_text:
+                    snapshot.last_applied_intelligence_lesson = lesson_text
             if app == "applied_intelligence" and metrics.get("analysis"):
-                snapshot.last_applied_intelligence_analysis = str(metrics["analysis"])
+                analysis_text = str(metrics["analysis"])
+                lesson_text = str(metrics.get("lesson") or "")
+                if (
+                    analysis_text != lesson_text
+                    and len(analysis_text) <= 72
+                    and "?" not in analysis_text
+                ):
+                    snapshot.last_applied_intelligence_analysis = analysis_text
             if app == "applied_intelligence" and event.get("page"):
                 snapshot.last_applied_intelligence_page = str(event.get("page") or "")
             if app == "investment":
@@ -1347,14 +1356,17 @@ def get_app_directory_card(snapshot: ActivitySnapshot, app_key: str) -> AppDirec
         if snapshot.last_nba_page:
             lines.append(_labeled("Last page", snapshot.last_nba_page))
     elif app_key == "applied_intelligence":
-        topic = (
-            snapshot.last_applied_intelligence_analysis
-            or snapshot.last_applied_intelligence_lesson
-            or snapshot.applied_intelligence_next_lesson
-            or snapshot.last_applied_intelligence_page
-        )
-        if topic:
-            lines.append(_labeled("Last topic", topic))
+        # App Directory = general app entry. Specific Applied Math questions belong in Continue only.
+        lesson = str(snapshot.last_applied_intelligence_lesson or "").strip()
+        page = str(snapshot.last_applied_intelligence_page or "").strip()
+        if lesson and len(lesson) <= 72 and "?" not in lesson:
+            lines.append(_labeled("Last lesson", lesson))
+        elif page and page != "Solve a Problem":
+            lines.append(_labeled("Last page", page))
+        elif snapshot.applied_intelligence_next_lesson:
+            lines.append(_labeled("Next up", snapshot.applied_intelligence_next_lesson))
+        elif page == "Solve a Problem":
+            lines.append("Explore quantitative problem solving")
     elif app_key == "future_lens":
         sim = snapshot.last_simulation_name or snapshot.future_project
         if sim:
