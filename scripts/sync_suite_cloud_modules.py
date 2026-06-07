@@ -19,6 +19,7 @@ MODULE_FILES = (
     "suite_deep_links.py",
     "suite_resume_launch.py",
     "suite_cloud_state.py",
+    "suite_user_persistence.py",
 )
 
 TARGET_REPOS = (
