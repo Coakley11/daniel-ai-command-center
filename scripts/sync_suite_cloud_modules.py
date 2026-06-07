@@ -20,6 +20,7 @@ MODULE_FILES = (
     "suite_resume_launch.py",
     "suite_cloud_state.py",
     "suite_user_persistence.py",
+    "suite_analytical_question.py",
 )
 
 TARGET_REPOS = (

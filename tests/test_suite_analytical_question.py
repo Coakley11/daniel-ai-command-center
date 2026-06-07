@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import unittest
 import unittest.mock
 
@@ -13,6 +14,9 @@ from suite_analytical_question import (
     build_question_payload,
     default_area_for_source,
     format_context_lines,
+    load_analytical_question_context,
+    merge_analytical_context,
+    metrics_for_applied_math_resume,
     question_dedupe_fingerprint,
     question_id,
     submit_analytical_question,
@@ -156,6 +160,191 @@ class TestSuiteAnalyticalQuestion(unittest.TestCase):
         self.assertFalse(first.get("duplicate"))
         self.assertTrue(second.get("duplicate"))
         rec.assert_called_once()
+
+
+class TestRichContextPayloads(unittest.TestCase):
+    def test_trend_context_includes_slope_delta_r2(self) -> None:
+        ctx = merge_analytical_context(
+            {"workflow": "Player trend analysis", "player": "Lorenzo Cain", "metrics": ["HR"]},
+            {
+                "trend_summary": {
+                    "stat": "HR",
+                    "latest": 15,
+                    "delta": 6,
+                    "slope": 1.2,
+                    "r2": 0.64,
+                    "summary": "upward but noisy trend",
+                }
+            },
+        )
+        lines = format_context_lines(ctx)
+        joined = "\n".join(lines)
+        self.assertIn("slope=1.2", joined)
+        self.assertIn("R²=0.64", joined)
+        self.assertIn("change=6", joined)
+        self.assertIn("noisy trend", joined)
+
+    def test_comparison_context_includes_both_players(self) -> None:
+        ctx = {
+            "player_a": "Mike Piazza",
+            "player_b": "Jeff Bagwell",
+            "players": ["Mike Piazza", "Jeff Bagwell"],
+            "comparison_stats": ["OPS", "HR"],
+            "comparison_differences": [
+                {"player": "Mike Piazza", "Slope": 0.02},
+                {"player": "Jeff Bagwell", "Slope": 0.01},
+            ],
+        }
+        lines = format_context_lines(ctx)
+        joined = "\n".join(lines)
+        self.assertIn("Mike Piazza", joined)
+        self.assertIn("Jeff Bagwell", joined)
+        self.assertIn("OPS", joined)
+
+    def test_command_center_card_hides_full_context(self) -> None:
+        payload = build_question_payload(
+            source_app="baseball",
+            source_page="Trend Value",
+            question="Is Lorenzo Cain's HR trend meaningful?",
+            context={
+                "player": "Lorenzo Cain",
+                "trend_summary": {"slope": 1.2, "r2": 0.64, "delta": 6},
+            },
+        )
+        title, subtitle, btn = analytical_question_continue_copy(payload)
+        self.assertIn("Baseball", title)
+        self.assertEqual(subtitle, "Is Lorenzo Cain's HR trend meaningful?")
+        self.assertNotIn("slope", subtitle)
+        self.assertNotIn("R²", subtitle)
+        self.assertNotIn("Context:", subtitle)
+
+    def test_nba_probability_context(self) -> None:
+        ctx = {
+            "team": "New York Knicks",
+            "opponent": "Boston Celtics",
+            "win_probability": "62%",
+            "series_probability": "71%",
+            "page": "Live Game Center",
+        }
+        lines = format_context_lines(ctx)
+        joined = "\n".join(lines)
+        self.assertIn("Knicks", joined)
+        self.assertIn("Celtics", joined)
+        self.assertIn("62%", joined)
+
+    def test_nba_player_stat_gap_context(self) -> None:
+        ctx = {
+            "player": "Jalen Brunson",
+            "stat_gap": {
+                "player": "Jalen Brunson",
+                "comparison": "Allan Houston",
+                "stat": "playoff rebounds",
+                "gap": 12,
+                "games_remaining": 4,
+                "rate_needed": "3.0 RPG",
+            },
+            "games_remaining": 4,
+            "rate_needed": "3.0 RPG",
+        }
+        lines = format_context_lines(ctx)
+        joined = "\n".join(lines)
+        self.assertIn("Jalen Brunson", joined)
+        self.assertIn("4", joined)
+
+    def test_investment_context_holdings_health_macro_labels(self) -> None:
+        ctx = {
+            "holdings": ["VTI", "BND"],
+            "current_weights": {"VTI": "60.0%", "BND": "40.0%"},
+            "health_score": 78.5,
+            "expected_return": "8.2%",
+            "volatility": "12.1%",
+            "sharpe_ratio": "0.68",
+            "max_drawdown": "-18.3%",
+            "risk_level": "Moderate",
+            "macro_outlook": "Recession prob 25%; rates stable",
+            "context_note_historical": "return/volatility are historical",
+            "context_note_forward": "macro affects forward projections only",
+        }
+        lines = format_context_lines(ctx)
+        joined = "\n".join(lines)
+        self.assertIn("VTI", joined)
+        self.assertIn("78.5", joined)
+        self.assertIn("Sharpe", joined)
+        self.assertIn("Recession", joined)
+
+    def test_metrics_include_question_id_for_hydration(self) -> None:
+        payload = build_question_payload(
+            source_app="investment",
+            source_page="Portfolio Health",
+            question="Should I rebalance?",
+            context={"health_score": 70},
+        )
+        metrics = metrics_for_applied_math_resume(payload)
+        self.assertEqual(metrics["question_id"], payload["question_id"])
+        self.assertIn("health_score", metrics["context_json"])
+
+    def test_resume_url_includes_question_id(self) -> None:
+        payload = build_question_payload(
+            source_app="baseball",
+            source_page="Trend Value",
+            question="Trend?",
+            context={"trend_summary": {"slope": 1.0, "r2": 0.5}},
+        )
+        url = build_applied_math_resume_url(payload, base_url="https://ami.example.com")
+        self.assertIn("suite_ai_question_id=", url)
+
+    def test_store_and_load_context_by_question_id(self) -> None:
+        payload = build_question_payload(
+            source_app="nba",
+            source_page="Matchup",
+            question="Who wins?",
+            context={"team": "Knicks", "win_probability": "55%"},
+        )
+        qid = payload["question_id"]
+        saved: dict = {}
+
+        def _fake_remember(app: str, item_type: str, item_key: str, **kwargs: object) -> None:
+            saved[(app, item_type, item_key)] = kwargs.get("payload")
+
+        def _fake_load(app: str, item_type: str, limit: int = 50) -> list:
+            rows = []
+            for (a, t, k), payload_blob in saved.items():
+                if a == app and t == item_type:
+                    rows.append({"item_key": k, "payload": payload_blob})
+            return rows
+
+        with unittest.mock.patch("suite_account.remember_saved_item", side_effect=_fake_remember):
+            with unittest.mock.patch("suite_account.load_saved_items", side_effect=_fake_load):
+                with unittest.mock.patch("suite_activity_client.record_activity"):
+                    with unittest.mock.patch("suite_analytical_question._upsert_applied_intelligence_resume"):
+                        submit_analytical_question(
+                            source_app="nba",
+                            source_page="Matchup",
+                            question="Who wins?",
+                            context={"team": "Knicks", "win_probability": "55%"},
+                        )
+                loaded = load_analytical_question_context(qid)
+        self.assertEqual(loaded.get("team"), "Knicks")
+        self.assertEqual(loaded.get("win_probability"), "55%")
+
+    def test_build_context_from_session_investment_health(self) -> None:
+        session = {
+            "_ami_investment_context": {"rebalance_drift": {"VTI": "+5pp"}},
+            "sidebar_portfolio_value": 100000,
+        }
+
+        class _HR:
+            score = 82.0
+            expected_return = 7.5
+            volatility = 11.0
+            sharpe = 0.55
+            max_drawdown = -15.0
+            risk_level = "Moderate"
+
+        session["health_result"] = _HR()
+        ctx, _ = build_context_from_session("investment", "Portfolio Health", session)
+        self.assertEqual(ctx["health_score"], 82.0)
+        self.assertIn("sharpe_ratio", ctx)
 
 
 if __name__ == "__main__":

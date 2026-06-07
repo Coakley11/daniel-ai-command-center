@@ -282,3 +282,24 @@ def _apply_applied_intelligence(st: Any, page: str) -> None:
         st.session_state["_suite_ai_lesson"] = lesson
     if page:
         st.session_state["_suite_ai_page"] = page
+    try:
+        from suite_analytical_question import hydrate_applied_intelligence_session
+
+        hydrate_applied_intelligence_session(st)
+    except Exception:
+        q = _qp_get(st, "suite_ai_question")
+        if q:
+            st.session_state["_suite_ai_question"] = q
+            st.session_state["ps_library_problem"] = q
+        ctx_raw = _qp_get(st, "suite_ai_context")
+        if ctx_raw:
+            st.session_state["_suite_ai_context"] = ctx_raw
+        for qp, key in (
+            ("suite_ai_source_app", "_suite_ai_source_app"),
+            ("suite_ai_source_page", "_suite_ai_source_page"),
+            ("suite_ai_area", "_suite_ai_area"),
+            ("suite_ai_question_id", "_suite_ai_question_id"),
+        ):
+            val = _qp_get(st, qp)
+            if val:
+                st.session_state[key] = val

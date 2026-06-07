@@ -49,7 +49,14 @@ _RESUME_QUERY_KEYS: dict[str, tuple[str, ...]] = {
         "suite_fl_sim_year",
         "suite_fl_view",
     ),
-    "applied_intelligence": ("suite_page", "suite_lesson"),
+    "applied_intelligence": (
+        "suite_page",
+        "suite_lesson",
+        "suite_ai_question",
+        "suite_ai_question_id",
+        "suite_ai_source_app",
+        "suite_ai_context",
+    ),
 }
 
 
