@@ -1025,8 +1025,6 @@ def build_project_continue_cards(
                 {
                     "source_app": metrics.get("source_app") or "",
                     "question": metrics.get("question") or card_subtitle,
-                    "context": metrics.get("context") if isinstance(metrics.get("context"), dict) else {},
-                    "context_summary": metrics.get("context_summary"),
                 }
             )
         try:
@@ -1059,6 +1057,8 @@ def build_project_continue_cards(
         if item.app not in meta or not meta[item.app]["url"]:
             continue
         title, subtitle, priority = _polish_resume(item)
+        button_label = ANALYTICAL_QUESTION_BUTTON_LABEL if item.item_key.startswith("ai:question:") else "Continue"
+        card_title, card_subtitle = title, subtitle
         try:
             from suite_deep_links import build_resume_action_url, resume_metrics_from_item_key
 
@@ -1069,6 +1069,15 @@ def build_project_continue_cards(
             )
             if item.app == "music" and item.title.lower().startswith("continue:"):
                 metrics.setdefault("song", item.title.split(":", 1)[-1].strip())
+            if item.item_key.startswith("ai:question:"):
+                from suite_analytical_question import analytical_question_continue_copy
+
+                card_title, card_subtitle, button_label = analytical_question_continue_copy(
+                    {
+                        "source_app": metrics.get("source_app") or "",
+                        "question": metrics.get("question") or subtitle,
+                    }
+                )
             deep = build_resume_action_url(
                 item.app,
                 resume_key=item.item_key,
@@ -1079,12 +1088,11 @@ def build_project_continue_cards(
         except Exception:
             deep = ""
         url = deep or (item.action_url or "").strip() or meta[item.app]["url"]
-        button_label = ANALYTICAL_QUESTION_BUTTON_LABEL if item.item_key.startswith("ai:question:") else "Continue"
         card = ContinueCard(
             app_key=item.app,
             app_name=meta[item.app]["name"],
-            title=title,
-            subtitle=subtitle,
+            title=card_title,
+            subtitle=card_subtitle,
             action_url=url,
             emoji=themes.get(item.app, "▶"),
             button_label=button_label,

@@ -10,6 +10,7 @@ ROOT = Path(__file__).resolve().parent.parent
 GITHUB = ROOT.parent
 
 MODULE_FILES = (
+    "activity_time.py",
     "suite_storage_config.py",
     "suite_storage_supabase.py",
     "suite_activity_client.py",

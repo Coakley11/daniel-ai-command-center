@@ -113,8 +113,9 @@ class TestSuiteAnalyticalQuestion(unittest.TestCase):
         )
         title, subtitle, btn = analytical_question_continue_copy(payload)
         self.assertIn("Baseball", title)
-        self.assertIn("Juan Soto", subtitle)
-        self.assertIn("Question:", subtitle)
+        self.assertEqual(subtitle, "Should I draft Juan Soto in Round 1?")
+        self.assertNotIn("Context:", subtitle)
+        self.assertNotIn("Juan Soto", title)
         self.assertEqual(btn, ANALYTICAL_QUESTION_BUTTON_LABEL)
 
     def test_submit_analytical_question_records(self) -> None:

@@ -1,6 +1,6 @@
 # Current Tasks — Daniel AI Command Center
 
-**Last updated:** 2026-06-06
+**Last updated:** 2026-06-07
 
 Actionable work items. Master context: [app_roadmap.md](./app_roadmap.md).
 
@@ -13,6 +13,26 @@ Central hub repo (`daniel-ai-command-center`) for suite homepage, activity aggre
 ---
 
 # Current Priorities
+
+### P1 — Command Center Applied Math cards (clean UI)
+
+- [x] Continue cards show only: title, user question, Continue button — no context/stats/holdings on card
+- [x] Full context still sent to Applied Intelligence via deep link metrics + `__ctx_json__` storage subtitle
+- [x] Sync `suite_analytical_question.py` + `suite_deep_links.py` to Baseball, NBA, Investment, AMI
+- [ ] Commit + push CC + siblings; verify cards on Streamlit Cloud dev after redeploy
+
+### P2 — App state persistence after reboot/redeploy
+
+- [x] Audit table — [plans/suite-session-persistence-audit.md](./plans/suite-session-persistence-audit.md)
+- [x] Baseball: restore disk state **before** `apply_suite_resume_launch` (was wiping page/filters)
+- [x] AMI: `finalize_suite_reset` for cloud reset; restore-before-resume order
+- [ ] E2E verify each app: refresh → state returns; Reset → defaults only
+- [ ] Future Lens: extend `_SESSION_KEYS` if sim name/project should persist
+
+### P3 — Investment macro / return / volatility audit
+
+- [x] Audit document — [plans/investment-macro-return-volatility-audit.md](./plans/investment-macro-return-volatility-audit.md)
+- [ ] User review audit; approve UI label / transparency fixes before formula changes
 
 ### P0 — Documentation & roadmap system
 
@@ -89,6 +109,8 @@ Recent task completions (see [app_completed_features.md](./app_completed_feature
 | Plan | Status |
 |------|--------|
 | [plans/README.md](./plans/README.md) | Folder ready — add plans as work starts |
+| [plans/suite-session-persistence-audit.md](./plans/suite-session-persistence-audit.md) | P2 audit — restore behavior |
+| [plans/investment-macro-return-volatility-audit.md](./plans/investment-macro-return-volatility-audit.md) | P3 audit — metrics definitions |
 | Activity Feed Phase B | Shipped on `dev` — verify Streamlit Cloud deploy |
 
 ---

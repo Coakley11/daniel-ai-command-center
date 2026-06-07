@@ -312,29 +312,43 @@ def resume_metrics_from_item_key(app: str, item_key: str, *, subtitle: str = "")
                 metrics["question_id"] = qid
                 metrics["dedupe_fingerprint"] = qid
             if subtitle:
-                if subtitle.startswith("Question:"):
+                if "__ctx_json__:" in subtitle:
+                    q_part, _, ctx_part = subtitle.partition("\n__ctx_json__:")
+                    metrics["question"] = q_part.strip()
+                    try:
+                        import json
+
+                        parsed = json.loads(ctx_part)
+                        if isinstance(parsed, dict):
+                            metrics["context"] = parsed
+                            metrics["context_json"] = ctx_part
+                    except Exception:
+                        pass
+                elif subtitle.startswith("Question:"):
                     first_line, _, rest = subtitle.partition("\n")
                     metrics["question"] = first_line.replace("Question:", "", 1).strip()
                     metrics["context_summary"] = rest.strip() or subtitle
                 else:
-                    metrics["question"] = subtitle[:500]
-                    metrics["context_summary"] = subtitle
-                ctx: dict[str, Any] = {}
-                for line in subtitle.splitlines():
-                    stripped = line.strip().lstrip("•").strip()
-                    if ":" in stripped:
-                        label, _, val = stripped.partition(":")
-                        label_key = label.strip().lower().replace(" ", "_")
-                        val = val.strip()
-                        if label_key == "source_app":
-                            ctx["source_app"] = val
-                            metrics.setdefault("source_app", val.lower())
-                        elif label_key == "page":
-                            ctx["page"] = val
-                            metrics.setdefault("source_page", val)
-                        elif val:
-                            ctx[label_key] = val
-                if ctx:
+                    metrics["question"] = subtitle.split("\n", 1)[0].strip()[:500]
+                    if "\n" in subtitle:
+                        metrics["context_summary"] = subtitle
+                ctx: dict[str, Any] = dict(metrics.get("context") or {})
+                if not ctx:
+                    for line in subtitle.splitlines():
+                        stripped = line.strip().lstrip("•").strip()
+                        if ":" in stripped:
+                            label, _, val = stripped.partition(":")
+                            label_key = label.strip().lower().replace(" ", "_")
+                            val = val.strip()
+                            if label_key == "source_app":
+                                ctx["source_app"] = val
+                                metrics.setdefault("source_app", val.lower())
+                            elif label_key == "page":
+                                ctx["page"] = val
+                                metrics.setdefault("source_page", val)
+                            elif val:
+                                ctx[label_key] = val
+                if ctx and "context" not in metrics:
                     metrics["context"] = ctx
                     try:
                         import json

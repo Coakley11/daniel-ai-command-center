@@ -1,6 +1,6 @@
 # Daniel AI Command Center — Master Roadmap
 
-**Last updated:** 2026-06-03 · **Branch:** `dev` · **Entry app:** `ai_command_center.py` · **Build:** `2026-06-03-v30`
+**Last updated:** 2026-06-07 · **Branch:** `dev` · **Entry app:** `ai_command_center.py` · **Build:** `2026-06-03-v30`
 
 This is the master planning document. Related files:
 
@@ -24,11 +24,11 @@ This is the master planning document. Related files:
 
 # Current Priorities
 
-1. **Verify Activity Feed Phase B on Streamlit Cloud dev** — Today's Work, Highlights, Recent after `2026-06-03-v30` deploy.
-2. **Suite-wide reset rollout verification** — Baseball and Future Lens reset pushed; confirm Cloud commit + visible sidebar button on deployed apps.
-3. **Cross-device account memory** — Same `[suite_activity]` secrets on all 7 Streamlit apps; verify via admin expander.
-4. **Keep `cursor-prompts/` in sync** when shipping homepage or storage changes.
-5. **Sibling app parity** — Run `sync_suite_cloud_modules.py` after changing shared persistence modules.
+1. **Applied Math Continue cards (P1)** — Clean CC cards (question only); full context in background to AMI. See [app_tasks.md](./app_tasks.md).
+2. **Suite session persistence (P2)** — Restore last state on reboot/refresh; only Reset clears defaults. Audit: [plans/suite-session-persistence-audit.md](./plans/suite-session-persistence-audit.md).
+3. **Investment metrics audit (P3)** — Document return/vol/macro behavior before UI/formula changes. Audit: [plans/investment-macro-return-volatility-audit.md](./plans/investment-macro-return-volatility-audit.md).
+4. **Verify Activity Feed Phase B on Streamlit Cloud dev** — Today's Work, Highlights, Recent after `2026-06-03-v30` deploy.
+5. **Cross-device account memory** — Same `[suite_activity]` secrets on all 7 Streamlit apps; verify via admin expander.
 
 ---
 
