@@ -353,20 +353,27 @@ def autosave_if_changed(
             return
         saved_disk = save_user_state(app_id, state)
         saved_cloud = False
+        cloud_err = ""
         try:
             from suite_cloud_state import save_cloud_full_session, session_page_summary
 
             page, summary = session_page_summary(app_id, state)
-            save_cloud_full_session(app_id, state, page=page, summary=summary)
-            saved_cloud = True
-        except Exception:
-            pass
+            saved_cloud = bool(
+                save_cloud_full_session(app_id, state, page=page, summary=summary)
+            )
+        except Exception as exc:
+            cloud_err = str(exc)
         if saved_disk or saved_cloud:
             st.session_state[key] = fp
             st.session_state[_restored_fp_key(app_id)] = fp
-            st.session_state[_local_dirty_key(app_id)] = False
-            st.session_state[_applied_cloud_ts_key(app_id)] = _utc_now_iso()
+            if saved_cloud:
+                st.session_state[_local_dirty_key(app_id)] = False
+                st.session_state[_applied_cloud_ts_key(app_id)] = _utc_now_iso()
             st.session_state["_suite_persist_last_save_at"] = _utc_now_iso()
+            st.session_state["_suite_persist_last_save_disk"] = saved_disk
+            st.session_state["_suite_persist_last_save_cloud"] = saved_cloud
+            if cloud_err:
+                st.session_state["_suite_persist_last_cloud_error"] = cloud_err
             st.session_state[_SESSION_SAVED_FLASH_KEY] = True
     except Exception:
         pass

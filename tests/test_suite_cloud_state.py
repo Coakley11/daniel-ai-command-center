@@ -40,6 +40,24 @@ class TestSuiteCloudState(unittest.TestCase):
     def test_full_session_key_constant(self) -> None:
         self.assertEqual(FULL_SESSION_KEY, "full_session")
 
+    @patch("suite_storage_config.cloud_storage_enabled", return_value=True)
+    def test_save_cloud_full_session_uses_supabase(self, _enabled: MagicMock) -> None:
+        mock_storage = MagicMock()
+        mock_storage.normalize_app_key.return_value = "baseball"
+        with patch("suite_cloud_state._import_storage", return_value=(mock_storage, "suite_storage_supabase")):
+            from suite_cloud_state import save_cloud_full_session
+
+            ok = save_cloud_full_session(
+                "baseball",
+                {"active_page": "Comparison Tool", "page_filter_state": {}},
+                page="Comparison Tool",
+                summary="Comparison Tool",
+            )
+        self.assertTrue(ok)
+        mock_storage.save_current_state.assert_called_once()
+        metrics = mock_storage.save_current_state.call_args.kwargs.get("metrics") or {}
+        self.assertIn("full_session", metrics)
+
 
 if __name__ == "__main__":
     unittest.main()
