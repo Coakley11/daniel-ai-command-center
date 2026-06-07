@@ -14,25 +14,44 @@ Central hub repo (`daniel-ai-command-center`) for suite homepage, activity aggre
 
 # Current Priorities
 
-### P1 — Command Center Applied Math cards (clean UI)
+**Focus: reliability and usefulness — no new features until stable.**
 
-- [x] Continue cards show only: title, user question, Continue button — no context/stats/holdings on card
-- [x] Full context still sent to Applied Intelligence via deep link metrics + `__ctx_json__` storage subtitle
-- [x] Sync `suite_analytical_question.py` + `suite_deep_links.py` to Baseball, NBA, Investment, AMI
-- [ ] Commit + push CC + siblings; verify cards on Streamlit Cloud dev after redeploy
+### P1 — Command Center quality filtering (Continue vs App Directory)
 
-### P2 — App state persistence after reboot/redeploy
+- [x] Workflow classification audit — [plans/command-center-workflow-classification-audit.md](./plans/command-center-workflow-classification-audit.md)
+- [ ] User review classification table before ranking changes
+- [ ] Implement event-type tags (Continue / Directory / Both / Neither)
+- [ ] Fix top misclassifications: `song_selected`, `holdings_updated`, Future Lens/NBA gaps
+- [ ] Enrich Directory with durable state from cloud `full_session`
 
-- [x] Audit table — [plans/suite-session-persistence-audit.md](./plans/suite-session-persistence-audit.md)
-- [x] Baseball: restore disk state **before** `apply_suite_resume_launch` (was wiping page/filters)
-- [x] AMI: `finalize_suite_reset` for cloud reset; restore-before-resume order
-- [ ] E2E verify each app: refresh → state returns; Reset → defaults only
-- [ ] Future Lens: extend `_SESSION_KEYS` if sim name/project should persist
+### P2 — Persistence reliability
 
-### P3 — Investment macro / return / volatility audit
+- [x] Deep audit — [plans/suite-session-persistence-audit.md](./plans/suite-session-persistence-audit.md)
+- [x] Baseball restore-before-resume (shipped `16fbe29`)
+- [x] AMI cloud reset (shipped `32c2158`)
+- [ ] P0 fixes: Music non-core override, Future Lens early restore + `_suite_fl_sim`, NBA team widget
+- [ ] P1: Music custom progression keys, Investment cloud_resync promotion
+- [ ] E2E smoke: refresh / reboot / cross-device per app
 
-- [x] Audit document — [plans/investment-macro-return-volatility-audit.md](./plans/investment-macro-return-volatility-audit.md)
-- [ ] User review audit; approve UI label / transparency fixes before formula changes
+### P3 — Investment UI transparency (audit first, no formula changes)
+
+- [x] Calculation audit — [plans/investment-macro-return-volatility-audit.md](./plans/investment-macro-return-volatility-audit.md)
+- [x] Wording mockups — [plans/investment-ui-transparency-mockups.md](./plans/investment-ui-transparency-mockups.md)
+- [ ] User review mockups (inline captions vs banners, label renames)
+- [ ] Implement approved copy only — no formula changes
+
+### P4 — Future work (not now)
+
+- Applied Math solving quality
+- Future Lens analytical question support
+- Music → Applied Math support
+- Command Center coaching improvements
+- Investment forward-looking modeling improvements
+
+### Shipped (2026-06-07)
+
+- [x] Clean Applied Math Continue cards — CC `d400e71`, synced to siblings
+- [x] Commit + push dev across CC, Baseball, AMI, Investment, NBA
 
 ### P0 — Documentation & roadmap system
 
@@ -109,8 +128,10 @@ Recent task completions (see [app_completed_features.md](./app_completed_feature
 | Plan | Status |
 |------|--------|
 | [plans/README.md](./plans/README.md) | Folder ready — add plans as work starts |
-| [plans/suite-session-persistence-audit.md](./plans/suite-session-persistence-audit.md) | P2 audit — restore behavior |
-| [plans/investment-macro-return-volatility-audit.md](./plans/investment-macro-return-volatility-audit.md) | P3 audit — metrics definitions |
+| [plans/command-center-workflow-classification-audit.md](./plans/command-center-workflow-classification-audit.md) | P1 — Continue vs Directory |
+| [plans/investment-ui-transparency-mockups.md](./plans/investment-ui-transparency-mockups.md) | P3 — wording mockups |
+| [plans/suite-session-persistence-audit.md](./plans/suite-session-persistence-audit.md) | P2 — persistence deep audit |
+| [plans/investment-macro-return-volatility-audit.md](./plans/investment-macro-return-volatility-audit.md) | P3 — calculation audit |
 | Activity Feed Phase B | Shipped on `dev` — verify Streamlit Cloud deploy |
 
 ---

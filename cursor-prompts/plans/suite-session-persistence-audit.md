@@ -1,51 +1,78 @@
-# Suite session persistence audit
+# Suite session persistence audit (deep)
 
 **Last updated:** 2026-06-07  
-**Status:** Read-only audit — no major fixes implemented in this pass
+**Status:** Read-only audit — fixes prioritized, not implemented (except Baseball restore order + AMI reset, shipped `16fbe29` / `32c2158`)
 
 ## Rule
 
-Only **Reset to default** should restore factory defaults. Reboot, redeploy, refresh, or reopen should restore the latest saved state (local disk + Supabase `full_session` when configured).
+Apps must **never** revert to defaults unless **Reset to Default** is pressed. Applies to: refresh, reopen, reboot, redeploy, cross-device restore.
+
+---
 
 ## Per-app report
 
-| App | Persists correctly | Still resets incorrectly | Cause | Proposed fix |
-|-----|-------------------|--------------------------|-------|--------------|
-| **Music** | Song context (pick_key, instrument, studio page, focus), filters, favorites, karaoke queue, page snapshots — `music_persistent_state.py` + cloud | Non–trusted-core song replaced with first default core song on refresh | After restore, `streamlit_music_practice_app.py` ~L1174–1183 forces `DEFAULT_SONG_RECORDS[0]` when `chart_library_mode == core` and song not trusted | Skip override when restored `pick_key` or `SUITE_LOCAL_STATE_RESTORED_KEY` is set |
-| **Music** | Cloud/disk session | Default song if restore fails silently | Bare `except` around restore (~L1095–1100); falls through to `ensure_master_song_initialized` | Surface restore errors; avoid silent fallback |
-| **Investment** | Mode, tab, holdings, dates, macro sliders, goals, workflow blob, health summary — richest persistence | Beginner/Advanced mode drift phone↔laptop | `restore_once` skips re-apply when already restored and cloud not newer | Use `investment_cloud_resync_needed()`; verify matching `suite_user_id` |
-| **Investment** | Most fields | Default SPY/BND when blob has no `holdings_df` | `apply_investment_disk_state` fallback | Intentional; ensure autosave always writes holdings |
-| **Baseball** | `active_page`, draft room, full `page_filter_state` (trends, comparison, etc.) | *(Fixed)* page/filters lost on Continue reopen | Resume launch ran before restore | **Fixed:** restore → then `apply_suite_resume_launch` |
-| **Baseball** | Per-page filters | Invalid restored enum → widget fallback | `validate_state_option` / `validate_multiselect_options` | Expected validation; update option catalogs if enums change |
-| **NBA** | Team (`favorite_team`), page override, sidebar prefs — `nba_persistent_state.py` | Knicks on first paint if restore fails | `_nba_restore_team` one-shot index; no stable widget key on team selectbox | Seed selectbox key from restored team |
-| **AMI** | `view_mode`, `ps_area_id`, `ps_library_problem` | Suite AI preload cleared on normal reopen | Preload keys intentionally excluded; autosave skips during `_suite_ai_question` | By design for CC cross-app questions |
-| **Future Lens** | Wizard fields, sim year, `_suite_fl_view` | Simulation name/project (`_suite_fl_sim`) | Not in `_SESSION_KEYS` / `build_future_lens_disk_state` | Add `_suite_fl_sim` to persist keys |
-| **Future Lens** | Wizard on cold start | Restore runs in sidebar after factory defaults | `restore_future_lens_state_once` at ~L490 after defaults loop ~L129 | Move restore to top of `streamlit_app.py` (after `set_page_config`) |
-| **Command Center** | Activity feed, Continue cards, coach insights (cloud/SQLite read) | No Streamlit widget/session restore | Dashboard aggregator, not a suite app | N/A — reads sibling state via `activity_store.py` |
+| App | Persists correctly | Still resets incorrectly | Cause | Exact fix required |
+|-----|-------------------|--------------------------|-------|-------------------|
+| **Music** | Song pick_key, instrument, studio page, filters, favorites, snapshots | **Non-core song → first core default** | `streamlit_music_practice_app.py:1174–1183` trusted-core guard after restore | Skip override when `SUITE_LOCAL_STATE_RESTORED_KEY` or restored `pick_key` is set |
+| **Music** | `active_music_source` | **Custom progression name/sections lost** | `cpl_active_progression` / `cpl_saved_progressions` not in `music_persistent_state.py` persist keys; re-seeded at `:1168–1171` | Add CPL keys to disk/cloud blob; apply before CPL init |
+| **Music** | Cloud sync when configured | Default song on silent restore failure | Bare `except` at `:1095–1100` → `ensure_master_song_initialized` | Log/surface errors; no default init after partial restore |
+| **Baseball** | Page, draft room, `page_filter_state` | Invalid filter enum → widget default | `streamlit_app.py:10825+` `validate_state_option` | Migrate enums on restore or extend catalogs (expected after redeploy) |
+| **Baseball** | *(was Continue wipe)* | **Fixed** | Resume before restore | Shipped — QA only |
+| **NBA** | Team on disk (`favorite_team`), page prefs | **Knicks when restore fails** | `:17951` hardcoded Knicks index; `:17905` silent restore failure | Fail loudly; fallback to last saved team not Knicks |
+| **NBA** | `_nba_persist_team` at autosave | **Team selectbox not stably bound** | `:17995–18000` no widget `key=`; `_nba_restore_team` one-shot pop | Add `key="nba_favorite_team_sidebar"`; seed session state before render |
+| **NBA** | Page override | Helpers assume Knicks | `:5858` `favorite_team` never written to session (only `_nba_persist_team`) | Set `session_state["favorite_team"]` after selectbox |
+| **Investment** | Holdings, dates, macro, goals, workflow | **Cross-device Beginner/Advanced drift** | `restore_once` timestamp skip; only Investment has `cloud_resync_needed` | Sync content-resync pattern to all apps; verify `suite_user_id` |
+| **Investment** | Most scalars | **EOR autosave may clobber cloud mode** | `streamlit_app.py:2940` end-of-run autosave | Guard when in-memory mode ≠ cloud without local edit |
+| **Investment** | | Default SPY/BND if blob empty | `investment_persistent_state.py:421–422` | Keep existing holdings when field absent |
+| **AMI** | `view_mode`, `ps_area_id`, `ps_library_problem` | AI preload cleared on reopen | Preload keys not persisted (by design) | OK for CC questions |
+| **AMI** | | `view_mode` overwritten by sidebar radio | `streamlit_app.py:99` after restore `:38` | Seed widget key from restore before radio |
+| **Future Lens** | Wizard fields, `_suite_fl_view` (saved) | **Wizard → factory defaults on refresh** | Defaults loop `:129–138` before sidebar restore `:490` | Move restore to top after `set_page_config` |
+| **Future Lens** | | **`_suite_fl_sim` / sim name lost** | Set by `suite_resume_launch.py:238–243`; not in persist keys; never read in app | Persist + apply `_suite_fl_sim`; map to wizard or sim selector |
+| **Future Lens** | | **Tab view not restored** | `_suite_fl_view` persisted but tabs hard-coded `:512–521` | Apply restored view to active tab |
+| **Command Center** | Activity, Continue, coach (cloud read) | No widget session restore | Dashboard aggregator | N/A |
 
-## Restore order (entry files)
+---
 
-| App | Order | OK? |
-|-----|-------|-----|
-| Baseball | restore → resume (`streamlit_app.py`) | Yes (fixed) |
-| NBA | restore → resume | Yes |
-| Investment | resume → restore; tab applied inside restore | Yes for direct open |
-| AMI | restore → resume | Yes |
-| Future Lens | resume → defaults → sidebar restore | Fragile |
-| Music | resume → catalog load → restore → finalize resume → song init | Yes by design |
-| Command Center | none | N/A |
+## Scenario matrix
 
-## Shared mechanism
+| Scenario | Music | Baseball | NBA | Investment | AMI | Future Lens |
+|----------|-------|----------|-----|------------|-----|-------------|
+| **Refresh** | ⚠️ non-core override | ✅ | ⚠️ team widget | ⚠️ mode drift | ✅ | ⚠️ restore order |
+| **Reopen tab** | Same as refresh | ✅ | ⚠️ | ⚠️ | ✅ | ⚠️ |
+| **Reboot/redeploy** | ⚠️ + cloud | ✅ | ⚠️ | ⚠️ cloud sync | ✅ | ⚠️ |
+| **Cross-device** | ⚠️ if cloud OK | ✅ | ⚠️ | ⚠️ primary risk | ✅ | ⚠️ |
+| **Reset to default** | ✅ clears | ✅ | ✅ | ✅ | ✅ | ✅ |
 
-All suite apps (except CC) use `suite_user_persistence.py`:
-- `restore_once()` — disk + cloud (newer wins); skipped on Continue query params, local dirty flag, or already-restored-with-stale-cloud
-- `autosave_if_changed()` — fingerprint-based disk + Supabase write at end of run
-- `finalize_suite_reset()` — only path that clears cloud and writes factory defaults
+---
+
+## Fix priority (reliability pass)
+
+| Priority | App | Fix | Effort |
+|----------|-----|-----|--------|
+| P0 | Music | Skip trusted-core override after restore | Small |
+| P0 | Future Lens | Early restore + persist `_suite_fl_sim` | Medium |
+| P0 | NBA | Stable team selectbox key + session binding | Small |
+| P1 | Music | Persist custom progression blob keys | Small |
+| P1 | Investment | Guard EOR autosave; promote cloud_resync | Medium |
+| P2 | AMI | Widget key seed for view_mode | Small |
+| P2 | Shared | Sync `suite_user_persistence.py` via sync script | Medium |
+
+---
+
+## Shared architecture notes
+
+- `suite_user_persistence.restore_once()` — skipped on Continue query params, local dirty, already-restored + stale cloud timestamp
+- **Investment-only** `cloud_resync_needed()` compares content fingerprint, not just timestamp
+- `scripts/sync_suite_cloud_modules.py` does **not** sync `suite_user_persistence.py` — apps can diverge
+
+---
 
 ## Verification checklist
 
-1. Change state → browser refresh → state returns
-2. Reboot Streamlit Cloud → same state (matching `suite_user_id` in secrets)
-3. Reset to default → factory state only
-4. Continue deep link → resume after restore without wiping unrelated state
-5. Cross-device (Investment): mode sync phone ↔ laptop
+1. Non-core song (Music) → refresh → same song
+2. Custom progression (Music) → refresh → same sections
+3. Non-Knicks team (NBA) → refresh + reboot → same team everywhere
+4. Future Lens wizard + sim year → refresh → same domain/area/skill/year/tab
+5. Investment Advanced on phone → laptop → Advanced (check diagnostics)
+6. Reset to default → factory only
+7. Continue deep link → target state without wiping unrelated fields
