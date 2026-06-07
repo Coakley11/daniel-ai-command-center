@@ -21,6 +21,7 @@ MODULE_FILES = (
     "suite_cloud_state.py",
     "suite_user_persistence.py",
     "suite_analytical_question.py",
+    "applied_math_return_insight.py",
 )
 
 TARGET_REPOS = (
