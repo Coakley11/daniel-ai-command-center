@@ -14,6 +14,24 @@ from suite_storage import ResumeItem, load_active_resume_items
 
 _PROJECT_STALE_DAYS = 14
 
+# Passive events → App Directory only (never emit Continue workflow cards).
+_CONTINUE_PASSIVE_EVENTS = frozenset(
+    {
+        "song_selected",
+        "holdings_updated",
+        "instrument_changed",
+        "display_key_changed",
+    }
+)
+
+# Active music workflows (backing session, explicit practice — not catalog picks).
+_MUSIC_ACTIVE_WORKFLOW_EVENTS = frozenset(
+    {
+        "backing_track_started",
+        "backing_track_completed",
+    }
+)
+
 
 @dataclass(frozen=True)
 class CrossAppInsight:
@@ -72,6 +90,61 @@ def _stale(ts: datetime | None) -> bool:
     if ts is None:
         return True
     return datetime.now() - ts > timedelta(days=_PROJECT_STALE_DAYS)
+
+
+def _music_song_identity(metrics: dict[str, Any], resume_key: str = "") -> str:
+    """Stable song id for deduping music Continue cards (one workflow per song)."""
+    pick = str(metrics.get("pick_key") or "").strip()
+    song = str(metrics.get("song") or metrics.get("last_edited_song") or "").strip()
+    if pick:
+        return pick
+    if song:
+        return song
+    rk = str(resume_key or "")
+    for prefix in ("song:", "backing:", "music:practice:", "music:edit:", "music:workflow:", "music:upload:"):
+        if rk.startswith(prefix):
+            return rk[len(prefix) :].strip()
+    return ""
+
+
+def _continue_merge_key(app: str, resume_key: str, metrics: dict[str, Any]) -> str:
+    """Merge key for Continue card deduplication."""
+    if app == "music":
+        ident = _music_song_identity(metrics, resume_key)
+        if ident:
+            return f"music:song:{ident}"
+    return str(resume_key or "").strip() or f"{app}:unknown"
+
+
+def _consolidate_music_continue_rows(
+    rows: list[tuple[int, str, str, str, str, str, dict[str, Any]]],
+) -> list[tuple[int, str, str, str, str, str, dict[str, Any]]]:
+    """Keep the highest-priority Continue row per song."""
+    best: dict[str, tuple[int, str, str, str, str, str, dict[str, Any]]] = {}
+    other: list[tuple[int, str, str, str, str, str, dict[str, Any]]] = []
+    for row in rows:
+        if row[1] != "music":
+            other.append(row)
+            continue
+        mk = _continue_merge_key("music", row[4], row[6] if len(row) > 6 else {})
+        prev = best.get(mk)
+        if prev is None or row[0] > prev[0]:
+            best[mk] = row
+    return other + list(best.values())
+
+
+def _is_passive_music_resume_item(item: ResumeItem, title: str, priority: int) -> bool:
+    """Skip generic song-picker resume rows — Directory owns current song identity."""
+    if item.app != "music":
+        return False
+    blob = f"{item.item_key} {title} {item.subtitle}".lower()
+    if any(w in blob for w in ("chord", "chart", "lyrics", "verified", "backing", "upload", "record", "practice")):
+        return False
+    if item.item_key.startswith("backing:"):
+        return False
+    if priority >= 55:
+        return False
+    return item.item_key.startswith("song:") or title.lower().startswith("continue:")
 
 
 def _polish_resume(item: ResumeItem) -> tuple[str, str, int]:
@@ -160,8 +233,14 @@ _MEANINGFUL_WORKFLOW_EVENTS = frozenset(
         "portfolio_health_checked",
         "portfolio_check",
         "scenario_run",
-        "holdings_updated",
         "allocation_reviewed",
+        "playoff_tracker_review",
+        "technology_timeline_review",
+        "timeline_completed",
+        "career_analysis",
+        "career_scenario",
+        "skill_forecast_review",
+        "skill_review",
         "game_outlook",
         "matchup_analysis",
         "injury_review",
@@ -288,10 +367,6 @@ def _raw_event_workflow_candidate(event: dict[str, Any]) -> dict[str, Any] | Non
             resume_key = "inv:scenario"
             priority = 50
             title = "Continue scenario analysis"
-        elif event_name == "holdings_updated":
-            resume_key = "inv:allocation"
-            priority = 48
-            title = "Review allocation recommendations"
         elif event_name == "allocation_reviewed":
             resume_key = "inv:allocation"
             priority = 48
@@ -304,9 +379,22 @@ def _raw_event_workflow_candidate(event: dict[str, Any]) -> dict[str, Any] | Non
         team = str(m.get("team") or "").strip()
         if event_name == "analytical_question":
             return _analytical_question_workflow(app, m, ts, ts_raw)
-        if not team:
+        if event_name == "player_comparison":
+            pa = str(m.get("player_a") or "").strip()
+            pb = str(m.get("player_b") or "").strip()
+            if not pa or not pb:
+                return None
+            resume_key = f"nba:compare:{pa}:{pb}"
+            priority = 57
+            title = f"Continue {pa} vs {pb} comparison"
+        elif event_name == "playoff_tracker_review":
+            resume_key = f"nba:playoff_tracker:{team}" if team else "nba:playoff_tracker"
+            priority = 55
+            player = str(m.get("player") or "").strip()
+            title = f"Continue {player or team} playoff tracker" if player or team else "Continue playoff tracker"
+        elif not team:
             return None
-        if event_name == "game_outlook":
+        elif event_name == "game_outlook":
             resume_key = f"nba:game:{team}"
             priority = 60
             title = f"Continue {team.split()[-1]} Live Game Center"
@@ -335,8 +423,38 @@ def _raw_event_workflow_candidate(event: dict[str, Any]) -> dict[str, Any] | Non
             resume_key = f"backing:{pick}" if pick else f"backing:{song or 'song'}"
             priority = 61
             title = f"Continue {song or 'song'}"
+        elif event_name in _CONTINUE_PASSIVE_EVENTS:
+            return None
         else:
             return None
+    elif app == "future_lens":
+        if event_name in {"technology_timeline_review", "timeline_completed"}:
+            topic = str(m.get("simulation") or m.get("project") or m.get("topic") or "").strip()
+            year = str(m.get("timeline_year") or "").strip()
+            resume_key = f"fl:timeline:{year or topic or 'timeline'}"
+            priority = 53
+            title = f"Continue {topic or 'technology timeline'}"
+        elif event_name in {"career_analysis", "career_scenario"}:
+            label = str(m.get("scenario") or m.get("project") or m.get("simulation") or "").strip()
+            resume_key = f"fl:career:{label or 'career'}"
+            priority = 54
+            title = "Continue AI career transition analysis" if label else "Continue career scenario analysis"
+        elif event_name in {"skill_forecast_review", "skill_review"}:
+            skill = str(m.get("skill") or m.get("simulation") or m.get("project") or "").strip()
+            resume_key = f"fl:skills:{skill or 'skills'}"
+            priority = 52
+            title = f"Continue {skill} skill forecast" if skill else "Continue skill forecast review"
+        else:
+            return None
+        return {
+            "timestamp": ts_raw[:19],
+            "app": app,
+            "event_type": event_name,
+            "resume_key": resume_key,
+            "priority": priority,
+            "title": title,
+            "stale": _stale(ts),
+        }
     else:
         return None
 
@@ -580,7 +698,6 @@ def _projects_from_events(
     inv_scenario: datetime | None = None
     inv_scenario_monte = False
     inv_rebalance: datetime | None = None
-    inv_holdings: datetime | None = None
     inv_allocation: datetime | None = None
     baseball_draft: datetime | None = None
     baseball_trade: datetime | None = None
@@ -590,15 +707,8 @@ def _projects_from_events(
     latest_baseball_workflow: tuple[datetime, int, str, str, str, str, dict[str, Any]] | None = None
     latest_music_workflow: tuple[datetime, str, dict[str, Any], str] | None = None
     latest_analytical: tuple[datetime, int, str, str, str, str, dict[str, Any]] | None = None
-    _MUSIC_WORKFLOW_PRIORITY = {
-        "backing_track_started": 70,
-        "backing_track_completed": 68,
-        "practice": 65,
-        "display_key_changed": 62,
-        "instrument_changed": 60,
-        "studio_page_entered": 58,
-        "song_selected": 55,
-    }
+    latest_nba_workflow: tuple[datetime, int, str, str, str, str, dict[str, Any]] | None = None
+    latest_future_lens_workflow: tuple[datetime, int, str, str, str, str, dict[str, Any]] | None = None
     nba_team = ""
     nba_injury = False
     nba_matchup = False
@@ -663,6 +773,9 @@ def _projects_from_events(
             song = _song(m)
             if not song:
                 continue
+            if event_name in _CONTINUE_PASSIVE_EVENTS:
+                song_metrics.setdefault(song, m)
+                continue
             st = song_state.setdefault(song, {"edit": None, "practice": None, "upload": None, "review": None})
             if event_name in {"verified_chart_saved", "lyrics_saved", "chart_save", "chord_save"}:
                 if st["edit"] is None:
@@ -679,14 +792,18 @@ def _projects_from_events(
             elif event_name == "recording_reviewed":
                 if st["review"] is None:
                     st["review"] = ts
-            elif event_name in _MUSIC_WORKFLOW_PRIORITY and song:
+            elif event_name in _MUSIC_ACTIVE_WORKFLOW_EVENTS:
                 song_metrics[song] = {**song_metrics.get(song, {}), **m}
-                pr = _MUSIC_WORKFLOW_PRIORITY[event_name]
                 cur = latest_music_workflow
-                if cur is None or pr > _MUSIC_WORKFLOW_PRIORITY.get(cur[3], 0) or (
-                    pr == _MUSIC_WORKFLOW_PRIORITY.get(cur[3], 0) and ts > cur[0]
-                ):
+                if cur is None or ts > cur[0]:
                     latest_music_workflow = (ts, song, m, event_name)
+            elif event_name == "studio_page_entered":
+                page = str(m.get("studio_page") or m.get("page") or "").lower()
+                if "backing" in page:
+                    song_metrics[song] = {**song_metrics.get(song, {}), **m}
+                    cur = latest_music_workflow
+                    if cur is None or ts > cur[0]:
+                        latest_music_workflow = (ts, song, m, event_name)
 
         elif app == "investment":
             if event_name in ("portfolio_health_checked", "portfolio_check") and inv_health is None:
@@ -699,8 +816,6 @@ def _projects_from_events(
                     inv_scenario_monte = "monte" in ctx or "carlo" in ctx
             elif event_name == "rebalance_reviewed" and inv_rebalance is None:
                 inv_rebalance = ts
-            elif event_name == "holdings_updated" and inv_holdings is None:
-                inv_holdings = ts
             elif event_name == "allocation_reviewed" and inv_allocation is None:
                 inv_allocation = ts
 
@@ -790,6 +905,34 @@ def _projects_from_events(
             if team:
                 nba_team = team
             pg = str(m.get("page") or event.get("page") or "").lower()
+            if event_name == "player_comparison":
+                pa = str(m.get("player_a") or "").strip()
+                pb = str(m.get("player_b") or "").strip()
+                if pa and pb:
+                    cand = (
+                        ts,
+                        57,
+                        f"Continue {pa} vs {pb} comparison",
+                        team or "Player comparison",
+                        f"nba:compare:{pa}:{pb}",
+                        "Player Comparison",
+                        {"player_a": pa, "player_b": pb, "team": team, **m},
+                    )
+                    if latest_nba_workflow is None or ts >= latest_nba_workflow[0]:
+                        latest_nba_workflow = cand
+            if event_name == "playoff_tracker_review":
+                player = str(m.get("player") or "").strip()
+                cand = (
+                    ts,
+                    55,
+                    f"Continue {player or team} playoff tracker",
+                    team or "Playoff tracker",
+                    f"nba:playoff_tracker:{team or 'team'}",
+                    "Player Playoff Tracker",
+                    {"team": team, "player": player, **m},
+                )
+                if latest_nba_workflow is None or ts >= latest_nba_workflow[0]:
+                    latest_nba_workflow = cand
             if event_name == "injury_review" or "injury" in pg:
                 nba_injury = True
             if event_name in {"matchup_analysis"} or ("matchup" in pg and "live" not in pg):
@@ -802,12 +945,53 @@ def _projects_from_events(
                     nba_game_team = team
                     nba_game_page = str(m.get("page") or event.get("page") or "🔴 Live Game Center")
 
-        elif app == "future_lens" and event_name in {"simulation", "simulation_completed"}:
-            sim = str(m.get("simulation") or m.get("domain") or "").strip()
-            if sim and not future_sim:
-                future_sim = sim
-                lower = sim.lower()
-                future_career = any(w in lower for w in ("career", "transition", "ai"))
+        elif app == "future_lens":
+            if event_name in {"simulation", "simulation_completed"}:
+                sim = str(m.get("simulation") or m.get("domain") or "").strip()
+                if sim and not future_sim:
+                    future_sim = sim
+                    lower = sim.lower()
+                    future_career = any(w in lower for w in ("career", "transition", "ai"))
+            elif event_name in {"technology_timeline_review", "timeline_completed"}:
+                topic = str(m.get("simulation") or m.get("project") or m.get("topic") or "").strip()
+                year = str(m.get("timeline_year") or "").strip()
+                cand = (
+                    ts,
+                    53,
+                    f"Continue {topic or 'technology timeline'}",
+                    year or snapshot.future_project or "",
+                    f"fl:timeline:{year or topic or 'timeline'}",
+                    "timeline",
+                    dict(m),
+                )
+                if latest_future_lens_workflow is None or ts >= latest_future_lens_workflow[0]:
+                    latest_future_lens_workflow = cand
+            elif event_name in {"career_analysis", "career_scenario"}:
+                label = str(m.get("scenario") or m.get("project") or m.get("simulation") or "").strip()
+                cand = (
+                    ts,
+                    54,
+                    "Continue AI career transition analysis",
+                    label or snapshot.future_project or "",
+                    f"fl:career:{label or 'career'}",
+                    "simulation",
+                    dict(m),
+                )
+                if latest_future_lens_workflow is None or ts >= latest_future_lens_workflow[0]:
+                    latest_future_lens_workflow = cand
+            elif event_name in {"skill_forecast_review", "skill_review"}:
+                skill = str(m.get("skill") or m.get("simulation") or "").strip()
+                cand = (
+                    ts,
+                    52,
+                    f"Continue {skill} skill forecast" if skill else "Continue skill forecast review",
+                    snapshot.future_project or "",
+                    f"fl:skills:{skill or 'skills'}",
+                    "skills",
+                    dict(m),
+                )
+                if latest_future_lens_workflow is None or ts >= latest_future_lens_workflow[0]:
+                    latest_future_lens_workflow = cand
 
         elif app == "applied_intelligence" and event_name in {
             "lesson_completed",
@@ -860,10 +1044,6 @@ def _projects_from_events(
     if inv_scenario and (inv_rebalance is None or (inv_rebalance and inv_scenario > inv_rebalance)) and not _stale(inv_scenario):
         title = "Continue Monte Carlo analysis" if inv_scenario_monte else "Continue scenario analysis"
         out.append((50, "investment", title, "Review recommendations next", "inv:scenario", "Efficient Frontier", {}))
-    if inv_holdings and (inv_allocation is None or (inv_allocation and inv_holdings > inv_allocation)) and not _stale(inv_holdings):
-        out.append(
-            (48, "investment", "Review allocation recommendations", "Check drift after holdings changes", "inv:allocation", "Portfolio Health", {})
-        )
 
     if latest_music_workflow and not _stale(latest_music_workflow[0]):
         ts, song, wm, ev = latest_music_workflow
@@ -912,6 +1092,9 @@ def _projects_from_events(
                 {"team": nba_game_team, "page": nba_game_page},
             )
         )
+    elif latest_nba_workflow and not _stale(latest_nba_workflow[0]):
+        ts, pr, title, subtitle, rk, page, bm = latest_nba_workflow
+        out.append((pr, "nba", title, subtitle, rk, page, bm))
     elif nba_team:
         if nba_matchup:
             out.append((56, "nba", f"Continue {nba_team} matchup analysis", "Game outlook & rotations", f"nba:matchup:{nba_team}", "🧠 Matchup Intelligence", {"team": nba_team}))
@@ -920,7 +1103,10 @@ def _projects_from_events(
         if nba_playoff:
             out.append((54, "nba", f"Continue {nba_team} playoff outlook", "Series context & matchups", f"nba:playoff:{nba_team}", "🏆 Playoff Bracket", {"team": nba_team}))
 
-    if future_sim:
+    if latest_future_lens_workflow and not _stale(latest_future_lens_workflow[0]):
+        ts, pr, title, subtitle, rk, page, bm = latest_future_lens_workflow
+        out.append((pr, "future_lens", title, subtitle, rk, page, bm))
+    elif future_sim:
         lower = future_sim.lower()
         if "teach" in lower or "education" in lower:
             out.append((55, "future_lens", "Continue teaching simulation", future_sim, "fl:teach", "simulation", {"simulation": future_sim}))
@@ -973,6 +1159,7 @@ def _projects_from_events(
         elif "career" in lower or "ai" in lower:
             out.append((45, "future_lens", "Continue AI career transition analysis", label, "fl:career", "simulation", {"simulation": label}))
 
+    out = _consolidate_music_continue_rows(out)
     return out
 
 
@@ -1048,7 +1235,12 @@ def build_project_continue_cards(
             emoji=themes.get(app, "▶"),
             button_label=button_label,
         )
-        merge_key = _ami_question_merge_key(resume_key, metrics)
+        if str(resume_key).startswith("ai:question:"):
+            merge_key = _ami_question_merge_key(resume_key, metrics)
+        elif app == "music":
+            merge_key = _continue_merge_key(app, resume_key, metrics)
+        else:
+            merge_key = str(resume_key or "").strip() or f"{app}:unknown"
         prev = merged.get(merge_key)
         if prev is None or priority > prev[0]:
             merged[merge_key] = (priority, card)
@@ -1057,6 +1249,8 @@ def build_project_continue_cards(
         if item.app not in meta or not meta[item.app]["url"]:
             continue
         title, subtitle, priority = _polish_resume(item)
+        if _is_passive_music_resume_item(item, title, priority):
+            continue
         button_label = ANALYTICAL_QUESTION_BUTTON_LABEL if item.item_key.startswith("ai:question:") else "Continue"
         card_title, card_subtitle = title, subtitle
         try:
@@ -1097,7 +1291,12 @@ def build_project_continue_cards(
             emoji=themes.get(item.app, "▶"),
             button_label=button_label,
         )
-        merge_key = _ami_question_merge_key(item.item_key, metrics)
+        if item.item_key.startswith("ai:question:"):
+            merge_key = _ami_question_merge_key(item.item_key, metrics)
+        elif item.app == "music":
+            merge_key = _continue_merge_key(item.app, item.item_key, metrics)
+        else:
+            merge_key = str(item.item_key or "").strip() or f"{item.app}:unknown"
         prev = merged.get(merge_key)
         if prev is None or priority > prev[0]:
             merged[merge_key] = (priority, card)

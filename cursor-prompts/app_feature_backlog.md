@@ -1,6 +1,6 @@
 # Feature Backlog — Daniel AI Command Center
 
-**Last updated:** 2026-06-03
+**Last updated:** 2026-06-08
 
 Ideas not yet scheduled. Active work: [app_tasks.md](./app_tasks.md).
 

@@ -129,6 +129,7 @@ class ActivitySnapshot:
     last_investment_holdings_count: int = 0
     last_investment_risk_profile: str = ""
     investment_directory_primary: str = ""
+    investment_portfolio_preset: str = ""
     investment_scenarios_this_week: int = 0
     investment_optimizer_runs_this_week: int = 0
     investment_holdings_updates_this_week: int = 0
@@ -148,6 +149,8 @@ class ActivitySnapshot:
     baseball_last_draft_prep_days_ago: int | None = None
     baseball_last_trade_analysis_days_ago: int | None = None
     baseball_last_projection_report_days_ago: int | None = None
+    baseball_active_page: str = ""
+    baseball_draft_workspace: str = ""
     is_sunday_lineup_day: bool = False
 
     # Basketball
@@ -155,6 +158,7 @@ class ActivitySnapshot:
     nba_sessions_this_week: int = 0
     last_nba_team: str = ""
     last_nba_page: str = ""
+    nba_workspace_player: str = ""
 
     # Applied Intelligence
     last_applied_intelligence_days_ago: int | None = None
@@ -169,6 +173,10 @@ class ActivitySnapshot:
     future_simulations_this_week: int = 0
     future_project: str = ""
     last_simulation_name: str = ""
+    future_lens_domain: str = ""
+    future_lens_area: str = ""
+    future_lens_skill: str = ""
+    future_lens_sim_year: str = ""
 
     # Meta / cross-app
     last_opened_app: str = ""
@@ -362,10 +370,30 @@ def _apply_block_to_snapshot(app_key: str, block: dict[str, Any], snapshot: Acti
         snapshot.last_baseball_player = str(block["player"])
     if app_key == "baseball" and block.get("report"):
         snapshot.last_baseball_report = str(block["report"])
+    if app_key == "baseball":
+        active = str(block.get("active_page") or block.get("main_sidebar_page") or "").strip()
+        if active:
+            snapshot.baseball_active_page = active
+        room_team = str(block.get("room_your_team") or "").strip()
+        room_fmt = str(block.get("room_format") or "").strip()
+        if room_team or room_fmt or "draft" in active.lower():
+            parts = [p for p in [room_team, room_fmt, active] if p]
+            snapshot.baseball_draft_workspace = " · ".join(parts) if parts else active
     if app_key == "investment":
         review = str(block.get("review_type") or block.get("health_active_tab") or "").strip()
         if review:
             snapshot.last_portfolio_review = review
+        preset = str(block.get("portfolio_preset") or block.get("health_objective") or "").strip()
+        if preset and preset not in {"— custom —", ""}:
+            snapshot.investment_portfolio_preset = preset
+        holdings = block.get("holdings_df")
+        if isinstance(holdings, list):
+            snapshot.last_investment_holdings_count = len(holdings)
+        elif hasattr(holdings, "__len__"):
+            try:
+                snapshot.last_investment_holdings_count = len(holdings)
+            except TypeError:
+                pass
         if snapshot.last_portfolio_check_days_ago is None and (
             block.get("holdings_df") or block.get("sidebar_portfolio_value")
         ):
@@ -380,6 +408,18 @@ def _apply_block_to_snapshot(app_key: str, block: dict[str, Any], snapshot: Acti
             snapshot.future_project = str(block["project"])
         if block.get("simulation"):
             snapshot.last_simulation_name = str(block["simulation"])
+        domain = str(block.get("broad_domain") or "").strip()
+        area = str(block.get("area") or "").strip()
+        skill = str(block.get("specific_skill") or block.get("skill") or "").strip()
+        if domain:
+            snapshot.future_lens_domain = domain
+        if area:
+            snapshot.future_lens_area = area
+        if skill:
+            snapshot.future_lens_skill = skill
+        sim_year = block.get("sim_year")
+        if sim_year is not None:
+            snapshot.future_lens_sim_year = str(sim_year)
     if app_key == "nba":
         team = str(
             block.get("team")
@@ -392,6 +432,13 @@ def _apply_block_to_snapshot(app_key: str, block: dict[str, Any], snapshot: Acti
         nba_page = str(block.get("page_label") or block.get("page_label_last") or block.get("page_override") or "")
         if nba_page:
             snapshot.last_nba_page = nba_page
+        player = str(
+            block.get("legacy_tracker_player")
+            or block.get("pp_hub_player")
+            or ""
+        ).strip()
+        if player:
+            snapshot.nba_workspace_player = player
         if snapshot.last_nba_session_days_ago is None and (team or nba_page):
             snapshot.last_nba_session_days_ago = 0
     if page and not snapshot.last_opened_page:
@@ -1336,6 +1383,8 @@ def get_app_directory_card(snapshot: ActivitySnapshot, app_key: str) -> AppDirec
     elif app_key == "investment":
         if snapshot.investment_directory_primary:
             lines.append(snapshot.investment_directory_primary)
+        elif snapshot.investment_portfolio_preset:
+            lines.append(_labeled("Portfolio", snapshot.investment_portfolio_preset))
         elif snapshot.last_portfolio_review:
             lines.append(_labeled("Last review", snapshot.last_portfolio_review))
         if snapshot.last_investment_goal:
@@ -1345,16 +1394,22 @@ def get_app_directory_card(snapshot: ActivitySnapshot, app_key: str) -> AppDirec
         if snapshot.last_investment_risk_profile:
             lines.append(_labeled("Risk profile", snapshot.last_investment_risk_profile))
     elif app_key == "baseball":
+        if snapshot.baseball_draft_workspace:
+            lines.append(_labeled("Workspace", snapshot.baseball_draft_workspace))
+        elif snapshot.baseball_active_page:
+            lines.append(_labeled("Active page", snapshot.baseball_active_page))
         player = snapshot.last_baseball_player or snapshot.last_baseball_projection
-        if player:
+        if player and not snapshot.baseball_draft_workspace:
             lines.append(_labeled("Last player", player))
         if snapshot.last_baseball_report:
             lines.append(_labeled("Last report", snapshot.last_baseball_report))
     elif app_key == "nba":
         if snapshot.last_nba_team:
-            lines.append(_labeled("Last team", snapshot.last_nba_team))
+            lines.append(_labeled("Team workspace", snapshot.last_nba_team))
         if snapshot.last_nba_page:
-            lines.append(_labeled("Last page", snapshot.last_nba_page))
+            lines.append(_labeled("Page", snapshot.last_nba_page))
+        if snapshot.nba_workspace_player:
+            lines.append(_labeled("Player focus", snapshot.nba_workspace_player))
     elif app_key == "applied_intelligence":
         # App Directory = general app entry. Specific Applied Math questions belong in Continue only.
         lesson = str(snapshot.last_applied_intelligence_lesson or "").strip()
@@ -1368,9 +1423,24 @@ def get_app_directory_card(snapshot: ActivitySnapshot, app_key: str) -> AppDirec
         elif page == "Solve a Problem":
             lines.append("Explore quantitative problem solving")
     elif app_key == "future_lens":
+        identity_parts = [
+            p
+            for p in [
+                snapshot.future_lens_skill or snapshot.last_simulation_name,
+                snapshot.future_lens_area,
+                snapshot.future_lens_domain,
+            ]
+            if p
+        ]
+        if identity_parts:
+            lines.append(_labeled("Simulation focus", " · ".join(identity_parts[:2])))
+        elif snapshot.future_project:
+            lines.append(_labeled("Project", snapshot.future_project))
         sim = snapshot.last_simulation_name or snapshot.future_project
-        if sim:
+        if sim and not identity_parts:
             lines.append(_labeled("Last simulation", sim))
+        if snapshot.future_lens_sim_year:
+            lines.append(_labeled("Sim year", snapshot.future_lens_sim_year))
 
     lines = [line for line in lines if line]
 

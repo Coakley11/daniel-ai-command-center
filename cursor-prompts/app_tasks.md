@@ -1,6 +1,6 @@
 # Current Tasks — Daniel AI Command Center
 
-**Last updated:** 2026-06-07
+**Last updated:** 2026-06-08
 
 Actionable work items. Master context: [app_roadmap.md](./app_roadmap.md).
 
@@ -14,40 +14,60 @@ Central hub repo (`daniel-ai-command-center`) for suite homepage, activity aggre
 
 # Current Priorities
 
-**Focus: reliability and usefulness — no new features until stable.**
+**Focus: suite-wide usability and workflow continuity — no new features until stable.**
 
-### P1 — Command Center quality filtering (Continue vs App Directory)
+### P1 — Command Center Continue vs App Directory
 
-- [x] Workflow classification audit — [plans/command-center-workflow-classification-audit.md](./plans/command-center-workflow-classification-audit.md)
-- [ ] User review classification table before ranking changes
-- [ ] Implement event-type tags (Continue / Directory / Both / Neither)
-- [ ] Fix top misclassifications: `song_selected`, `holdings_updated`, Future Lens/NBA gaps
-- [ ] Enrich Directory with durable state from cloud `full_session`
+- [x] Full classification audit — [plans/suite-usability-audit-2026-06-08.md](./plans/suite-usability-audit-2026-06-08.md) §1
+- [x] Prior audit — [plans/command-center-workflow-classification-audit.md](./plans/command-center-workflow-classification-audit.md)
+- [x] **User approved** implementation order A→E
+- [x] Remove passive Continue: `song_selected`, `holdings_updated`, instrument/key-only
+- [x] Music dedupe: one Continue card per song (`music:song:{pick}`)
+- [x] Wire Continue: Future Lens timeline/career/skill; NBA comparison/playoff tracker
+- [x] Enrich Directory from disk user_state (draft workspace, NBA player focus, FL identity, portfolio preset)
+- [ ] Explicit event-type tags (Continue / Directory / Both / Neither) — follow-up
+- [ ] User smoke-test Continue vs Directory on live Command Center
 
-### P2 — Persistence reliability
+### P2 — Music persistence audit
+
+- [x] Full audit — [plans/suite-usability-audit-2026-06-08.md](./plans/suite-usability-audit-2026-06-08.md) §2
+- [ ] Manual verify: refresh, reboot, phone ↔ Dell (Turn the Lights Back On + backing + CPL)
+- [ ] Fix CPL widget keys in disk blob (Priority C)
+- [ ] Add `suite_user_persistence.py` to sync script (Priority C)
+
+### P3 — NBA persistence (Priority B — implemented)
+
+- [x] Full audit — [plans/suite-usability-audit-2026-06-08.md](./plans/suite-usability-audit-2026-06-08.md) §3
+- [x] Legacy Tracker player + LGC manual/matchup dynamic keys persisted
+- [x] Silent restore failure → `_nba_restore_error`; Knicks default only on true first run
+- [ ] Manual verify: non-Knicks + LGC + Legacy Tracker survives F5/reboot/cross-device
+
+### P4 — Future Lens persistence audit
+
+- [x] Full audit — [plans/suite-usability-audit-2026-06-08.md](./plans/suite-usability-audit-2026-06-08.md) §4
+- [ ] Wire or remove dead `log_career_analysis` (P0)
+- [ ] Enrich resume URL: domain, area, sim_year, timeline_year (P0)
+- [ ] Integration test matrix (wizard + tabs + cross-device)
+
+### P5 — Applied Math quality audit (roadmap only)
+
+- [x] Full audit + roadmap — [plans/suite-usability-audit-2026-06-08.md](./plans/suite-usability-audit-2026-06-08.md) §5
+- [ ] **No implementation yet** — user review roadmap
+- [ ] P0 backlog: baseball slope/R² to context; AMI preload persistence; full context in resume item
+
+### Paused — Investment formulas & macro
+
+- [x] Transparency Phase 1 shipped in investment repo (`76969f4`) — labels, banners, lookback bug fixes
+- [ ] Smoke-test Investment Phase 1 on Streamlit Cloud
+- [ ] Phase 2+ transparency deferred until suite P1–P5 stable
+
+### Previously shipped (persistence P0/P1)
 
 - [x] Deep audit — [plans/suite-session-persistence-audit.md](./plans/suite-session-persistence-audit.md)
-- [x] Baseball restore-before-resume (shipped `16fbe29`)
-- [x] AMI cloud reset (shipped `32c2158`)
-- [x] P0 fixes: Music non-core override, Future Lens early restore + `_suite_fl_sim`, NBA team widget
+- [x] Baseball restore-before-resume (`16fbe29`); AMI cloud reset (`32c2158`)
+- [x] P0: Music non-core override, Future Lens early restore, NBA team widget (`db30b53`)
 - [x] P0: Investment cloud drift reconcile + EOR autosave guard
-- [x] P1: Future Lens tab (`88d937e`), Music restore (`f0720e2`), Investment holdings (`cd5fa92`), Baseball enum (`51d5bf6`)
-- [ ] Manual smoke after P1 redeploy: Music, Future Lens, Investment, Baseball
-
-### P3 — Investment UI transparency (audit first, no formula changes)
-
-- [x] Calculation audit — [plans/investment-macro-return-volatility-audit.md](./plans/investment-macro-return-volatility-audit.md)
-- [x] Wording mockups — [plans/investment-ui-transparency-mockups.md](./plans/investment-ui-transparency-mockups.md)
-- [ ] User review mockups (inline captions vs banners, label renames)
-- [ ] Implement approved copy only — no formula changes
-
-### P4 — Future work (not now)
-
-- Applied Math solving quality
-- Future Lens analytical question support
-- Music → Applied Math support
-- Command Center coaching improvements
-- Investment forward-looking modeling improvements
+- [x] P1: Future Lens tab (`88d937e`), Music restore (`f0720e2`), Investment holdings (`cd5fa92`)
 
 ### Shipped (2026-06-07)
 
@@ -129,7 +149,8 @@ Recent task completions (see [app_completed_features.md](./app_completed_feature
 | Plan | Status |
 |------|--------|
 | [plans/README.md](./plans/README.md) | Folder ready — add plans as work starts |
-| [plans/command-center-workflow-classification-audit.md](./plans/command-center-workflow-classification-audit.md) | P1 — Continue vs Directory |
+| [plans/suite-usability-audit-2026-06-08.md](./plans/suite-usability-audit-2026-06-08.md) | **Active** — Continue, Music/NBA/FL persistence, Applied Math roadmap |
+| [plans/command-center-workflow-classification-audit.md](./plans/command-center-workflow-classification-audit.md) | P1 — Continue vs Directory (detail) |
 | [plans/investment-ui-transparency-mockups.md](./plans/investment-ui-transparency-mockups.md) | P3 — wording mockups |
 | [plans/suite-session-persistence-audit.md](./plans/suite-session-persistence-audit.md) | P2 — persistence deep audit |
 | [plans/investment-macro-return-volatility-audit.md](./plans/investment-macro-return-volatility-audit.md) | P3 — calculation audit |

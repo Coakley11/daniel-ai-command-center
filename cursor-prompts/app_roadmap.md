@@ -1,6 +1,6 @@
 # Daniel AI Command Center — Master Roadmap
 
-**Last updated:** 2026-06-07 · **Branch:** `dev` · **Entry app:** `ai_command_center.py` · **Build:** `2026-06-03-v30`
+**Last updated:** 2026-06-08 · **Branch:** `dev` · **Entry app:** `ai_command_center.py` · **Build:** `2026-06-03-v30`
 
 This is the master planning document. Related files:
 
@@ -24,10 +24,12 @@ This is the master planning document. Related files:
 
 # Current Priorities
 
-1. **Command Center quality filtering (P1)** — Continue vs App Directory classification; audit complete, implementation after review. [plans/command-center-workflow-classification-audit.md](./plans/command-center-workflow-classification-audit.md)
-2. **Persistence reliability (P2)** — Music/NBA/Future Lens/Investment fixes; never revert except Reset. [plans/suite-session-persistence-audit.md](./plans/suite-session-persistence-audit.md)
-3. **Investment UI transparency (P3)** — Wording mockups only; no formula changes. [plans/investment-ui-transparency-mockups.md](./plans/investment-ui-transparency-mockups.md)
-4. **Future features (P4)** — Applied Math quality, coaching, forward modeling — deferred until P1–P3 stable.
+1. **Continue vs App Directory (P1)** — Classification audit complete; fix placement before ranking. [plans/suite-usability-audit-2026-06-08.md](./plans/suite-usability-audit-2026-06-08.md) §1
+2. **Music persistence (P2)** — Broad coverage; verify cross-device + CPL gaps. §2
+3. **NBA persistence (P3)** — Team/page fixed; LGC + Legacy Tracker sub-state gaps. §3
+4. **Future Lens persistence (P4)** — Thin vs peers; career activity dead; resume URLs incomplete. §4
+5. **Applied Math quality roadmap (P5)** — Context gaps; no implementation yet. §5
+6. **Investment** — Transparency Phase 1 shipped (`76969f4`); formulas/macro **paused** until suite stable.
 
 ---
 
