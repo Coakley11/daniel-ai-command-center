@@ -28,12 +28,14 @@ Central hub repo (`daniel-ai-command-center`) for suite homepage, activity aggre
 - [ ] Explicit event-type tags (Continue / Directory / Both / Neither) — follow-up
 - [ ] User smoke-test Continue vs Directory on live Command Center
 
-### P2 — Music persistence audit
+### P2 — Music persistence (Priority C — implemented)
 
 - [x] Full audit — [plans/suite-usability-audit-2026-06-08.md](./plans/suite-usability-audit-2026-06-08.md) §2
-- [ ] Manual verify: refresh, reboot, phone ↔ Dell (Turn the Lights Back On + backing + CPL)
-- [ ] Fix CPL widget keys in disk blob (Priority C)
-- [ ] Add `suite_user_persistence.py` to sync script (Priority C)
+- [x] CPL bar widget persistence (`_cpl_widget_state`) — Music repo `1a54745`
+- [x] Cloud session sync — synced `suite_user_persistence.py` (pick_restore_session, fingerprint, local_dirty)
+- [x] Non-core override fix + restore flag + tests — Music repo `232398f`
+- [x] Audit doc — Music `cursor-prompts/plans/music-persistence-audit-2026-06-08.md`
+- [ ] Manual verify: Turn the Lights Back On + **non-core song** (user post-deploy)
 
 ### P3 — NBA persistence (Priority B — implemented)
 
@@ -42,18 +44,19 @@ Central hub repo (`daniel-ai-command-center`) for suite homepage, activity aggre
 - [x] Silent restore failure → `_nba_restore_error`; Knicks default only on true first run
 - [ ] Manual verify: non-Knicks + LGC + Legacy Tracker survives F5/reboot/cross-device
 
-### P4 — Future Lens persistence audit
+### P4 — Future Lens persistence (E1 + E2 — implemented)
 
 - [x] Full audit — [plans/suite-usability-audit-2026-06-08.md](./plans/suite-usability-audit-2026-06-08.md) §4
-- [ ] Wire or remove dead `log_career_analysis` (P0)
-- [ ] Enrich resume URL: domain, area, sim_year, timeline_year (P0)
-- [ ] Integration test matrix (wizard + tabs + cross-device)
+- [x] Implementation plan — [plans/future-lens-persistence-implementation-2026-06-08.md](./plans/future-lens-persistence-implementation-2026-06-08.md)
+- [x] E1 — Wire `log_career_analysis` on wizard complete (FL repo, pending commit)
+- [x] E2 — Resume URL: `suite_fl_domain`, `suite_fl_area`, `suite_fl_timeline_year`, `suite_fl_sim_year`, `suite_fl_view` (CC + FL)
+- [ ] Manual verify: FL refresh/reboot/cross-device + Continue + App Directory
 
 ### P5 — Applied Math quality audit (roadmap only)
 
-- [x] Full audit + roadmap — [plans/suite-usability-audit-2026-06-08.md](./plans/suite-usability-audit-2026-06-08.md) §5
+- [x] Full audit + roadmap — [plans/applied-math-quality-audit-2026-06-08.md](./plans/applied-math-quality-audit-2026-06-08.md)
 - [ ] **No implementation yet** — user review roadmap
-- [ ] P0 backlog: baseball slope/R² to context; AMI preload persistence; full context in resume item
+- [ ] P0 backlog (post-approval): baseball slope/R² to context; AMI preload persistence; server-side context
 
 ### Paused — Investment formulas & macro
 

@@ -239,14 +239,41 @@ def _apply_future_lens(st: Any, resume: str, page: str) -> None:
     sim = _qp_get(st, "suite_sim")
     if sim:
         st.session_state["_suite_fl_sim"] = sim
+        if not st.session_state.get("specific_skill"):
+            st.session_state["specific_skill"] = sim
     if resume.startswith("sim:") and not sim:
         st.session_state["_suite_fl_sim"] = resume.split(":", 1)[-1].strip()
-    if page == "timeline":
+    if resume.startswith("career:") and not sim:
+        st.session_state["_suite_fl_sim"] = resume.split(":", 1)[-1].strip()
+    domain = _qp_get(st, "suite_fl_domain")
+    if domain:
+        st.session_state["broad_domain"] = domain
+    area = _qp_get(st, "suite_fl_area")
+    if area:
+        st.session_state["area"] = area
+    timeline_year = _qp_get(st, "suite_fl_timeline_year")
+    if timeline_year:
+        try:
+            st.session_state["timeline_year"] = int(timeline_year)
+        except ValueError:
+            st.session_state["timeline_year"] = timeline_year
+    sim_year = _qp_get(st, "suite_fl_sim_year")
+    if sim_year:
+        try:
+            st.session_state["sim_year"] = int(sim_year)
+        except ValueError:
+            pass
+    fl_view = _qp_get(st, "suite_fl_view")
+    if fl_view:
+        st.session_state["_suite_fl_view"] = fl_view
+    elif page == "timeline":
         st.session_state["_suite_fl_view"] = "timeline"
     elif page == "skills":
         st.session_state["_suite_fl_view"] = "skills"
-    else:
+    elif page:
         st.session_state["_suite_fl_view"] = "simulation"
+    if domain and area:
+        st.session_state["future_project"] = f"{domain} / {area}"
 
 
 def _apply_applied_intelligence(st: Any, page: str) -> None:

@@ -128,6 +128,28 @@ class TestSuiteDeepLinks(unittest.TestCase):
             p = _params(url)
             self.assertEqual(p["suite_page"], "Draft Simulation", msg=key)
 
+    def test_future_lens_resume_includes_domain_area_years(self) -> None:
+        url = build_resume_action_url(
+            "future_lens",
+            resume_key="career:Technology / Programming / Debugging",
+            page="simulation",
+            metrics={
+                "simulation": "Debugging",
+                "broad_domain": "Technology",
+                "area": "Computer programming",
+                "sim_year": 2040,
+                "timeline_year": 2025,
+                "_suite_fl_view": "simulation",
+            },
+        )
+        p = _params(url)
+        self.assertEqual(p["suite_sim"], "Debugging")
+        self.assertEqual(p["suite_fl_domain"], "Technology")
+        self.assertEqual(p["suite_fl_area"], "Computer programming")
+        self.assertEqual(p["suite_fl_sim_year"], "2040")
+        self.assertEqual(p["suite_fl_timeline_year"], "2025")
+        self.assertEqual(p["suite_fl_view"], "simulation")
+
 
 if __name__ == "__main__":
     unittest.main()

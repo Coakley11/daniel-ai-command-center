@@ -581,11 +581,32 @@ def _disk_resume_from_block(app_key: str, block: dict[str, Any]) -> tuple[str, s
         return (page, lesson or page, f"lesson:{lesson or page}", title, page, metrics)
 
     if app_key == "future_lens":
-        sim = str(block.get("simulation") or block.get("project") or "").strip()
-        if not sim:
+        skill = str(block.get("specific_skill") or block.get("simulation") or "").strip()
+        domain = str(block.get("broad_domain") or "").strip()
+        area = str(block.get("area") or "").strip()
+        project = str(block.get("future_project") or block.get("project") or "").strip()
+        if not skill and not project:
             return None
-        metrics = {"simulation": sim, "project": str(block.get("project") or "")}
-        return (page, sim, f"sim:{sim}", f"Continue: {sim}", page, metrics)
+        metrics: dict[str, Any] = {
+            "simulation": skill or project,
+            "project": project or (f"{domain} / {area}".strip(" /") if domain or area else skill),
+            "broad_domain": domain,
+            "domain": domain,
+            "area": area,
+            "specific_skill": skill,
+        }
+        sim_year = block.get("sim_year")
+        if sim_year is not None:
+            metrics["sim_year"] = sim_year
+        timeline_year = block.get("timeline_year")
+        if timeline_year is not None:
+            metrics["timeline_year"] = timeline_year
+        fl_view = str(block.get("_suite_fl_view") or "").strip()
+        if fl_view:
+            metrics["_suite_fl_view"] = fl_view
+        page = fl_view or str(block.get("page") or "simulation")
+        label = skill or project
+        return (page, label, f"sim:{label[:40]}", f"Continue: {label}", project or label, metrics)
 
     return None
 
