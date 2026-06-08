@@ -64,14 +64,14 @@ def should_render_insight_on_page(source_app: str, current_page: str, insight: d
     if cur not in eligible and not any(_normalize_insight_page(x) == cur for x in eligible):
         return False
     insight_page = _normalize_insight_page(str(insight.get("source_page") or ""))
-    if insight_page:
-        if insight_page == cur:
-            return True
-        # Draft family: any draft page shows draft insight
-        if "draft" in insight_page.lower() and "draft" in cur.lower():
-            return True
+    if not insight_page:
         return False
-    return True
+    if insight_page == cur:
+        return True
+    # Draft family: any draft page shows draft insight
+    if "draft" in insight_page.lower() and "draft" in cur.lower():
+        return True
+    return False
 
 
 @dataclass
