@@ -37,6 +37,8 @@ class TestInsightCrossDeviceHydrate(unittest.TestCase):
             "applied_math_return_insight.load_latest_applied_math_insight_for_app",
             return_value=cloud_insight,
         ), patch(
+            "applied_math_return_insight.sync_dismissed_insights_from_cloud",
+        ), patch(
             "applied_math_return_insight.apply_return_source_state",
         ) as mock_apply:
             ok = hydrate_applied_math_insight_for_session(st, "baseball")
@@ -44,7 +46,7 @@ class TestInsightCrossDeviceHydrate(unittest.TestCase):
         self.assertTrue(ok)
         self.assertEqual(st.session_state[SESSION_PENDING_KEY]["insight_id"], "ins123")
         self.assertTrue(st.session_state.get("_ami_insight_loaded_from_cloud"))
-        mock_apply.assert_called_once()
+        mock_apply.assert_not_called()
 
     def test_hydrate_skips_dismissed_insight_in_session(self) -> None:
         st = MagicMock()

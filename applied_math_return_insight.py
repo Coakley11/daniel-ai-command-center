@@ -695,16 +695,75 @@ def _active_ami_return_query_param_keys(st: Any) -> list[str]:
     return [k for k in _AMI_RETURN_QP_KEYS if _query_param(st, k)]
 
 
+def ami_return_navigation_active(st: Any, app_key: str) -> bool:
+    """True while AMI return URL/resume may force page navigation (before consume)."""
+    key = _normalize_app_key(app_key)
+    if ami_resume_consumed(st, key):
+        return False
+    if insight_return_query_id(st) or _active_ami_return_query_param_keys(st):
+        return True
+    if st.session_state.get("_ami_insight_return_preserve"):
+        return True
+    return False
+
+
+def reconcile_stale_page_navigation(st: Any, app_key: str) -> None:
+    """Clear lingering page-forcing flags when AMI return is not actively steering."""
+    if ami_return_navigation_active(st, app_key):
+        return
+    ss = st.session_state
+    for flag in (
+        "_navigate_to_page",
+        "_skip_page_restore_for",
+        "_suite_cloud_target_page",
+        "ami_return_forced_page",
+        "ami_return_force_active_page",
+    ):
+        ss.pop(flag, None)
+
+
+def maybe_consume_ami_return_on_page_match(
+    st: Any,
+    app_key: str,
+    *,
+    current_page: str = "",
+) -> bool:
+    """Consume AMI return once the user is on the source page (even if insight card skipped)."""
+    key = _normalize_app_key(app_key)
+    if ami_resume_consumed(st, key):
+        return False
+    ret = _normalize_insight_page(str(st.session_state.get(SESSION_RETURN_PAGE_KEY) or ""))
+    current = _normalize_insight_page(
+        str(
+            current_page
+            or st.session_state.get("active_page")
+            or st.session_state.get("main_sidebar_page")
+            or ""
+        )
+    )
+    if not ret or not current or ret != current:
+        return False
+    if not (
+        ami_return_navigation_active(st, key)
+        or st.session_state.get("_ami_insight_hydrate_source") in ("url", "cloud_saved_items")
+    ):
+        return False
+    return consume_ami_return_resume(st, key)
+
+
 def _should_apply_ami_return_navigation(st: Any, app_key: str, return_page: str) -> bool:
     """Whether AMI return may schedule _navigate_to_page (first return only)."""
     ss = st.session_state
-    if ss.get("_suite_page_user_nav"):
+    if ss.get("_suite_page_user_nav") or ss.get("_suite_user_owned_page"):
         return False
     if ami_resume_consumed(st, app_key):
         return False
     active = str(ss.get("active_page") or "").strip()
     ret = str(return_page or ss.get(SESSION_RETURN_PAGE_KEY) or "").strip()
     persisted = str(ss.get("_suite_last_persisted_page") or "").strip()
+    owned = str(ss.get("_suite_user_owned_page") or "").strip()
+    if owned and active and owned == active and ret and ret != active:
+        return False
     if active and ret and active != ret and persisted and active == persisted:
         return False
     return True
@@ -902,6 +961,7 @@ def hydrate_applied_math_insight_for_session(st: Any, app_key: str) -> bool:
     shows the same insight without requiring the return URL.
     """
     key = _normalize_app_key(app_key)
+    reconcile_stale_page_navigation(st, key)
     sync_dismissed_insights_from_cloud(st, key)
     st.session_state["_ami_insight_hydrate_attempted"] = True
     url_iid = insight_return_query_id(st)
@@ -974,8 +1034,7 @@ def hydrate_applied_math_insight_for_session(st: Any, app_key: str) -> bool:
     )
     if isinstance(source_state, dict) and source_state:
         st.session_state[SESSION_RETURN_CONTEXT_KEY] = dict(source_state)
-        if not ami_resume_consumed(st, key):
-            apply_return_source_state(st, key, source_state)
+        # Cloud-only insight hydrate must not force page navigation (display-only).
 
     _stage_insight_trace(
         st,
@@ -1324,6 +1383,7 @@ def render_suite_applied_math_insight_for_page(
 ) -> bool:
     """Render insight card when pending insight matches this page (source apps)."""
     st.session_state["_ami_insight_render_attempted"] = True
+    maybe_consume_ami_return_on_page_match(st, source_app, current_page=source_page)
     insight = _pending_insight_valid(st)
     if not insight:
         st.session_state["_ami_insight_render_skipped_reason"] = "no pending insight"
