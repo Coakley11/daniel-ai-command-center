@@ -75,6 +75,49 @@ class TestWorkspaceSyncProtocol(unittest.TestCase):
         self.assertNotIn("_suite_autosave_blocked::baseball", st.session_state)
         self.assertNotIn("_cloud_workspace_restored_this_run", st.session_state)
 
+    def test_cloud_newer_than_disk_applies_even_if_already_synced(self) -> None:
+        st = MagicMock()
+        st.session_state = {
+            "active_page": "Trend Value",
+            "main_sidebar_page": "Trend Value",
+            "compare_players": [],
+            "_suite_workspace_synced::baseball": True,
+            "_suite_applied_cloud_ts::baseball": "2026-06-08T12:00:00+00:00",
+        }
+        cloud_state = {
+            "active_page": "Comparison Tool",
+            "comparison_state": {"players": ["Francisco Lindor", "Aaron Judge"]},
+            "page_filter_state": {
+                "Comparison Tool": {
+                    "compare_players": ["Francisco Lindor", "Aaron Judge"],
+                }
+            },
+        }
+        applied: list[dict] = []
+
+        def apply_state(_st: MagicMock, state: dict) -> None:
+            applied.append(state)
+            _st.session_state["active_page"] = state.get("active_page")
+
+        with patch("suite_cloud_state.has_resume_query_params", return_value=False), patch(
+            "suite_cloud_state.probe_cloud_restore_diagnostics",
+            return_value={"cloud_has_full_session": True, "suite_user_id": "user-1"},
+        ), patch(
+            "suite_cloud_state.load_cloud_full_session",
+            return_value=(cloud_state, "2026-06-08T15:00:00+00:00"),
+        ), patch(
+            "suite_user_persistence._load_raw",
+            return_value=({"active_page": "Trend Value"}, None, "2026-06-08T12:00:00+00:00"),
+        ), patch("suite_user_persistence.save_user_state", return_value=True):
+            ok = sync_workspace_protocol(
+                st, "baseball", apply_state=apply_state, cloud_first=True,
+            )
+
+        self.assertTrue(ok)
+        self.assertEqual(applied[0]["active_page"], "Comparison Tool")
+        self.assertEqual(st.session_state.get("_suite_restore_decision"), "applied")
+        self.assertIn("cloud_newer_than_disk", st.session_state.get("_suite_restore_apply_reason", ""))
+
     def test_skips_when_local_dirty(self) -> None:
         st = MagicMock()
         st.session_state = {"_suite_persist_local_dirty::baseball": True}
@@ -83,7 +126,13 @@ class TestWorkspaceSyncProtocol(unittest.TestCase):
         def apply_state(_st: MagicMock, state: dict) -> None:
             applied.append(state)
 
-        with patch("suite_cloud_state.has_resume_query_params", return_value=False):
+        with patch("suite_cloud_state.has_resume_query_params", return_value=False), patch(
+            "suite_cloud_state.load_cloud_full_session",
+            return_value=({"active_page": "Trend Value"}, "2026-06-08T12:00:00+00:00"),
+        ), patch(
+            "suite_user_persistence._load_raw",
+            return_value=({"active_page": "Trend Value"}, None, "2026-06-08T13:00:00+00:00"),
+        ):
             ok = sync_workspace_protocol(
                 st,
                 "baseball",
@@ -93,6 +142,36 @@ class TestWorkspaceSyncProtocol(unittest.TestCase):
 
         self.assertFalse(ok)
         self.assertEqual(applied, [])
+
+    def test_local_dirty_allows_sync_when_cloud_newer_than_disk(self) -> None:
+        st = MagicMock()
+        st.session_state = {
+            "_suite_persist_local_dirty::baseball": True,
+            "active_page": "Trend Value",
+        }
+        cloud_state = {
+            "active_page": "Comparison Tool",
+            "comparison_state": {"players": ["Francisco Lindor", "Aaron Judge"]},
+        }
+        applied: list[dict] = []
+
+        def apply_state(_st: MagicMock, state: dict) -> None:
+            applied.append(state)
+
+        with patch("suite_cloud_state.has_resume_query_params", return_value=False), patch(
+            "suite_cloud_state.probe_cloud_restore_diagnostics",
+            return_value={"cloud_has_full_session": True},
+        ), patch(
+            "suite_cloud_state.load_cloud_full_session",
+            return_value=(cloud_state, "2026-06-08T15:00:00+00:00"),
+        ), patch(
+            "suite_user_persistence._load_raw",
+            return_value=({"active_page": "Trend Value"}, None, "2026-06-08T12:00:00+00:00"),
+        ), patch("suite_user_persistence.save_user_state", return_value=True):
+            ok = sync_workspace_protocol(st, "baseball", apply_state=apply_state)
+
+        self.assertTrue(ok)
+        self.assertEqual(len(applied), 1)
 
 
 if __name__ == "__main__":
