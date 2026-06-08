@@ -134,6 +134,27 @@ class TestSuiteAnalyticalQuestion(unittest.TestCase):
         self.assertEqual(subtitle, "How should I practice this song?")
         self.assertEqual(btn, "Continue with Music Coach →")
 
+    def test_music_continue_copy_from_context_label(self) -> None:
+        title, _, btn = analytical_question_continue_copy(
+            {
+                "source_app": "",
+                "question": "How do I use backing tracks?",
+                "context": {"source_app": "Music Practice Coach", "page": "Backing Track Studio"},
+            }
+        )
+        self.assertEqual(title, "Music Coach question from Music")
+        self.assertEqual(btn, "Continue with Music Coach →")
+
+    def test_normalize_source_app_id_aliases(self) -> None:
+        from suite_analytical_question import normalize_source_app_id
+
+        self.assertEqual(normalize_source_app_id("Music Practice Coach"), "music")
+        self.assertEqual(
+            normalize_source_app_id("", {"source_app": "Music Practice Coach"}),
+            "music",
+        )
+        self.assertEqual(normalize_source_app_id("baseball"), "baseball")
+
     def test_submit_analytical_question_records(self) -> None:
         with unittest.mock.patch("suite_activity_client.record_activity") as rec:
             with unittest.mock.patch("suite_analytical_question._upsert_applied_intelligence_resume"):

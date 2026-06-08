@@ -45,7 +45,7 @@ class TestSuiteDeepLinks(unittest.TestCase):
         )
         p = _params(url)
         self.assertEqual(p["suite_resume"], "song:Pop|Perfect")
-        self.assertEqual(p["suite_page"], "practice")
+        self.assertEqual(p["suite_page"], "log")
         self.assertEqual(p["suite_pick_key"], "Pop|Perfect")
         self.assertEqual(p["suite_song"], "Perfect")
         self.assertEqual(p["suite_display_key"], "D Major")

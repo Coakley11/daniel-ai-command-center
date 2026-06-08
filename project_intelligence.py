@@ -1212,6 +1212,7 @@ def build_project_continue_cards(
                 {
                     "source_app": metrics.get("source_app") or "",
                     "question": metrics.get("question") or card_subtitle,
+                    "context": metrics.get("context") if isinstance(metrics.get("context"), dict) else {},
                 }
             )
         try:
@@ -1270,6 +1271,7 @@ def build_project_continue_cards(
                     {
                         "source_app": metrics.get("source_app") or "",
                         "question": metrics.get("question") or subtitle,
+                        "context": metrics.get("context") if isinstance(metrics.get("context"), dict) else {},
                     }
                 )
             deep = build_resume_action_url(

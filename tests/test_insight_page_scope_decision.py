@@ -92,6 +92,18 @@ class TestInsightPageScopeDecision(unittest.TestCase):
         self.assertEqual(scope["source_page_normalized"], "Fantasy Standings Tracker")
         self.assertTrue(scope["should_render_insight_on_page"])
 
+    def test_music_backing_coach_page_ids_match(self) -> None:
+        insight = {"source_app": "music", "source_page": "backing", "conclusion": "test"}
+        scope = insight_page_scope_decision("music", "backing", insight)
+        self.assertTrue(scope["should_render_insight_on_page"])
+        self.assertEqual(scope["source_page_normalized"], "backing")
+        self.assertEqual(scope["current_page_normalized"], "backing")
+
+    def test_music_backing_display_name_matches_coach_id(self) -> None:
+        insight = {"source_app": "music", "source_page": "Backing Track Studio", "conclusion": "test"}
+        self.assertTrue(should_render_insight_on_page("music", "backing", insight))
+        self.assertFalse(should_render_insight_on_page("music", "practice", insight))
+
 
 if __name__ == "__main__":
     unittest.main()
