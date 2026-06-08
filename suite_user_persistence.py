@@ -1027,11 +1027,21 @@ def sync_cloud_workspace_before_sidebar(
     cloud_epoch = parse_persist_timestamp(cloud_ts)
     applied_epoch = parse_persist_timestamp(applied_ts)
     user_page_nav = bool(st.session_state.get("_suite_page_user_nav"))
+    ami_return_active = False
+    try:
+        from suite_cloud_state import ami_return_resume_consumed
+
+        ami_return_active = bool(
+            has_resume_query_params(st, app_id)
+            or st.session_state.get("_ami_insight_return_preserve")
+        ) and not ami_return_resume_consumed(st, app_id)
+    except Exception:
+        ami_return_active = bool(st.session_state.get("_ami_insight_return_preserve"))
     page_mismatch = bool(
         cloud_page and current_page and cloud_page != current_page and not user_page_nav
     )
     cloud_newer_than_applied = bool(cloud_ts and cloud_epoch > applied_epoch)
-    page_mismatch_apply = bool(page_mismatch and cloud_newer_than_applied)
+    page_mismatch_apply = bool(page_mismatch and cloud_newer_than_applied and not ami_return_active)
 
     if (
         not cloud_newer_than_applied

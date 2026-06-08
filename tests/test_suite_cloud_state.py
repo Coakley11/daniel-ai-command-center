@@ -27,6 +27,15 @@ class TestSuiteCloudState(unittest.TestCase):
         st.query_params = {}
         self.assertTrue(has_resume_query_params(st, "baseball"))
 
+    def test_has_resume_query_params_false_after_ami_consumed(self) -> None:
+        st = MagicMock()
+        st.session_state = {
+            "_suite_resume_launch_baseball": True,
+            "_ami_resume_consumed_baseball": True,
+        }
+        st.query_params = {"suite_page": "Trend Value", "suite_ami_insight": "ins1"}
+        self.assertFalse(has_resume_query_params(st, "baseball"))
+
     def test_pick_newer_prefers_cloud(self) -> None:
         cloud = {"active_page": "Trending"}
         disk = {"active_page": "Historical Explorer"}

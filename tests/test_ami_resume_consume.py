@@ -7,10 +7,12 @@ from unittest.mock import MagicMock, patch
 
 from applied_math_return_insight import (
     SESSION_PENDING_KEY,
+    SESSION_RETURN_CONTEXT_KEY,
     SESSION_RETURN_PAGE_KEY,
     _should_apply_ami_return_navigation,
     ami_resume_consumed,
     apply_ami_insight_from_query,
+    commit_ami_return_page_restore,
     consume_ami_return_resume,
     hydrate_applied_math_insight_for_session,
     render_suite_applied_math_insight_for_page,
@@ -119,7 +121,46 @@ class TestAmiResumeConsume(unittest.TestCase):
 
         self.assertTrue(ok)
         self.assertTrue(ami_resume_consumed(st, "baseball"))
+        self.assertNotIn("_navigate_to_page", st.session_state)
+        self.assertNotIn("_skip_page_restore_for", st.session_state)
         self.assertNotIn("suite_ami_insight", st.query_params)
+
+    def test_consume_clears_navigate_to_page(self) -> None:
+        st = MagicMock()
+        st.session_state = {
+            "_navigate_to_page": "Trend Value",
+            "_skip_page_restore_for": "Trend Value",
+            "_suite_cloud_target_page": "Trend Value",
+            SESSION_RETURN_PAGE_KEY: "Trend Value",
+        }
+        st.query_params = {}
+
+        consume_ami_return_resume(st, "baseball")
+
+        self.assertTrue(ami_resume_consumed(st, "baseball"))
+        self.assertNotIn("_navigate_to_page", st.session_state)
+        self.assertNotIn("_skip_page_restore_for", st.session_state)
+        self.assertNotIn("_suite_cloud_target_page", st.session_state)
+        self.assertEqual(st.session_state.get("active_page_source"), "manual_nav_allowed")
+
+    def test_commit_restore_skipped_after_consume(self) -> None:
+        st = MagicMock()
+        st.session_state = {
+            "_ami_resume_consumed_baseball": True,
+            SESSION_PENDING_KEY: {
+                "insight_id": "trend1",
+                "source_page": "Trend Value",
+                "source_state": {"source_page": "Trend Value"},
+            },
+            SESSION_RETURN_CONTEXT_KEY: {"source_page": "Trend Value"},
+        }
+        st.query_params = {}
+
+        with patch("applied_math_return_insight.apply_return_source_state") as mock_apply:
+            ok = commit_ami_return_page_restore(st, "baseball")
+
+        self.assertFalse(ok)
+        mock_apply.assert_not_called()
 
 
 if __name__ == "__main__":

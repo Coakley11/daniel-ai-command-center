@@ -7,10 +7,12 @@ from unittest.mock import MagicMock, patch
 
 from applied_math_return_insight import (
     SESSION_DISMISSED_KEY,
+    SESSION_DISMISSED_AT_KEY,
     SESSION_PENDING_KEY,
     apply_ami_insight_from_query,
     dismiss_applied_math_insight,
     hydrate_applied_math_insight_for_session,
+    sync_dismissed_insights_from_cloud,
 )
 
 
@@ -105,13 +107,44 @@ class TestInsightCrossDeviceHydrate(unittest.TestCase):
         st.session_state = {
             SESSION_PENDING_KEY: {
                 "insight_id": "abc",
+                "source_app": "baseball",
                 "conclusion": "Test",
-            }
+            },
+            "_suite_persist_app_id": "baseball",
         }
-        dismiss_applied_math_insight(st)
+        with patch("applied_math_return_insight.persist_insight_dismissal_to_cloud") as mock_cloud:
+            dismiss_applied_math_insight(st)
         self.assertNotIn(SESSION_PENDING_KEY, st.session_state)
         self.assertEqual(st.session_state[SESSION_DISMISSED_KEY], ["abc"])
+        self.assertIn("abc", st.session_state.get(SESSION_DISMISSED_AT_KEY, {}))
         self.assertTrue(st.session_state.get("_suite_persist_insight_dirty"))
+        mock_cloud.assert_called_once()
+        self.assertEqual(mock_cloud.call_args[0][1], "abc")
+
+    def test_dismiss_sync_from_cloud_hides_pending(self) -> None:
+        st = MagicMock()
+        st.session_state = {
+            SESSION_PENDING_KEY: {
+                "insight_id": "abc",
+                "conclusion": "Remote dismissed",
+            }
+        }
+        with patch(
+            "applied_math_return_insight.load_dismissed_insight_ids_from_cloud",
+            return_value={"abc": "2026-06-08T12:00:00+00:00"},
+        ):
+            sync_dismissed_insights_from_cloud(st, "baseball")
+        self.assertNotIn(SESSION_PENDING_KEY, st.session_state)
+        self.assertEqual(st.session_state[SESSION_DISMISSED_KEY], ["abc"])
+
+    def test_url_hydrate_skips_dismissed_insight(self) -> None:
+        st = MagicMock()
+        st.session_state = {SESSION_DISMISSED_KEY: ["gone1"]}
+        st.query_params = {"suite_ami_insight": "gone1", "suite_page": "Trend Value"}
+        with patch("applied_math_return_insight.load_applied_math_insight") as mock_load:
+            ok = apply_ami_insight_from_query(st, "baseball", force=True)
+        self.assertFalse(ok)
+        mock_load.assert_not_called()
 
 
 if __name__ == "__main__":
