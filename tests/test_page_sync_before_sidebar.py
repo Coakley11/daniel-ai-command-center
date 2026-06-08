@@ -48,6 +48,41 @@ class TestPageSyncBeforeSidebar(unittest.TestCase):
         self.assertTrue(st.session_state.get("_suite_persist_restore_applied"))
         self.assertEqual(st.session_state.get("_suite_cloud_target_page"), "Historical Explorer")
 
+    def test_skips_page_mismatch_apply_when_user_navigated(self) -> None:
+        st = MagicMock()
+        st.session_state = {
+            "active_page": "Trend Value",
+            "main_sidebar_page": "Comparison Tool",
+            "_suite_page_user_nav": True,
+            "_suite_applied_cloud_ts::baseball": "2026-06-08T12:00:00+00:00",
+        }
+        cloud_state = {
+            "active_page": "Trend Value",
+            "page_filter_state": {},
+        }
+        disk_state = {"active_page": "Comparison Tool", "page_filter_state": {}}
+        applied: list[dict] = []
+
+        def apply_state(_st: MagicMock, state: dict) -> None:
+            applied.append(state)
+
+        with patch("suite_cloud_state.has_resume_query_params", return_value=False), patch(
+            "suite_cloud_state.load_cloud_full_session",
+            return_value=(cloud_state, "2026-06-08T12:00:00+00:00"),
+        ), patch(
+            "suite_user_persistence._load_raw",
+            return_value=(disk_state, None, "2026-06-08T11:00:00+00:00"),
+        ), patch("suite_user_persistence.save_user_state", return_value=True):
+            ok = sync_cloud_workspace_before_sidebar(
+                st,
+                "baseball",
+                apply_state=apply_state,
+                cloud_first=True,
+            )
+
+        self.assertFalse(ok)
+        self.assertEqual(len(applied), 0)
+
 
 if __name__ == "__main__":
     unittest.main()
