@@ -104,6 +104,37 @@ class TestInsightPageScopeDecision(unittest.TestCase):
         self.assertTrue(should_render_insight_on_page("music", "backing", insight))
         self.assertFalse(should_render_insight_on_page("music", "practice", insight))
 
+    def test_music_backing_hidden_on_picker_and_analysis(self) -> None:
+        insight = {
+            "source_app": "music",
+            "source_page": "backing",
+            "source_state": {"widget_params": {"studio_page": "backing"}},
+            "conclusion": "test",
+        }
+        self.assertFalse(should_render_insight_on_page("music", "picker", insight))
+        self.assertFalse(should_render_insight_on_page("music", "analysis", insight))
+        self.assertFalse(should_render_insight_on_page("music", "custom", insight))
+
+    def test_music_insight_labels(self) -> None:
+        from applied_math_return_insight import (
+            _insight_loaded_placeholder,
+            _insight_panel_title,
+        )
+
+        insight = {"source_app": "music", "conclusion": "test"}
+        self.assertEqual(_insight_panel_title(insight), "Music Coach Insight")
+        self.assertEqual(_insight_loaded_placeholder("music"), "Music Coach insight loaded.")
+
+    def test_music_practice_insight_not_on_picker(self) -> None:
+        insight = {
+            "source_app": "music",
+            "source_page": "practice",
+            "source_state": {"widget_params": {"studio_page": "practice"}},
+            "conclusion": "test",
+        }
+        self.assertTrue(should_render_insight_on_page("music", "practice", insight))
+        self.assertFalse(should_render_insight_on_page("music", "picker", insight))
+
 
 if __name__ == "__main__":
     unittest.main()
