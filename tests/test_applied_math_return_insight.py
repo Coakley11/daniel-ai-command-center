@@ -50,6 +50,29 @@ class TestReturnInsightRestore(unittest.TestCase):
         rk = build_return_resume_key(insight)
         self.assertEqual(rk, "compare:Juan Soto (NYY):Aaron Judge (NYY)")
 
+    def test_music_return_metrics_include_pick_key(self) -> None:
+        insight = {
+            "insight_id": "mc1",
+            "question_id": "qmc",
+            "source_app": "music",
+            "source_page": "backing",
+            "source_state": {
+                "source_page": "backing",
+                "entity_params": {"pick_key": "pop:test_song", "song_title": "Test Song"},
+                "widget_params": {
+                    "studio_page": "backing",
+                    "instrument": "Piano",
+                    "display_key": "C",
+                },
+            },
+        }
+        m = metrics_for_source_app_return(insight)
+        self.assertEqual(m["pick_key"], "pop:test_song")
+        self.assertEqual(m["studio_page"], "backing")
+        self.assertEqual(m["source_app"], "music")
+        rk = build_return_resume_key(insight)
+        self.assertEqual(rk, "backing:pop:test_song")
+
 
 if __name__ == "__main__":
     unittest.main()

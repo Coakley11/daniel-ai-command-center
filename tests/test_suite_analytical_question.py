@@ -116,11 +116,23 @@ class TestSuiteAnalyticalQuestion(unittest.TestCase):
             context={"draft_format": "OBP League", "draft_round": 1, "player": "Juan Soto"},
         )
         title, subtitle, btn = analytical_question_continue_copy(payload)
-        self.assertIn("Baseball", title)
+        self.assertEqual(title, "Applied Math question from Baseball")
         self.assertEqual(subtitle, "Should I draft Juan Soto in Round 1?")
         self.assertNotIn("Context:", subtitle)
         self.assertNotIn("Juan Soto", title)
         self.assertEqual(btn, ANALYTICAL_QUESTION_BUTTON_LABEL)
+
+    def test_music_continue_copy_title(self) -> None:
+        payload = build_question_payload(
+            source_app="music",
+            source_page="practice",
+            question="How should I practice this song?",
+            context={"workflow": "Music practice coach"},
+        )
+        title, subtitle, btn = analytical_question_continue_copy(payload)
+        self.assertEqual(title, "Music Coach question from Music")
+        self.assertEqual(subtitle, "How should I practice this song?")
+        self.assertEqual(btn, "Continue with Music Coach →")
 
     def test_submit_analytical_question_records(self) -> None:
         with unittest.mock.patch("suite_activity_client.record_activity") as rec:

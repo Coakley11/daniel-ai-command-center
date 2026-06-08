@@ -728,7 +728,7 @@ def _projects_from_events(
             continue
         m = _metrics(event)
 
-        if event_name == "analytical_question" and app in {"baseball", "nba", "investment"}:
+        if event_name == "analytical_question" and app in {"baseball", "nba", "investment", "music"}:
             question = str(m.get("question") or "").strip()
             if question:
                 from suite_analytical_question import (

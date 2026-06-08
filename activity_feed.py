@@ -506,14 +506,14 @@ def format_activity_message(event: dict[str, Any], *, for_feed: bool = True) -> 
             return f"Compared trend charts for {pa} vs {pb}"
         return "Compared multi-player trend charts"
 
-    if event_type == "analytical_question" and app in {"baseball", "nba", "investment"}:
-        from suite_analytical_question import source_app_label
+    if event_type == "analytical_question" and app in {"baseball", "nba", "investment", "music"}:
+        from suite_analytical_question import source_question_card_title
 
-        label = source_app_label(app)
+        title = source_question_card_title(app)
         question = str(m.get("question") or "").strip()
         if question:
-            return f"Asked Applied Math ({label}): {question[:80]}"
-        return f"Asked Applied Math from {label}"
+            return f"{title}: {question[:80]}"
+        return title
 
     if event_type == "breakout_analysis" and app == "baseball":
         return "Analyzed breakout candidates"
