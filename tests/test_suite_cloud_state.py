@@ -9,6 +9,7 @@ from suite_cloud_state import (
     FULL_SESSION_KEY,
     has_resume_query_params,
     pick_newer_session,
+    pick_restore_session,
     session_page_summary,
 )
 
@@ -31,6 +32,34 @@ class TestSuiteCloudState(unittest.TestCase):
         disk = {"active_page": "Historical Explorer"}
         picked = pick_newer_session(cloud, "2026-06-01T12:00:00", disk, "2026-05-01T12:00:00")
         self.assertEqual(picked["active_page"], "Trending")
+
+    def test_pick_restore_cloud_first_over_disk_newer(self) -> None:
+        cloud = {"active_page": "Comparison Tool", "page_filter_state": {"Comparison Tool": {"sig_player_a_clean": "Juan Soto"}}}
+        disk = {"active_page": "Trend Value"}
+        picked = pick_restore_session(
+            cloud,
+            "2026-06-01T10:00:00",
+            disk,
+            "2026-06-01T12:00:00",
+            local_dirty=False,
+            cloud_first=True,
+        )
+        self.assertEqual(picked.source, "cloud")
+        self.assertEqual(picked.state.get("active_page"), "Comparison Tool")
+
+    def test_pick_restore_local_dirty_keeps_disk(self) -> None:
+        cloud = {"active_page": "Comparison Tool"}
+        disk = {"active_page": "Trend Value"}
+        picked = pick_restore_session(
+            cloud,
+            "2026-06-01T12:00:00",
+            disk,
+            "2026-06-01T10:00:00",
+            local_dirty=True,
+            cloud_first=True,
+        )
+        self.assertEqual(picked.source, "disk")
+        self.assertEqual(picked.reason, "local unsaved edits")
 
     def test_session_page_summary_baseball(self) -> None:
         page, summary = session_page_summary("baseball", {"active_page": "Comparison Tool"})
