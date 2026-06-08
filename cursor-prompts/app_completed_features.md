@@ -121,7 +121,12 @@ Historical record of shipped Command Center and shared-suite infrastructure capa
 - [x] Suite storage, cloud state, account memory, project intelligence
 - [x] Import smoke, app branding, homepage sections
 
-### Major milestones (chronological themes)
+### Baseball Stat App — Phase 2 canonical state (2026-06-08)
+
+- [x] **Career Totals** — `career_totals_state.py`; sync trace; force cloud save; phone↔Dell acceptance **PASS** (`be91f64`)
+- [x] **Comparison AMI parity** — `apply_comparison_source_state_from_ami`
+- [x] **Draft Workflow** — `draft_state.py`; queue + watchlist disk/cloud/AMI; `?dev=1` debug panel; tests A–E (`test_draft_state.py`)
+
 
 1. **Standalone homepage prototype** — hero + app cards + placeholder-friendly empty states
 2. **Real activity ingestion** — SQLite local + Supabase cloud dual mode

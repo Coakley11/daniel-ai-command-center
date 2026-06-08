@@ -27,18 +27,22 @@ Central hub repo (`daniel-ai-command-center`) for suite homepage, activity aggre
 - [x] AMI return consume on page match
 - [x] Tests: `test_page_navigation_ownership.py` (43 passed)
 
-#### Sprint 2 — Career Totals + Comparison AMI parity (shipped 2026-06-08)
+#### Sprint 2 — Career Totals + Comparison AMI parity (accepted 2026-06-08)
 - [x] Audit Career Totals widget keys vs `PAGE_STATE_REGISTRY`
 - [x] Create `career_totals_state.py` (canonical pattern)
 - [x] Add `apply_comparison_source_state_from_ami` (Trend parity)
-- [x] Tests: `test_career_totals_state.py`, extended `test_comparison_state.py` (31+ passed)
-- [ ] Manual acceptance A–E on phone + Dell (Career Totals)
+- [x] Sync trace + force cloud save (`be91f64`)
+- [x] Manual acceptance A–E on phone + Dell (Career Totals) — **PASS**
 
-#### Sprint 3 — Draft cluster + watchlist
-- [ ] Create `draft_state.py` (4 draft pages)
-- [ ] Persist `draft_queue` + watchlist in disk/cloud blob
-- [ ] Fix Draft Room envelope key mismatch
-- [ ] Acceptance A–E: Draft Room, Live Draft
+#### Sprint 3 — Draft cluster + watchlist (in progress 2026-06-08)
+- [x] Create `draft_state.py` (queue + watchlist canonical pattern)
+- [x] Persist `draft_queue` + watchlist in disk/cloud blob
+- [x] Fix Draft Room envelope key mismatch (`Draft Room Simulator`)
+- [x] AMI build/apply for queue + watchlist
+- [x] `?dev=1` debug panel (`render_draft_state_debug`)
+- [x] Tests: `test_draft_state.py` acceptance A–E (13 passed)
+- [ ] Manual acceptance A–E on phone + Dell (Draft Queue + Watchlist)
+- [ ] Commit + deploy baseball-stat-app `dev`
 
 #### Sprint 4 — Historical, Valuation, ML Predictions
 - [ ] `historical_state.py`, `valuation_state.py`, `projections_state.py`
