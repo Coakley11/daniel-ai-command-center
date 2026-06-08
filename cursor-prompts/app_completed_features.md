@@ -1,6 +1,6 @@
 # Completed Features — Daniel AI Command Center
 
-**Last updated:** 2026-06-03
+**Last updated:** 2026-06-08
 
 ---
 
@@ -29,6 +29,21 @@ Historical record of shipped Command Center and shared-suite infrastructure capa
 ---
 
 # Completed Features
+
+### Baseball Career Totals canonical state (2026-06-08)
+
+- [x] `career_totals_state.py` — canonical filters, dirty flags, cloud restore, AMI return, `?dev=1` debug panel
+- [x] `baseball_persistent_state.py` — `career_state` in disk blob + workspace envelope; user-nav page preservation fix
+- [x] `apply_comparison_source_state_from_ami` — Comparison Tool AMI return uses canonical applier (Trend parity)
+- [x] Tests: `test_career_totals_state.py` (acceptance A–E unit coverage), extended comparison/applied_math tests
+
+### Baseball workspace sync & navigation (2026-06-08)
+
+- [x] AMI return page-lock fix — consume resume, clear stale `_navigate_to_page` (CC `5477743`)
+- [x] Page navigation ownership — `claim_user_page_ownership`, cloud overwrite protection (CC `4d2205b`)
+- [x] Baseball sidebar wired to `claim_user_page_ownership` (baseball-stat-app `a293b34`)
+- [x] Cloud insight hydrate no longer forces page navigation
+- [x] Tests: `test_page_navigation_ownership.py`, `test_ami_resume_consume.py` (43 passed)
 
 ### Homepage UI (`ai_command_center.py`)
 

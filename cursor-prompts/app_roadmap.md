@@ -24,17 +24,19 @@ This is the master planning document. Related files:
 
 # Current Priorities
 
-1. **Continue vs App Directory (P1)** — Classification audit complete; fix placement before ranking. [plans/suite-usability-audit-2026-06-08.md](./plans/suite-usability-audit-2026-06-08.md) §1
-2. **Music persistence (P2)** — Broad coverage; verify cross-device + CPL gaps. §2
-3. **NBA persistence (P3)** — Team/page fixed; LGC + Legacy Tracker sub-state gaps. §3
-4. **Future Lens persistence (P4)** — Thin vs peers; career activity dead; resume URLs incomplete. §4
-5. **Applied Math quality roadmap (P5)** — Context gaps; no implementation yet. §5
-6. **Investment** — Transparency Phase 1 shipped (`76969f4`); formulas/macro **paused** until suite stable.
+1. **Baseball Phase 2 — Full page audit (P0)** — Canonical state modules for all 14 pages; reference impl before suite port. [plans/2026-06-08-baseball-phase-2-page-audit.md](./plans/2026-06-08-baseball-phase-2-page-audit.md)
+2. **Continue vs App Directory (P1)** — Classification audit complete; fix placement before ranking. [plans/suite-usability-audit-2026-06-08.md](./plans/suite-usability-audit-2026-06-08.md) §1
+3. **Music persistence (P2)** — Broad coverage; verify cross-device + CPL gaps. §2
+4. **NBA persistence (P3)** — Team/page fixed; LGC + Legacy Tracker sub-state gaps. §3
+5. **Future Lens persistence (P4)** — Thin vs peers; career activity dead; resume URLs incomplete. §4
+6. **Applied Math quality roadmap (P5)** — Context gaps; no implementation yet. §5
+7. **Investment** — Transparency Phase 1 shipped (`76969f4`); formulas/macro **paused** until suite stable.
 
 ---
 
 # Next Features
 
+- **Baseball reference protocol** — After Phase 2 acceptance, port ownership/sync to Music, NBA, Investment, Applied Intelligence.
 - Ship Activity Feed Phase B to `origin/dev` with tests (`test_activity_dashboard.py`, `test_activity_time.py`).
 - Per-app activity coverage expansion (Applied Intelligence, Future Lens Phase A tables in admin panel).
 - Smarter Continue cards when `full_session` cloud state is richer across apps.
@@ -129,6 +131,7 @@ Rendered top-to-bottom in `ai_command_center.py`:
 | Coach insights can be empty with sparse events | Coach | Expected empty state; not a crash |
 | Connection probe timeouts | App registry | `verify_connections()` HTTP GET can false-negative |
 | Sibling apps out of sync | Shared modules | Must run `sync_suite_cloud_modules.py` manually |
+| Baseball pages without canonical state | Baseball | Only Trend + Comparison have full ownership modules; 12 pages on generic `page_state` |
 | Reset button hidden if import fails | Sibling apps | `try/except: pass` in app entrypoints |
 
 ---

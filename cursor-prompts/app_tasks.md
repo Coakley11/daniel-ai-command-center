@@ -14,7 +14,46 @@ Central hub repo (`daniel-ai-command-center`) for suite homepage, activity aggre
 
 # Current Priorities
 
-**Focus: suite-wide usability and workflow continuity — no new features until stable.**
+**Focus: Baseball Phase 2 page audit — make Baseball the reference implementation for ownership/sync/AMI before porting to other apps.**
+
+### P0 — Baseball Phase 2: Full Page Audit
+
+**Plan:** [plans/2026-06-08-baseball-phase-2-page-audit.md](./plans/2026-06-08-baseball-phase-2-page-audit.md)  
+**Primary repo:** `baseball-stat-app` · **Shared modules:** sync via `scripts/sync_suite_cloud_modules.py`
+
+#### Shipped (Sprint 1 — navigation foundation)
+- [x] Page navigation ownership — `claim_user_page_ownership`, reconcile stale nav (CC `4d2205b`, Baseball `a293b34`)
+- [x] Cloud insight hydrate no longer forces page navigation
+- [x] AMI return consume on page match
+- [x] Tests: `test_page_navigation_ownership.py` (43 passed)
+
+#### Sprint 2 — Career Totals + Comparison AMI parity (shipped 2026-06-08)
+- [x] Audit Career Totals widget keys vs `PAGE_STATE_REGISTRY`
+- [x] Create `career_totals_state.py` (canonical pattern)
+- [x] Add `apply_comparison_source_state_from_ami` (Trend parity)
+- [x] Tests: `test_career_totals_state.py`, extended `test_comparison_state.py` (31+ passed)
+- [ ] Manual acceptance A–E on phone + Dell (Career Totals)
+
+#### Sprint 3 — Draft cluster + watchlist
+- [ ] Create `draft_state.py` (4 draft pages)
+- [ ] Persist `draft_queue` + watchlist in disk/cloud blob
+- [ ] Fix Draft Room envelope key mismatch
+- [ ] Acceptance A–E: Draft Room, Live Draft
+
+#### Sprint 4 — Historical, Valuation, ML Predictions
+- [ ] `historical_state.py`, `valuation_state.py`, `projections_state.py`
+- [ ] Acceptance A–E per page
+
+#### Sprint 5 — Fantasy cluster + sign-off
+- [ ] `fantasy_state.py`, `leaderboards_state.py`
+- [ ] Full Baseball acceptance matrix
+- [ ] `docs/BASEBALL_PAGE_STATE_PROTOCOL.md` in baseball repo
+
+#### Sprint 6 — Suite port (gate: Baseball passes all major pages)
+- [ ] Music Practice Coach
+- [ ] NBA Companion
+- [ ] Investment Analyzer
+- [ ] Applied Intelligence
 
 ### P1 — Command Center Continue vs App Directory
 
@@ -151,6 +190,7 @@ Recent task completions (see [app_completed_features.md](./app_completed_feature
 
 | Plan | Status |
 |------|--------|
+| [plans/2026-06-08-baseball-phase-2-page-audit.md](./plans/2026-06-08-baseball-phase-2-page-audit.md) | **Active P0** — canonical page state, acceptance tests, suite port gate |
 | [plans/README.md](./plans/README.md) | Folder ready — add plans as work starts |
 | [plans/suite-usability-audit-2026-06-08.md](./plans/suite-usability-audit-2026-06-08.md) | **Active** — Continue, Music/NBA/FL persistence, Applied Math roadmap |
 | [plans/command-center-workflow-classification-audit.md](./plans/command-center-workflow-classification-audit.md) | P1 — Continue vs Directory (detail) |

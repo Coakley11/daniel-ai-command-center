@@ -14,11 +14,18 @@ Queued enhancements for the suite homepage and shared infrastructure — not sib
 
 # Current Priorities
 
-*None in backlog — see [app_tasks.md](./app_tasks.md) for scheduled work.*
+*None in backlog — Baseball Phase 2 is active in [app_tasks.md](./app_tasks.md).*
 
 ---
 
 # Next Features
+
+### After Baseball Phase 2 sign-off (suite port)
+
+- **Music** — canonical studio page state (practice, backing, song catalog)
+- **NBA** — LGC + Legacy Tracker canonical modules
+- **Investment** — portfolio health + holdings ownership
+- **Applied Intelligence** — lesson/question session state
 
 ### Near-term (next 1–2 sprints)
 
