@@ -56,6 +56,42 @@ class TestInsightPageScopeDecision(unittest.TestCase):
         self.assertNotEqual(scope.get("render_skip_reason"), "current_page_not_eligible ('Valuation')")
         self.assertTrue(scope["should_render_insight_on_page"])
 
+    def test_fantasy_standings_eligible_and_strict_scope(self) -> None:
+        insight = {"source_app": "baseball", "source_page": "Fantasy Standings Tracker", "conclusion": "test"}
+        scope = insight_page_scope_decision("baseball", "Fantasy Standings Tracker", insight)
+        self.assertTrue(scope["should_render_insight_on_page"])
+        self.assertIsNone(scope["render_skip_reason"])
+        self.assertFalse(should_render_insight_on_page("baseball", "Fantasy Sleepers & Busts", insight))
+        self.assertNotEqual(
+            scope.get("render_skip_reason"),
+            "current_page_not_eligible ('Fantasy Standings Tracker')",
+        )
+
+    def test_fantasy_sleepers_eligible_and_strict_scope(self) -> None:
+        insight = {"source_app": "baseball", "source_page": "Fantasy Sleepers & Busts", "conclusion": "test"}
+        self.assertTrue(should_render_insight_on_page("baseball", "Fantasy Sleepers & Busts", insight))
+        self.assertFalse(should_render_insight_on_page("baseball", "Fantasy Lineup Assistant", insight))
+
+    def test_fantasy_lineup_eligible_and_strict_scope(self) -> None:
+        insight = {"source_app": "baseball", "source_page": "Fantasy Lineup Assistant", "conclusion": "test"}
+        self.assertTrue(should_render_insight_on_page("baseball", "Fantasy Lineup Assistant", insight))
+        self.assertFalse(should_render_insight_on_page("baseball", "Leaderboards", insight))
+
+    def test_leaderboards_eligible_and_strict_scope(self) -> None:
+        insight = {"source_app": "baseball", "source_page": "Leaderboards", "conclusion": "test"}
+        self.assertTrue(should_render_insight_on_page("baseball", "Leaderboards", insight))
+        self.assertFalse(should_render_insight_on_page("baseball", "Fantasy Standings Tracker", insight))
+
+    def test_emoji_fantasy_standings_source_page_normalizes(self) -> None:
+        insight = {"source_app": "baseball", "source_page": "📊 Fantasy Standings Tracker", "conclusion": "test"}
+        self.assertTrue(should_render_insight_on_page("baseball", "Fantasy Standings Tracker", insight))
+
+    def test_fantasy_standings_alias_normalizes(self) -> None:
+        insight = {"source_app": "baseball", "source_page": "fantasy standings tracker", "conclusion": "test"}
+        scope = insight_page_scope_decision("baseball", "Fantasy Standings Tracker", insight)
+        self.assertEqual(scope["source_page_normalized"], "Fantasy Standings Tracker")
+        self.assertTrue(scope["should_render_insight_on_page"])
+
 
 if __name__ == "__main__":
     unittest.main()

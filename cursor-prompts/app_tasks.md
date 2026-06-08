@@ -69,7 +69,8 @@ Central hub repo (`daniel-ai-command-center`) for suite homepage, activity aggre
 - [x] AMI build/apply for Leaderboards + Fantasy pages
 - [x] `?dev=1` debug panels (`render_fantasy_state_debug`, `render_leaderboards_state_debug`)
 - [x] Tests: `test_fantasy_state.py`, `test_leaderboards_state.py` acceptance A–E (23 passed)
-- [ ] Manual acceptance A–E on phone + Dell (Leaderboards + Fantasy cluster)
+- [x] AMI eligible pages fix for Fantasy cluster + Leaderboards (same root cause as Valuation/ML)
+- [ ] Manual acceptance A–E on phone + Dell (Leaderboards + Fantasy cluster, incl. AMI return from Standings)
 - [ ] Commit + deploy baseball-stat-app `dev`
 - [ ] Full Baseball acceptance matrix
 - [ ] `docs/BASEBALL_PAGE_STATE_PROTOCOL.md` in baseball repo
