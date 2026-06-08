@@ -52,18 +52,25 @@ Central hub repo (`daniel-ai-command-center`) for suite homepage, activity aggre
 - [x] Hotfix: `historical_filter_changed` ordering (`7647f61`)
 - [x] Manual acceptance A–E on phone + Dell — **PASS**
 
-#### Sprint 5 — Valuation + ML Predictions (in progress 2026-06-08)
+#### Sprint 5 — Valuation + ML Predictions (accepted 2026-06-08)
 - [x] Create `valuation_state.py` (filters + stat mins + selected player)
 - [x] Create `projections_state.py` (scope/tuning/display/pipeline)
 - [x] Workspace envelope: `valuation_filters`, `projections_filters`
 - [x] AMI build/apply for Valuation + ML Predictions
 - [x] `?dev=1` debug panels (`render_valuation_state_debug`, `render_projections_state_debug`)
 - [x] Tests: `test_valuation_state.py`, `test_projections_state.py` acceptance A–E (23 passed)
-- [ ] Manual acceptance A–E on phone + Dell (Valuation + ML Predictions)
-- [ ] Commit + deploy baseball-stat-app `dev`
+- [x] AMI insight eligible pages fix (`7e370f4` / `51df10e`)
+- [x] Manual acceptance A–E on phone + Dell (Valuation + ML Predictions) — **PASS**
 
-#### Sprint 6 — Fantasy cluster + sign-off
-- [ ] `fantasy_state.py`, `leaderboards_state.py`
+#### Sprint 6 — Fantasy cluster + sign-off (in progress 2026-06-08)
+- [x] Create `fantasy_state.py` (sleepers / standings / lineup sections)
+- [x] Create `leaderboards_state.py` (year range, weights, stat mins)
+- [x] Workspace envelope: `fantasy_*_filters`, `leaderboards_filters`
+- [x] AMI build/apply for Leaderboards + Fantasy pages
+- [x] `?dev=1` debug panels (`render_fantasy_state_debug`, `render_leaderboards_state_debug`)
+- [x] Tests: `test_fantasy_state.py`, `test_leaderboards_state.py` acceptance A–E (23 passed)
+- [ ] Manual acceptance A–E on phone + Dell (Leaderboards + Fantasy cluster)
+- [ ] Commit + deploy baseball-stat-app `dev`
 - [ ] Full Baseball acceptance matrix
 - [ ] `docs/BASEBALL_PAGE_STATE_PROTOCOL.md` in baseball repo
 
