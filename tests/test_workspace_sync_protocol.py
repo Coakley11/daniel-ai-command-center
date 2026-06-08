@@ -263,5 +263,59 @@ class TestWorkspaceSyncProtocol(unittest.TestCase):
         )
 
 
+    def test_user_nav_skip_does_not_block_page_change_cloud_save(self) -> None:
+        st = MagicMock()
+        st.session_state = {
+            "active_page": "Career Totals",
+            "main_sidebar_page": "Career Totals",
+            "_suite_page_user_nav": True,
+            "comparison_state": {"players": []},
+        }
+        cloud_state = {
+            "active_page": "Trend Value",
+            "comparison_state": {"players": ["Francisco Lindor", "Aaron Judge"]},
+            "page_filter_state": {
+                "Comparison Tool": {
+                    "compare_players": ["Francisco Lindor", "Aaron Judge"],
+                }
+            },
+            "baseball_workspace_state": {
+                "comparison_players": ["Francisco Lindor", "Aaron Judge"],
+            },
+        }
+        build = MagicMock(
+            return_value={
+                "active_page": "Career Totals",
+                "main_sidebar_page": "Career Totals",
+                "comparison_state": {"players": []},
+                "page_filter_state": {},
+                "baseball_workspace_state": {"page": "Career Totals", "save_reason": "page_change"},
+            }
+        )
+
+        with patch("suite_cloud_state.has_resume_query_params", return_value=False), patch(
+            "suite_cloud_state.load_cloud_full_session",
+            return_value=(cloud_state, "2026-06-08T15:00:00+00:00"),
+        ), patch(
+            "suite_user_persistence._load_raw",
+            return_value=({"active_page": "Trend Value"}, None, "2026-06-08T12:00:00+00:00"),
+        ), patch("suite_cloud_state.save_cloud_full_session", return_value=True) as save_cloud, patch(
+            "suite_user_persistence.save_user_state", return_value=True
+        ):
+            sync_workspace_protocol(st, "baseball", apply_state=lambda _s, _d: None)
+            ok = force_autosave(st, "baseball", build_state=build, reason="page_change")
+
+        self.assertFalse(st.session_state.get("_suite_workspace_sync_skipped_no_apply"))
+        self.assertTrue(st.session_state.get("_suite_user_nav_sync_skipped"))
+        self.assertTrue(ok)
+        save_cloud.assert_called_once()
+        saved_state = save_cloud.call_args[0][1]
+        self.assertEqual(saved_state.get("active_page"), "Career Totals")
+        self.assertEqual(
+            saved_state.get("comparison_state", {}).get("players"),
+            ["Francisco Lindor", "Aaron Judge"],
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
