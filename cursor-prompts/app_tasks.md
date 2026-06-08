@@ -34,26 +34,34 @@ Central hub repo (`daniel-ai-command-center`) for suite homepage, activity aggre
 - [x] Sync trace + force cloud save (`be91f64`)
 - [x] Manual acceptance A–E on phone + Dell (Career Totals) — **PASS**
 
-#### Sprint 3 — Draft cluster + watchlist (in progress 2026-06-08)
+#### Sprint 3 — Draft cluster + watchlist (accepted 2026-06-08)
 - [x] Create `draft_state.py` (queue + watchlist canonical pattern)
 - [x] Persist `draft_queue` + watchlist in disk/cloud blob
 - [x] Fix Draft Room envelope key mismatch (`Draft Room Simulator`)
 - [x] AMI build/apply for queue + watchlist
 - [x] `?dev=1` debug panel (`render_draft_state_debug`)
 - [x] Tests: `test_draft_state.py` acceptance A–E (13 passed)
-- [ ] Manual acceptance A–E on phone + Dell (Draft Queue + Watchlist)
+- [x] Manual acceptance A–E on phone + Dell — **PASS** (`a569612`)
+
+#### Sprint 4 — Historical Explorer (in progress 2026-06-08)
+- [x] Create `historical_state.py` (canonical filters + stat mins)
+- [x] Full `historical_filters` workspace envelope
+- [x] AMI build/apply via `apply_historical_source_state_from_ami`
+- [x] `?dev=1` debug panel (`render_historical_state_debug`)
+- [x] Tests: `test_historical_state.py` acceptance A–E (10 passed)
+- [ ] Manual acceptance A–E on phone + Dell (Historical Explorer)
 - [ ] Commit + deploy baseball-stat-app `dev`
 
-#### Sprint 4 — Historical, Valuation, ML Predictions
-- [ ] `historical_state.py`, `valuation_state.py`, `projections_state.py`
+#### Sprint 5 — Valuation, ML Predictions
+- [ ] `valuation_state.py`, `projections_state.py`
 - [ ] Acceptance A–E per page
 
-#### Sprint 5 — Fantasy cluster + sign-off
+#### Sprint 6 — Fantasy cluster + sign-off
 - [ ] `fantasy_state.py`, `leaderboards_state.py`
 - [ ] Full Baseball acceptance matrix
 - [ ] `docs/BASEBALL_PAGE_STATE_PROTOCOL.md` in baseball repo
 
-#### Sprint 6 — Suite port (gate: Baseball passes all major pages)
+#### Sprint 7 — Suite port (gate: Baseball passes all major pages)
 - [ ] Music Practice Coach
 - [ ] NBA Companion
 - [ ] Investment Analyzer
