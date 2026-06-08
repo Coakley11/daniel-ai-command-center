@@ -231,17 +231,19 @@ Run on phone + Dell after each page module ships.
 - [ ] Fix Draft Room envelope key
 - [ ] Tests + manual acceptance
 
-### Sprint 4 — Historical + Valuation + ML
-- [ ] `historical_state.py`, `valuation_state.py`, `projections_state.py`
-- [ ] Tests + manual acceptance
+### Sprint 5 — Valuation + ML Predictions (accepted 2026-06-08)
+- [x] `historical_state.py`, `valuation_state.py`, `projections_state.py`
+- [x] Tests + manual acceptance
 
-### Sprint 5 — Fantasy cluster + Leaderboards
-- [ ] `fantasy_state.py`, `leaderboards_state.py`
-- [ ] Full Baseball acceptance matrix sign-off
+### Sprint 6 — Fantasy cluster + Leaderboards (accepted 2026-06-08)
+- [x] `fantasy_state.py`, `leaderboards_state.py`
+- [x] AMI eligibility fix for Fantasy Standings
+- [x] Full Baseball acceptance matrix sign-off
 
-### Sprint 6 — Reference doc + suite port plan
-- [ ] Document final architecture in `docs/BASEBALL_PAGE_STATE_PROTOCOL.md` (baseball repo)
-- [ ] Port checklist for Music / NBA / Investment / Applied Intelligence
+### Final sweep — Reference doc + suite port plan (complete 2026-06-08)
+- [x] `docs/BASEBALL_PAGE_STATE_PROTOCOL.md`
+- [x] `docs/BASEBALL_ACCEPTANCE_MATRIX.md`
+- [x] Suite port gate cleared — begin Sprint 7 when ready
 
 ---
 

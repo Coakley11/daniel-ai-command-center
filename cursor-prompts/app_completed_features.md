@@ -128,7 +128,8 @@ Historical record of shipped Command Center and shared-suite infrastructure capa
 - [x] **Draft Workflow** — `draft_state.py`; queue + watchlist disk/cloud/AMI; acceptance **PASS** (`a569612`)
 - [x] **Historical Explorer** — `historical_state.py`; filters + stat mins; AMI round-trip; acceptance **PASS** (`7647f61`)
 - [x] **Valuation + ML Predictions** — `valuation_state.py`, `projections_state.py`; scope/tuning/display/pipeline; AMI insight eligible; acceptance **PASS** (`b29a512`, AMI fix `51df10e`)
-- [x] **Fantasy cluster + Leaderboards** — `fantasy_state.py` (sleepers/standings/lineup), `leaderboards_state.py`; workspace envelope; AMI round-trip; tests A–E (`test_fantasy_state.py`, `test_leaderboards_state.py`) — pending manual phone↔Dell sign-off
+- [x] **Fantasy cluster + Leaderboards** — `fantasy_state.py`, `leaderboards_state.py`; AMI eligible + return fix; acceptance **PASS** (`bb9ecb5`, AMI `ab8faef`)
+- [x] **Phase 2 final acceptance sweep** — 14/14 pages PASS; protocol + matrix docs; 147 automated tests; **tag `baseball-sync-reference-v1`**
 
 1. **Standalone homepage prototype** — hero + app cards + placeholder-friendly empty states
 2. **Real activity ingestion** — SQLite local + Supabase cloud dual mode

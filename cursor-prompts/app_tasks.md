@@ -62,24 +62,42 @@ Central hub repo (`daniel-ai-command-center`) for suite homepage, activity aggre
 - [x] AMI insight eligible pages fix (`7e370f4` / `51df10e`)
 - [x] Manual acceptance A–E on phone + Dell (Valuation + ML Predictions) — **PASS**
 
-#### Sprint 6 — Fantasy cluster + sign-off (in progress 2026-06-08)
+#### Sprint 6 — Fantasy cluster + sign-off (accepted 2026-06-08)
 - [x] Create `fantasy_state.py` (sleepers / standings / lineup sections)
 - [x] Create `leaderboards_state.py` (year range, weights, stat mins)
 - [x] Workspace envelope: `fantasy_*_filters`, `leaderboards_filters`
 - [x] AMI build/apply for Leaderboards + Fantasy pages
 - [x] `?dev=1` debug panels (`render_fantasy_state_debug`, `render_leaderboards_state_debug`)
 - [x] Tests: `test_fantasy_state.py`, `test_leaderboards_state.py` acceptance A–E (23 passed)
-- [x] AMI eligible pages fix for Fantasy cluster + Leaderboards (same root cause as Valuation/ML)
-- [ ] Manual acceptance A–E on phone + Dell (Leaderboards + Fantasy cluster, incl. AMI return from Standings)
-- [ ] Commit + deploy baseball-stat-app `dev`
-- [ ] Full Baseball acceptance matrix
-- [ ] `docs/BASEBALL_PAGE_STATE_PROTOCOL.md` in baseball repo
+- [x] AMI eligible pages fix for Fantasy cluster + Leaderboards (`990c25e` / `ab8faef`)
+- [x] Manual acceptance A–E on phone + Dell — **PASS** (incl. Fantasy Standings AMI return)
 
-#### Sprint 7 — Suite port (gate: Baseball passes all major pages)
-- [ ] Music Practice Coach
-- [ ] NBA Companion
-- [ ] Investment Analyzer
-- [ ] Applied Intelligence
+#### Final Baseball Acceptance Sweep (accepted 2026-06-08)
+- [x] Audit all 14 sidebar pages — canonical ownership, AMI, persistence
+- [x] Automated suite: **147 passed** (state + persistence + AMI scope)
+- [x] `docs/BASEBALL_PAGE_STATE_PROTOCOL.md` — canonical architecture reference
+- [x] `docs/BASEBALL_ACCEPTANCE_MATRIX.md` — PASS/FAIL by page + P0/P1/P2 bugs
+- [x] Draft Room `PAGE_STATE_DEBUG_PREFIXES` cleanup
+- [x] **Suite port gate: PASS** — tagged `baseball-sync-reference-v1`
+
+#### Sprint 7 — Suite port (active)
+
+**Plan:** [plans/2026-06-08-sprint-7-suite-port.md](./plans/2026-06-08-sprint-7-suite-port.md)  
+**Reference tag:** `baseball-sync-reference-v1` on `baseball-stat-app` `dev`  
+**Rule:** Architecture migration only — no new product features.
+
+Port order (Phase A → B → C → D per app):
+
+1. [ ] **Music Practice Coach** — audit → sync shared modules → canonical state → phone/Dell + AMI matrix
+2. [ ] **NBA Playoff Companion**
+3. [ ] **Investment App**
+4. [ ] **Applied Intelligence / Calculus App**
+
+Per-app phases:
+- **A:** Page / state / AMI / navigation inventory
+- **B:** Shared modules (`suite_user_persistence`, `suite_cloud_state`, `applied_math_return_insight`, `suite_analytical_question`, `suite_deep_links`, `suite_resume_launch`)
+- **C:** Canonical `{page}_state` modules + ownership rules + tests A–E
+- **D:** Phone↔Dell + AMI + final acceptance matrix
 
 ### P1 — Command Center Continue vs App Directory
 

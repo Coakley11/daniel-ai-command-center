@@ -24,7 +24,7 @@ This is the master planning document. Related files:
 
 # Current Priorities
 
-1. **Baseball Phase 2 — Full page audit (P0)** — Canonical state modules for all 14 pages; reference impl before suite port. [plans/2026-06-08-baseball-phase-2-page-audit.md](./plans/2026-06-08-baseball-phase-2-page-audit.md)
+1. **Suite port (Sprint 7)** — Port Baseball reference architecture to Music → NBA → Investment → Applied Intelligence. [plans/2026-06-08-sprint-7-suite-port.md](./plans/2026-06-08-sprint-7-suite-port.md) · Reference tag: `baseball-sync-reference-v1`
 2. **Continue vs App Directory (P1)** — Classification audit complete; fix placement before ranking. [plans/suite-usability-audit-2026-06-08.md](./plans/suite-usability-audit-2026-06-08.md) §1
 3. **Music persistence (P2)** — Broad coverage; verify cross-device + CPL gaps. §2
 4. **NBA persistence (P3)** — Team/page fixed; LGC + Legacy Tracker sub-state gaps. §3
@@ -36,7 +36,7 @@ This is the master planning document. Related files:
 
 # Next Features
 
-- **Baseball reference protocol** — After Phase 2 acceptance, port ownership/sync to Music, NBA, Investment, Applied Intelligence.
+- **Baseball reference protocol** — Phase 2 complete; `docs/BASEBALL_PAGE_STATE_PROTOCOL.md` + acceptance matrix in baseball repo. Port to Music, NBA, Investment, Applied Intelligence (Sprint 7).
 - Ship Activity Feed Phase B to `origin/dev` with tests (`test_activity_dashboard.py`, `test_activity_time.py`).
 - Per-app activity coverage expansion (Applied Intelligence, Future Lens Phase A tables in admin panel).
 - Smarter Continue cards when `full_session` cloud state is richer across apps.
