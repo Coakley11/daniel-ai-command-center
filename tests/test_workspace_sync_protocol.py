@@ -5,7 +5,12 @@ from __future__ import annotations
 import unittest
 from unittest.mock import MagicMock, patch
 
-from suite_user_persistence import autosave_if_changed, clear_workspace_autosave_block, sync_workspace_protocol
+from suite_user_persistence import (
+    autosave_if_changed,
+    clear_workspace_autosave_block,
+    force_autosave,
+    sync_workspace_protocol,
+)
 
 
 class TestWorkspaceSyncProtocol(unittest.TestCase):
@@ -172,6 +177,90 @@ class TestWorkspaceSyncProtocol(unittest.TestCase):
 
         self.assertTrue(ok)
         self.assertEqual(len(applied), 1)
+
+
+    def test_resume_params_still_apply_workspace_sync(self) -> None:
+        st = MagicMock()
+        st.session_state = {
+            "active_page": "Trend Value",
+            "main_sidebar_page": "Trend Value",
+        }
+        cloud_state = {
+            "active_page": "Comparison Tool",
+            "comparison_state": {"players": ["Francisco Lindor", "Aaron Judge"]},
+        }
+        applied: list[dict] = []
+
+        def apply_state(_st: MagicMock, state: dict) -> None:
+            applied.append(state)
+
+        with patch("suite_cloud_state.has_resume_query_params", return_value=True), patch(
+            "suite_cloud_state.probe_cloud_restore_diagnostics",
+            return_value={"cloud_has_full_session": True},
+        ), patch(
+            "suite_cloud_state.load_cloud_full_session",
+            return_value=(cloud_state, "2026-06-08T15:00:00+00:00"),
+        ), patch(
+            "suite_user_persistence._load_raw",
+            return_value=({"active_page": "Trend Value"}, None, "2026-06-08T12:00:00+00:00"),
+        ), patch("suite_user_persistence.save_user_state", return_value=True):
+            ok = sync_workspace_protocol(st, "baseball", apply_state=apply_state)
+
+        self.assertTrue(ok)
+        self.assertEqual(len(applied), 1)
+        self.assertTrue(st.session_state.get("_suite_resume_insight_hydration_only"))
+        self.assertNotIn("_suite_workspace_sync_skipped_no_apply", st.session_state)
+
+    def test_restore_skipped_blocks_autosave(self) -> None:
+        st = MagicMock()
+        st.session_state = {"_suite_persist_local_dirty::baseball": True}
+        build = MagicMock(return_value={"active_page": "Trend Value"})
+
+        with patch("suite_cloud_state.has_resume_query_params", return_value=False), patch(
+            "suite_cloud_state.load_cloud_full_session",
+            return_value=({"active_page": "Trend Value"}, "2026-06-08T12:00:00+00:00"),
+        ), patch(
+            "suite_user_persistence._load_raw",
+            return_value=({"active_page": "Trend Value"}, None, "2026-06-08T13:00:00+00:00"),
+        ):
+            sync_workspace_protocol(st, "baseball", apply_state=lambda _s, _d: None)
+
+        with patch("suite_user_persistence.save_user_state") as save_disk:
+            autosave_if_changed(st, "baseball", build_state=build)
+        save_disk.assert_not_called()
+        self.assertTrue(st.session_state.get("_suite_workspace_sync_skipped_no_apply"))
+
+    def test_blank_comparison_cannot_overwrite_cloud(self) -> None:
+        st = MagicMock()
+        st.session_state = {
+            "active_page": "Comparison Tool",
+            "comparison_state": {"players": []},
+        }
+        cloud_state = {
+            "active_page": "Comparison Tool",
+            "comparison_state": {"players": ["Francisco Lindor", "Aaron Judge"]},
+        }
+        build = MagicMock(
+            return_value={
+                "active_page": "Comparison Tool",
+                "comparison_state": {"players": []},
+                "page_filter_state": {"Comparison Tool": {"compare_players": []}},
+            }
+        )
+
+        with patch(
+            "suite_cloud_state.load_cloud_full_session",
+            return_value=(cloud_state, "2026-06-08T15:00:00+00:00"),
+        ), patch("suite_cloud_state.save_cloud_full_session", return_value=True) as save_cloud, patch(
+            "suite_user_persistence.save_user_state", return_value=True
+        ):
+            force_autosave(st, "baseball", build_state=build, reason="autosave")
+
+        save_cloud.assert_not_called()
+        self.assertEqual(
+            st.session_state.get("_suite_autosave_cloud_blocked_reason"),
+            "blank_comparison_would_erase_cloud",
+        )
 
 
 if __name__ == "__main__":
