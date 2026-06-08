@@ -126,8 +126,8 @@ Historical record of shipped Command Center and shared-suite infrastructure capa
 - [x] **Career Totals** — `career_totals_state.py`; sync trace; force cloud save; phone↔Dell acceptance **PASS** (`be91f64`)
 - [x] **Comparison AMI parity** — `apply_comparison_source_state_from_ami`
 - [x] **Draft Workflow** — `draft_state.py`; queue + watchlist disk/cloud/AMI; acceptance **PASS** (`a569612`)
-- [x] **Historical Explorer** — `historical_state.py`; filters + stat mins; AMI round-trip; tests A–E (`test_historical_state.py`)
-
+- [x] **Historical Explorer** — `historical_state.py`; filters + stat mins; AMI round-trip; acceptance **PASS** (`7647f61`)
+- [x] **Valuation + ML Predictions** — `valuation_state.py`, `projections_state.py`; scope/tuning/display/pipeline; tests A–E (`test_valuation_state.py`, `test_projections_state.py`)
 
 1. **Standalone homepage prototype** — hero + app cards + placeholder-friendly empty states
 2. **Real activity ingestion** — SQLite local + Supabase cloud dual mode

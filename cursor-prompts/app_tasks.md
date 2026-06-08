@@ -43,18 +43,24 @@ Central hub repo (`daniel-ai-command-center`) for suite homepage, activity aggre
 - [x] Tests: `test_draft_state.py` acceptance A–E (13 passed)
 - [x] Manual acceptance A–E on phone + Dell — **PASS** (`a569612`)
 
-#### Sprint 4 — Historical Explorer (in progress 2026-06-08)
+#### Sprint 4 — Historical Explorer (accepted 2026-06-08)
 - [x] Create `historical_state.py` (canonical filters + stat mins)
 - [x] Full `historical_filters` workspace envelope
 - [x] AMI build/apply via `apply_historical_source_state_from_ami`
 - [x] `?dev=1` debug panel (`render_historical_state_debug`)
-- [x] Tests: `test_historical_state.py` acceptance A–E (10 passed)
-- [ ] Manual acceptance A–E on phone + Dell (Historical Explorer)
-- [ ] Commit + deploy baseball-stat-app `dev`
+- [x] Tests: `test_historical_state.py` acceptance A–E (11 passed)
+- [x] Hotfix: `historical_filter_changed` ordering (`7647f61`)
+- [x] Manual acceptance A–E on phone + Dell — **PASS**
 
-#### Sprint 5 — Valuation, ML Predictions
-- [ ] `valuation_state.py`, `projections_state.py`
-- [ ] Acceptance A–E per page
+#### Sprint 5 — Valuation + ML Predictions (in progress 2026-06-08)
+- [x] Create `valuation_state.py` (filters + stat mins + selected player)
+- [x] Create `projections_state.py` (scope/tuning/display/pipeline)
+- [x] Workspace envelope: `valuation_filters`, `projections_filters`
+- [x] AMI build/apply for Valuation + ML Predictions
+- [x] `?dev=1` debug panels (`render_valuation_state_debug`, `render_projections_state_debug`)
+- [x] Tests: `test_valuation_state.py`, `test_projections_state.py` acceptance A–E (23 passed)
+- [ ] Manual acceptance A–E on phone + Dell (Valuation + ML Predictions)
+- [ ] Commit + deploy baseball-stat-app `dev`
 
 #### Sprint 6 — Fantasy cluster + sign-off
 - [ ] `fantasy_state.py`, `leaderboards_state.py`
