@@ -71,6 +71,7 @@ def apply_suite_resume_launch(st: Any, app_key: str) -> bool:
 
     if key == "music":
         _apply_music(st, resume, page)
+        _apply_ami_insight(st, "music")
     elif key == "baseball":
         _apply_baseball(st, resume, page)
         _apply_ami_insight(st, "baseball")
@@ -169,7 +170,7 @@ def _apply_music(st: Any, resume: str, page: str) -> None:
     elif target.lower() == "backing track studio":
         target = "backing"
     try:
-        from studio_page_state import navigate_studio_page
+        from studio_nav_history import navigate_studio_page
 
         navigate_studio_page(st.session_state, target)
     except Exception:

@@ -51,6 +51,16 @@ INSIGHT_ELIGIBLE_PAGES: dict[str, frozenset[str]] = {
         "Efficient Frontier",
         "⑩ Frontier (Optional)",
     }),
+    "music": frozenset({
+        "practice",
+        "backing",
+        "custom",
+        "karaoke",
+        "Practice",
+        "Backing Track Studio",
+        "Creative Progression",
+        "Karaoke",
+    }),
 }
 
 
@@ -88,6 +98,17 @@ _INSIGHT_PAGE_ALIASES: dict[str, str] = {
     "fantasy lineup": "Fantasy Lineup Assistant",
     "fantasy lineup assistant": "Fantasy Lineup Assistant",
     "lineup assistant": "Fantasy Lineup Assistant",
+    "practice": "Practice",
+    "practice studio": "Practice",
+    "song practice": "Practice",
+    "backing": "Backing Track Studio",
+    "backing track": "Backing Track Studio",
+    "backing track studio": "Backing Track Studio",
+    "custom": "Creative Progression",
+    "creative progression": "Creative Progression",
+    "custom progression": "Creative Progression",
+    "karaoke": "Karaoke",
+    "karaoke mode": "Karaoke",
 }
 
 
@@ -447,6 +468,10 @@ def apply_return_source_state(st: Any, app_key: str, source_state: dict[str, Any
             apply_source_state_to_session(ss, source_state, schedule_navigation=schedule_navigation)
         elif app == "investment":
             from applied_math_context import apply_source_state_to_session
+
+            apply_source_state_to_session(ss, source_state, schedule_navigation=schedule_navigation)
+        elif app == "music":
+            from music_coach_context import apply_source_state_to_session
 
             apply_source_state_to_session(ss, source_state, schedule_navigation=schedule_navigation)
     except TypeError:
@@ -1372,6 +1397,20 @@ def clear_pending_insight(st: Any) -> None:
     st.session_state.pop(SESSION_RETURN_CONTEXT_KEY, None)
 
 
+def _insight_panel_title(insight: dict[str, Any]) -> str:
+    app = str(insight.get("source_app") or "").strip().lower()
+    if app == "music":
+        return "Music Coach Insight"
+    return "Applied Math Insight"
+
+
+def _insight_method_heading(insight: dict[str, Any]) -> str:
+    app = str(insight.get("source_app") or "").strip().lower()
+    if app == "music":
+        return "Coach guidance"
+    return "Math used"
+
+
 def render_applied_math_insight_panel(st: Any) -> bool:
     """Display-only insight card on source app pages. Returns True if rendered."""
     insight = _pending_insight_valid(st)
@@ -1379,14 +1418,14 @@ def render_applied_math_insight_panel(st: Any) -> bool:
         return False
 
     with st.container(border=True):
-        st.markdown("#### Applied Math Insight")
+        st.markdown(f"#### {_insight_panel_title(insight)}")
         q = str(insight.get("question") or "").strip()
         if q:
             st.markdown(f"**Question:** *{q}*")
         st.markdown(f"**Conclusion:** {insight.get('conclusion')}")
         method = str(insight.get("method") or insight.get("model_name") or "").strip()
         if method:
-            st.markdown(f"**Math used:** {method}")
+            st.markdown(f"**{_insight_method_heading(insight)}:** {method}")
         assumptions = insight.get("assumptions") or []
         if assumptions:
             st.markdown("**Assumptions:**")

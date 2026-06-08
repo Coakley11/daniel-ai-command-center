@@ -38,6 +38,7 @@ _SOURCE_LABELS: dict[str, str] = {
     "baseball": "Baseball",
     "nba": "NBA",
     "investment": "Investment",
+    "music": "Music Practice Coach",
 }
 
 # Only these keys may appear in user-facing context output.
@@ -434,8 +435,15 @@ def format_context_lines(context: dict[str, Any] | None) -> list[str]:
 
 def analytical_question_continue_copy(payload: dict[str, Any]) -> tuple[str, str, str]:
     """Return (title, subtitle, button_label) for Command Center Continue cards."""
-    label = source_app_label(str(payload.get("source_app") or ""))
+    app = str(payload.get("source_app") or "").strip().lower()
+    label = source_app_label(app)
     question = str(payload.get("question") or "").strip()
+    if app == "music":
+        return (
+            f"Music Coach question from {label}",
+            question,
+            "Continue with Music Coach →",
+        )
     return (
         f"Applied Math question from {label}",
         question,
@@ -625,7 +633,10 @@ def submit_analytical_question(
     duplicate = _recent_duplicate_send(session_state, payload["question_id"])
     if not duplicate:
         metrics = metrics_for_applied_math_resume(payload)
-        summary = f"Asked Applied Math: {payload['question'][:80]}"
+        if payload["source_app"] == "music":
+            summary = f"Asked Music Coach: {payload['question'][:80]}"
+        else:
+            summary = f"Asked Applied Math: {payload['question'][:80]}"
         try:
             from suite_activity_client import record_activity
 
@@ -703,8 +714,15 @@ def render_analyze_with_applied_math_sidebar(
     question_key = f"ami_question_{source_app}_{page_suffix}_{send_gen}"
     submit_key = f"ami_submit_{source_app}_{page_suffix}"
 
-    st.sidebar.markdown("### Analyze with Applied Math")
-    st.sidebar.caption("Ask a math question about what you are viewing.")
+    is_music = str(source_app or "").strip().lower() == "music"
+    if is_music:
+        st.sidebar.markdown("### Ask the Music Coach")
+        st.sidebar.caption(
+            "Get help with practice, theory, navigation, backing tracks, karaoke, or this app."
+        )
+    else:
+        st.sidebar.markdown("### Analyze with Applied Math")
+        st.sidebar.caption("Ask a math question about what you are viewing.")
 
     last = ss.get("_ami_last_send")
     if (
@@ -759,14 +777,20 @@ def render_analyze_with_applied_math_sidebar(
             )
             ss["_last_analytical_question"] = result
             ss[f"_ami_send_gen_{source_app}_{page_suffix}"] = send_gen + 1
+            dup_msg = (
+                "That question was already sent recently. Open Command Center to continue with the Music Coach."
+                if is_music
+                else "That question was already sent recently. Open Command Center to continue in Applied Intelligence."
+            )
+            ok_msg = (
+                "Question sent to Command Center. Open Command Center to continue with the Music Coach."
+                if is_music
+                else "Question sent to Command Center. Open Command Center to continue in Applied Intelligence."
+            )
             if result.get("duplicate"):
-                st.sidebar.info(
-                    "That question was already sent recently. Open Command Center to continue in Applied Intelligence."
-                )
+                st.sidebar.info(dup_msg)
             else:
-                st.sidebar.success(
-                    "Question sent to Command Center. Open Command Center to continue in Applied Intelligence."
-                )
+                st.sidebar.success(ok_msg)
             if on_after_send is not None and not result.get("duplicate"):
                 try:
                     on_after_send()
@@ -1050,8 +1074,60 @@ def build_context_from_session(
                 val = getattr(hr_obj, attr, None) if not isinstance(hr_obj, dict) else hr_obj.get(attr)
                 if val is not None and val != "":
                     ctx[key] = val
+    elif app == "music":
+        try:
+            from music_coach_context import (
+                coach_page_display_name,
+                resolve_coach_source_page,
+            )
+
+            coach_page = resolve_coach_source_page(session_state)
+            ctx["page"] = coach_page_display_name(coach_page)
+            ctx["workflow"] = "Music practice coach"
+            song = session_state.get("selected_song")
+            if isinstance(song, dict):
+                title = str(song.get("title") or "").strip()
+                artist = str(song.get("artist") or "").strip()
+                if title:
+                    ctx["song"] = f"{title} — {artist}" if artist else title
+            instrument = str(session_state.get("instrument") or "").strip()
+            if instrument:
+                ctx["instrument"] = instrument
+            display_key = str(session_state.get("display_key") or "").strip()
+            if display_key:
+                ctx["display_key"] = display_key
+            section = str(session_state.get("practice_focus_section") or "").strip()
+            if section:
+                ctx["practice_section"] = section
+            summary = ctx.get("song") or ctx["page"]
+        except Exception:
+            ctx["workflow"] = "Music practice coach"
+            summary = page_display
 
     return ctx, summary
+
+
+def render_music_coach_sidebar_entry(
+    st: Any,
+    *,
+    source_page: str,
+    session_state: dict[str, Any] | None = None,
+    context_extra_builder: Callable[[], dict[str, Any] | None] | None = None,
+    source_state_builder: Callable[[], dict[str, Any] | None] | None = None,
+    developer_mode: bool = False,
+    on_after_send: Callable[[], None] | None = None,
+) -> None:
+    """Music Practice Coach sidebar — Ask the Music Coach (not Applied Math wording)."""
+    render_applied_math_sidebar_entry(
+        st,
+        source_app="music",
+        source_page=source_page,
+        session_state=session_state,
+        context_extra_builder=context_extra_builder,
+        source_state_builder=source_state_builder,
+        developer_mode=developer_mode,
+        on_after_send=on_after_send,
+    )
 
 
 def render_suite_applied_math_insight(

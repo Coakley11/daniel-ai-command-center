@@ -61,11 +61,26 @@ _INVESTMENT_PAGE_BY_RESUME: tuple[tuple[str, str], ...] = (
 )
 
 _MUSIC_STUDIO_ALIASES: dict[str, str] = {
-    "practice log": "practice",
+    "practice log": "log",
     "practice studio": "practice",
+    "song selection": "picker",
+    "song picker": "picker",
+    "songs": "picker",
     "backing track studio": "backing",
-    "recording analysis": "recording",
+    "backing track": "backing",
+    "recording analysis": "analysis",
+    "recording": "analysis",
+    "upload analysis": "analysis",
+    "upload": "analysis",
+    "multitrack": "multitrack",
+    "creative progression": "custom",
+    "custom progression": "custom",
+    "creative lab": "creative",
+    "karaoke": "backing",
+    "karaoke mode": "backing",
     "chord coach": "practice",
+    "openai": "openai",
+    "openai hub": "openai",
 }
 
 
@@ -85,7 +100,17 @@ def _normalize_music_page(page: str, resume_key: str) -> str:
     alias = _MUSIC_STUDIO_ALIASES.get(raw.lower())
     if alias:
         return alias
-    if raw in {"practice", "backing", "recording", "picker", "custom"}:
+    if raw in {
+        "practice",
+        "backing",
+        "picker",
+        "custom",
+        "creative",
+        "multitrack",
+        "analysis",
+        "log",
+        "openai",
+    }:
         return raw
     return "practice"
 

@@ -243,6 +243,7 @@ _FORCE_SAVE_CLOUD_REASONS = frozenset({
     "insight_persist",
     "insight_hydrate",
     "applied_math_send",
+    "music_coach_send",
 })
 
 
@@ -677,7 +678,7 @@ def sync_workspace_protocol(
     already_synced = bool(st.session_state.get(synced_key))
     first_sync = not already_synced
     cloud_newer_than_applied = bool(cloud_ts and cloud_epoch > applied_epoch)
-    page = str(picked.state.get("active_page") or "")
+    page = _workspace_page_from_blob(app_id, picked.state)
     current_page = _session_workspace_page(st)
     page_mismatch = bool(page and current_page and page != current_page)
     cloud_players = _workspace_comparison_players(picked.state) if picked.source == "cloud" else []
@@ -972,8 +973,33 @@ def restore_once(
     return True
 
 
+def _workspace_page_from_blob(app_id: str, state: dict[str, Any]) -> str:
+    """Extract navigable page id from a persisted workspace blob."""
+    if not isinstance(state, dict):
+        return ""
+    app = str(app_id or "").strip()
+    if app == "music":
+        core = state.get("core") if isinstance(state.get("core"), dict) else {}
+        session = state.get("session") if isinstance(state.get("session"), dict) else {}
+        meta = state.get("music_workspace_state") if isinstance(state.get("music_workspace_state"), dict) else {}
+        return str(
+            meta.get("page")
+            or meta.get("studio_page")
+            or core.get("studio_page")
+            or session.get("studio_page")
+            or ""
+        ).strip()
+    return str(state.get("active_page") or "").strip()
+
+
 def _session_workspace_page(st: Any) -> str:
     ss = st.session_state
+    coach_page = str(ss.get("_music_coach_workspace_page") or "").strip()
+    if coach_page:
+        return coach_page
+    studio = str(ss.get("studio_page") or "").strip()
+    if studio:
+        return studio
     active = str(ss.get("active_page") or "").strip()
     sidebar = str(ss.get("main_sidebar_page") or "").strip()
     if sidebar and active and sidebar != active:
@@ -1117,7 +1143,7 @@ def sync_cloud_workspace_before_sidebar(
         )
         return False
 
-    cloud_page = str(picked.state.get("active_page") or "").strip()
+    cloud_page = _workspace_page_from_blob(app_id, picked.state)
     current_page = _session_workspace_page(st)
     applied_key = _applied_cloud_ts_key(app_id)
     applied_ts = st.session_state.get(applied_key)
@@ -1244,6 +1270,7 @@ def force_autosave(
             "insight_persist",
             "insight_hydrate",
             "applied_math_send",
+            "music_coach_send",
         )
         if st.session_state.get(block_key) and not bypass_block:
             st.session_state["_suite_autosave_blocked_after_restore"] = True

@@ -84,14 +84,18 @@ Central hub repo (`daniel-ai-command-center`) for suite homepage, activity aggre
 
 **Plan:** [plans/2026-06-08-sprint-7-suite-port.md](./plans/2026-06-08-sprint-7-suite-port.md)  
 **Reference tag:** `baseball-sync-reference-v1` on `baseball-stat-app` `dev`  
+**Music Phase A:** [ai-music-practice-coach/docs/MUSIC_PHASE_A_AUDIT.md](../ai-music-practice-coach/docs/MUSIC_PHASE_A_AUDIT.md) (+ `MUSIC_ACCEPTANCE_MATRIX_DRAFT.md`, `MUSIC_PAGE_STATE_PROTOCOL_DRAFT.md`)  
 **Rule:** Architecture migration only — no new product features.
 
 Port order (Phase A → B → C → D per app):
 
-1. [ ] **Music Practice Coach** — audit → sync shared modules → canonical state → phone/Dell + AMI matrix
-2. [ ] **NBA Playoff Companion**
-3. [ ] **Investment App**
-4. [ ] **Applied Intelligence / Calculus App**
+1. [x] **Music Practice Coach** — Phase A audit complete (`docs/MUSIC_PHASE_A_AUDIT.md`)
+   - [x] Phase B — shared suite modules + `prepare_music_workspace` + Music Coach stub (`docs/MUSIC_PHASE_B_PROTOCOL.md`)
+   - [ ] Phase B manual sign-off (phone ↔ Dell, coach return on eligible pages)
+   - [ ] Phase C — canonical `{page}_state` modules (blocked until Phase B passes)
+2. [ ] **NBA Playoff Companion** — Phase A audit
+3. [ ] **Investment App** — Phase A audit
+4. [ ] **Applied Intelligence / Calculus App** — Phase A audit
 
 Per-app phases:
 - **A:** Page / state / AMI / navigation inventory
