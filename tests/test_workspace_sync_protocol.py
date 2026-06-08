@@ -263,6 +263,33 @@ class TestWorkspaceSyncProtocol(unittest.TestCase):
         )
 
 
+    def test_page_mismatch_without_cloud_newer_does_not_reapply(self) -> None:
+        st = MagicMock()
+        st.session_state = {
+            "active_page": "Comparison Tool",
+            "main_sidebar_page": "Comparison Tool",
+            "_suite_workspace_synced::baseball": True,
+            "_suite_applied_cloud_ts::baseball": "2026-06-08T14:00:00+00:00",
+            "_suite_last_persisted_page": "Comparison Tool",
+        }
+        cloud_state = {"active_page": "Trend Value", "page_filter_state": {}}
+        applied: list[dict] = []
+
+        with patch("suite_cloud_state.has_resume_query_params", return_value=False), patch(
+            "suite_cloud_state.load_cloud_full_session",
+            return_value=(cloud_state, "2026-06-08T12:00:00+00:00"),
+        ), patch(
+            "suite_user_persistence._load_raw",
+            return_value=({"active_page": "Comparison Tool"}, None, "2026-06-08T13:00:00+00:00"),
+        ):
+            ok = sync_workspace_protocol(
+                st, "baseball", apply_state=lambda _s, d: applied.append(d), cloud_first=True,
+            )
+
+        self.assertFalse(ok)
+        self.assertEqual(applied, [])
+        self.assertEqual(st.session_state.get("active_page"), "Comparison Tool")
+
     def test_user_nav_skip_does_not_block_page_change_cloud_save(self) -> None:
         st = MagicMock()
         st.session_state = {
