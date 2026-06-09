@@ -983,18 +983,24 @@ def _workspace_page_from_blob(app_id: str, state: dict[str, Any]) -> str:
         core = state.get("core") if isinstance(state.get("core"), dict) else {}
         session = state.get("session") if isinstance(state.get("session"), dict) else {}
         meta = state.get("music_workspace_state") if isinstance(state.get("music_workspace_state"), dict) else {}
-        return str(
-            meta.get("page")
-            or meta.get("studio_page")
+        page = str(
+            meta.get("studio_page")
             or core.get("studio_page")
             or session.get("studio_page")
+            or meta.get("page")
             or ""
         ).strip()
+        return page
     return str(state.get("active_page") or "").strip()
 
 
 def _session_workspace_page(st: Any) -> str:
     ss = st.session_state
+    app_id = str(ss.get("_suite_persist_app_id") or "").strip()
+    if app_id == "music":
+        studio = str(ss.get("studio_page") or "").strip()
+        if studio:
+            return studio
     coach_page = str(ss.get("_music_coach_workspace_page") or "").strip()
     if coach_page:
         return coach_page
