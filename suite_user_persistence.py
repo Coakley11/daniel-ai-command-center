@@ -579,10 +579,11 @@ def sync_workspace_protocol(
 
     try:
         from suite_cloud_state import (
-            has_resume_query_params,
             load_cloud_full_session,
             parse_persist_timestamp,
             pick_restore_session,
+            reconcile_stale_resume_session_flags,
+            should_skip_workspace_restore_for_resume,
         )
     except ImportError:
         st.session_state["_suite_persist_restore_skip_reason"] = "cloud module missing"
@@ -592,8 +593,39 @@ def sync_workspace_protocol(
         )
         return False
 
-    if has_resume_query_params(st, app_id):
+    stale_cleared = reconcile_stale_resume_session_flags(st, app_id)
+    st.session_state["_suite_stale_resume_flags_cleared"] = stale_cleared or None
+    skip_resume_restore = should_skip_workspace_restore_for_resume(st, app_id, reconcile_first=False)
+    if skip_resume_restore:
         st.session_state["_suite_resume_insight_hydration_only"] = True
+        reason = "resume query params — workspace sync skipped"
+        st.session_state["_suite_persist_restore_skip_reason"] = reason
+        _mark_workspace_sync_skipped(st, app_id, reason)
+        _record_workspace_sync_trace(
+            st,
+            app_id,
+            cloud_state={},
+            cloud_ts=None,
+            disk_state={},
+            disk_ts=None,
+            winner="none",
+            reason=reason,
+            applied=False,
+        )
+        _record_startup_restore_diagnostics(
+            st,
+            app_id,
+            cloud_state={},
+            cloud_ts=None,
+            disk_state={},
+            disk_ts=None,
+            picked_source="none",
+            picked_reason=reason,
+            should_apply=False,
+            apply_reason="",
+            skip_reason=reason,
+        )
+        return False
 
     dirty_key = _local_dirty_key(app_id)
     st.session_state.pop("_suite_workspace_sync_skipped_no_apply", None)

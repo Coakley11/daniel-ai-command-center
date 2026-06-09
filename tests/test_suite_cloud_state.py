@@ -13,6 +13,7 @@ from suite_cloud_state import (
     pick_restore_session,
     reconcile_stale_resume_session_flags,
     session_page_summary,
+    should_skip_workspace_restore_for_resume,
 )
 
 
@@ -37,20 +38,40 @@ class TestSuiteCloudState(unittest.TestCase):
             "_navigate_to_studio_page": "backing",
         }
         st.query_params = {}
-        reconcile_stale_resume_session_flags(st, "music")
+        cleared = reconcile_stale_resume_session_flags(st, "music")
+        self.assertIn("_suite_resume_launch_music", cleared)
         self.assertNotIn("_suite_resume_launch_music", st.session_state)
         self.assertNotIn("_navigate_to_studio_page", st.session_state)
 
-    def test_reconcile_keeps_flags_during_active_ami_return(self) -> None:
+    def test_reconcile_clears_stale_ami_preserve_without_url(self) -> None:
         st = MagicMock()
         st.session_state = {
             "_suite_resume_launch_music": True,
             "_ami_insight_return_preserve": True,
         }
         st.query_params = {}
-        reconcile_stale_resume_session_flags(st, "music")
+        cleared = reconcile_stale_resume_session_flags(st, "music")
+        self.assertIn("_ami_insight_return_preserve", cleared)
+        self.assertNotIn("_ami_insight_return_preserve", st.session_state)
+
+    def test_reconcile_keeps_flags_during_live_url_ami_return(self) -> None:
+        st = MagicMock()
+        st.session_state = {
+            "_suite_resume_launch_music": True,
+            "_ami_insight_return_preserve": True,
+        }
+        st.query_params = {"suite_ami_insight": "abc123"}
+        cleared = reconcile_stale_resume_session_flags(st, "music")
+        self.assertEqual(cleared, [])
         self.assertIn("_suite_resume_launch_music", st.session_state)
-        self.assertIn("_ami_insight_return_preserve", st.session_state)
+
+    def test_should_skip_false_for_stale_launch_flag_only(self) -> None:
+        st = MagicMock()
+        st.session_state = {"_suite_resume_launch_music": True, "studio_page": "practice"}
+        st.query_params = {}
+        self.assertFalse(should_skip_workspace_restore_for_resume(st, "music"))
+        self.assertFalse(has_resume_query_params(st, "music"))
+        self.assertNotIn("_suite_resume_launch_music", st.session_state)
 
     def test_list_active_resume_query_params_music(self) -> None:
         st = MagicMock()

@@ -19,6 +19,7 @@ SESSION_RETURN_CONTEXT_KEY = "_ami_return_context"
 SESSION_DISMISSED_KEY = "_ami_dismissed_insight_ids"
 SESSION_DISMISSED_AT_KEY = "_ami_dismissed_insight_at"
 SESSION_PERSIST_INSIGHT_DIRTY = "_suite_persist_insight_dirty"
+MUSIC_COACH_INSIGHT_PANEL_KEY = "music_coach_insight_panel"
 
 # Pages where the insight card may appear (display-only v1).
 INSIGHT_ELIGIBLE_PAGES: dict[str, frozenset[str]] = {

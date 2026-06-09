@@ -39,7 +39,7 @@ class TestWorkspaceSyncProtocol(unittest.TestCase):
             _st.session_state["active_page"] = state.get("active_page")
             _st.session_state["main_sidebar_page"] = state.get("active_page")
 
-        with patch("suite_cloud_state.has_resume_query_params", return_value=False), patch(
+        with patch("suite_cloud_state.should_skip_workspace_restore_for_resume", return_value=False), patch(
             "suite_cloud_state.load_cloud_full_session",
             return_value=(cloud_state, "2026-06-08T14:00:00+00:00"),
         ), patch(
@@ -104,7 +104,7 @@ class TestWorkspaceSyncProtocol(unittest.TestCase):
             applied.append(state)
             _st.session_state["active_page"] = state.get("active_page")
 
-        with patch("suite_cloud_state.has_resume_query_params", return_value=False), patch(
+        with patch("suite_cloud_state.should_skip_workspace_restore_for_resume", return_value=False), patch(
             "suite_cloud_state.probe_cloud_restore_diagnostics",
             return_value={"cloud_has_full_session": True, "suite_user_id": "user-1"},
         ), patch(
@@ -131,7 +131,7 @@ class TestWorkspaceSyncProtocol(unittest.TestCase):
         def apply_state(_st: MagicMock, state: dict) -> None:
             applied.append(state)
 
-        with patch("suite_cloud_state.has_resume_query_params", return_value=False), patch(
+        with patch("suite_cloud_state.should_skip_workspace_restore_for_resume", return_value=False), patch(
             "suite_cloud_state.load_cloud_full_session",
             return_value=({"active_page": "Trend Value"}, "2026-06-08T12:00:00+00:00"),
         ), patch(
@@ -163,7 +163,7 @@ class TestWorkspaceSyncProtocol(unittest.TestCase):
         def apply_state(_st: MagicMock, state: dict) -> None:
             applied.append(state)
 
-        with patch("suite_cloud_state.has_resume_query_params", return_value=False), patch(
+        with patch("suite_cloud_state.should_skip_workspace_restore_for_resume", return_value=False), patch(
             "suite_cloud_state.probe_cloud_restore_diagnostics",
             return_value={"cloud_has_full_session": True},
         ), patch(
@@ -179,7 +179,7 @@ class TestWorkspaceSyncProtocol(unittest.TestCase):
         self.assertEqual(len(applied), 1)
 
 
-    def test_resume_params_still_apply_workspace_sync(self) -> None:
+    def test_resume_params_skip_workspace_sync(self) -> None:
         st = MagicMock()
         st.session_state = {
             "active_page": "Trend Value",
@@ -194,7 +194,7 @@ class TestWorkspaceSyncProtocol(unittest.TestCase):
         def apply_state(_st: MagicMock, state: dict) -> None:
             applied.append(state)
 
-        with patch("suite_cloud_state.has_resume_query_params", return_value=True), patch(
+        with patch("suite_cloud_state.should_skip_workspace_restore_for_resume", return_value=True), patch(
             "suite_cloud_state.probe_cloud_restore_diagnostics",
             return_value={"cloud_has_full_session": True},
         ), patch(
@@ -206,17 +206,17 @@ class TestWorkspaceSyncProtocol(unittest.TestCase):
         ), patch("suite_user_persistence.save_user_state", return_value=True):
             ok = sync_workspace_protocol(st, "baseball", apply_state=apply_state)
 
-        self.assertTrue(ok)
-        self.assertEqual(len(applied), 1)
+        self.assertFalse(ok)
+        self.assertEqual(len(applied), 0)
         self.assertTrue(st.session_state.get("_suite_resume_insight_hydration_only"))
-        self.assertNotIn("_suite_workspace_sync_skipped_no_apply", st.session_state)
+        self.assertTrue(st.session_state.get("_suite_workspace_sync_skipped_no_apply"))
 
     def test_restore_skipped_blocks_autosave(self) -> None:
         st = MagicMock()
         st.session_state = {"_suite_persist_local_dirty::baseball": True}
         build = MagicMock(return_value={"active_page": "Trend Value"})
 
-        with patch("suite_cloud_state.has_resume_query_params", return_value=False), patch(
+        with patch("suite_cloud_state.should_skip_workspace_restore_for_resume", return_value=False), patch(
             "suite_cloud_state.load_cloud_full_session",
             return_value=({"active_page": "Trend Value"}, "2026-06-08T12:00:00+00:00"),
         ), patch(
@@ -275,7 +275,7 @@ class TestWorkspaceSyncProtocol(unittest.TestCase):
         cloud_state = {"active_page": "Trend Value", "page_filter_state": {}}
         applied: list[dict] = []
 
-        with patch("suite_cloud_state.has_resume_query_params", return_value=False), patch(
+        with patch("suite_cloud_state.should_skip_workspace_restore_for_resume", return_value=False), patch(
             "suite_cloud_state.load_cloud_full_session",
             return_value=(cloud_state, "2026-06-08T12:00:00+00:00"),
         ), patch(
@@ -320,7 +320,7 @@ class TestWorkspaceSyncProtocol(unittest.TestCase):
             }
         )
 
-        with patch("suite_cloud_state.has_resume_query_params", return_value=False), patch(
+        with patch("suite_cloud_state.should_skip_workspace_restore_for_resume", return_value=False), patch(
             "suite_cloud_state.load_cloud_full_session",
             return_value=(cloud_state, "2026-06-08T15:00:00+00:00"),
         ), patch(
