@@ -90,9 +90,10 @@ Central hub repo (`daniel-ai-command-center`) for suite homepage, activity aggre
 Port order (Phase A → B → C → D per app):
 
 1. [x] **Music Practice Coach** — Phase A audit complete (`docs/MUSIC_PHASE_A_AUDIT.md`)
-   - [x] Phase B — shared suite modules + `prepare_music_workspace` + Music Coach stub (`docs/MUSIC_PHASE_B_PROTOCOL.md`)
-   - [ ] Phase B manual sign-off (phone ↔ Dell, coach return on eligible pages)
-   - [ ] Phase C — canonical `{page}_state` modules (blocked until Phase B passes)
+   - [x] Phase B — shared suite modules + `prepare_music_workspace` + Music Coach stub (`docs/MUSIC_PHASE_B_PROTOCOL.md`) — **accepted**
+   - [x] Phase C slice 1 — `active_song_state.py` + `studio_nav_state.py` (`docs/MUSIC_PHASE_C_PROTOCOL.md`) — **accepted**
+   - [ ] Phase C slice 2 — `practice_state.py` — implement + live acceptance
+   - [ ] **Watch:** first phone→Dell instrument/setup edit may lag once; re-check on next acceptance pass (non-blocker)
 2. [ ] **NBA Playoff Companion** — Phase A audit
 3. [ ] **Investment App** — Phase A audit
 4. [ ] **Applied Intelligence / Calculus App** — Phase A audit
