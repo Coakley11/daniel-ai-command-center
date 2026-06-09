@@ -73,6 +73,23 @@ class TestSuiteCloudState(unittest.TestCase):
         self.assertFalse(has_resume_query_params(st, "music"))
         self.assertNotIn("_suite_resume_launch_music", st.session_state)
 
+    def test_should_skip_false_for_suite_pick_key_only(self) -> None:
+        st = MagicMock()
+        st.session_state = {}
+        st.query_params = {"suite_pick_key": "Pop|Perfect"}
+        self.assertEqual(
+            list_active_resume_query_params(st, "music"),
+            ["suite_pick_key"],
+        )
+        self.assertFalse(should_skip_workspace_restore_for_resume(st, "music", reconcile_first=False))
+        self.assertFalse(has_resume_query_params(st, "music"))
+
+    def test_should_skip_true_for_suite_page_on_music(self) -> None:
+        st = MagicMock()
+        st.session_state = {}
+        st.query_params = {"suite_page": "backing", "suite_pick_key": "Pop|Perfect"}
+        self.assertTrue(should_skip_workspace_restore_for_resume(st, "music", reconcile_first=False))
+
     def test_list_active_resume_query_params_music(self) -> None:
         st = MagicMock()
         st.session_state = {}
