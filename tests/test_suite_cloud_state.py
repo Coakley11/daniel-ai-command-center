@@ -8,8 +8,10 @@ from unittest.mock import MagicMock, patch
 from suite_cloud_state import (
     FULL_SESSION_KEY,
     has_resume_query_params,
+    list_active_resume_query_params,
     pick_newer_session,
     pick_restore_session,
+    reconcile_stale_resume_session_flags,
     session_page_summary,
 )
 
@@ -21,11 +23,43 @@ class TestSuiteCloudState(unittest.TestCase):
         st.query_params = {"suite_page": "Comparison Tool"}
         self.assertTrue(has_resume_query_params(st, "baseball"))
 
-    def test_has_resume_query_params_launch_flag(self) -> None:
+    def test_has_resume_query_params_stale_launch_flag_cleared(self) -> None:
         st = MagicMock()
         st.session_state = {"_suite_resume_launch_baseball": True}
         st.query_params = {}
-        self.assertTrue(has_resume_query_params(st, "baseball"))
+        self.assertFalse(has_resume_query_params(st, "baseball"))
+        self.assertNotIn("_suite_resume_launch_baseball", st.session_state)
+
+    def test_reconcile_stale_resume_clears_music_launch_flag(self) -> None:
+        st = MagicMock()
+        st.session_state = {
+            "_suite_resume_launch_music": True,
+            "_navigate_to_studio_page": "backing",
+        }
+        st.query_params = {}
+        reconcile_stale_resume_session_flags(st, "music")
+        self.assertNotIn("_suite_resume_launch_music", st.session_state)
+        self.assertNotIn("_navigate_to_studio_page", st.session_state)
+
+    def test_reconcile_keeps_flags_during_active_ami_return(self) -> None:
+        st = MagicMock()
+        st.session_state = {
+            "_suite_resume_launch_music": True,
+            "_ami_insight_return_preserve": True,
+        }
+        st.query_params = {}
+        reconcile_stale_resume_session_flags(st, "music")
+        self.assertIn("_suite_resume_launch_music", st.session_state)
+        self.assertIn("_ami_insight_return_preserve", st.session_state)
+
+    def test_list_active_resume_query_params_music(self) -> None:
+        st = MagicMock()
+        st.session_state = {}
+        st.query_params = {"suite_page": "backing", "suite_ami_insight": "abc"}
+        self.assertEqual(
+            list_active_resume_query_params(st, "music"),
+            ["suite_page", "suite_ami_insight"],
+        )
 
     def test_has_resume_query_params_false_after_ami_consumed(self) -> None:
         st = MagicMock()
