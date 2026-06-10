@@ -1,0 +1,55 @@
+---
+description: 
+alwaysApply: true
+---
+
+# Copy-friendly response block
+
+At the **end** of every assistant message, add a section the user can copy in one click.
+
+## Format (required)
+
+For all coding, debugging, architecture, deployment, and investigation responses:
+
+1. Provide a complete response with:
+   - Summary
+   - Root cause
+   - Investigation findings
+   - Fixes implemented
+   - Files changed
+   - Tests run
+   - Commit hash (if applicable)
+   - Deployment status
+   - Verification steps
+   - Remaining issues
+
+2. Do not provide abbreviated summaries unless specifically requested.
+
+3. End every response with:
+
+## Copy response
+
+4. Under ## Copy response, provide a single code block containing the FULL response, not a shortened version.
+
+5. The code block should contain:
+   - Root cause
+   - Investigation
+   - Fixes
+   - Files changed
+   - Tests
+   - Commit hash
+   - Deployment notes
+   - Verification steps
+   - Next actions
+
+6. Do not place only a summary in the code block. The code block should contain the complete response.
+
+7. Avoid hiding important implementation details outside the code block.
+
+8. Prefer detailed technical explanations over short status updates.
+
+9. When reporting fixes, explicitly state:
+   - What was broken
+   - Why it broke
+   - How it was fixed
+   - How to verify the fix
