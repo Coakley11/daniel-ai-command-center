@@ -67,6 +67,29 @@ class TestSuiteCloudStorage(unittest.TestCase):
         events = load_events(limit=5)
         self.assertIsInstance(events, list)
 
+    @patch("suite_storage_supabase._scoped_user_id", return_value="f66b85aa-1192-4f93-a669-d238bcd6858b")
+    @patch("suite_storage_supabase._request")
+    @patch("suite_storage_config.get_cloud_config")
+    def test_upsert_saved_item_uses_on_conflict(
+        self,
+        mock_cfg: MagicMock,
+        mock_req: MagicMock,
+        _uid: MagicMock,
+    ) -> None:
+        mock_cfg.return_value = SuiteCloudConfig(url="https://test.supabase.co", key="secret")
+        from suite_storage_supabase import upsert_saved_item
+
+        result = upsert_saved_item(
+            "investment",
+            "applied_math_insight",
+            "edc6ca34de6e4cde",
+            title="Applied Investment Insight",
+            payload={"insight_id": "edc6ca34de6e4cde"},
+        )
+        self.assertEqual(result["write_mode"], "upsert")
+        mock_req.assert_called_once()
+        self.assertEqual(mock_req.call_args.kwargs["params"], {"on_conflict": "user_id,app,item_type,item_key"})
+
 
 if __name__ == "__main__":
     unittest.main()
