@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Any
 
 
 @dataclass(frozen=True)
@@ -24,11 +25,15 @@ class ActivityFeedItem:
 
 @dataclass(frozen=True)
 class ActivityDashboard:
-    """Executive activity view: today's summary, highlights, and recent rollups."""
+    """Executive activity view: summaries, highlights, and grouped recent work."""
 
     today_summaries: tuple[str, ...]
     highlights: tuple[ActivityFeedItem, ...]
     recent: tuple[ActivityFeedItem, ...]
+    week_summaries: tuple[str, ...] = ()
+    recent_by_app: tuple[str, ...] = ()
+    most_active_workflows: tuple[str, ...] = ()
+    feed_trace: dict[str, Any] | None = None
 
 
 __all__ = ("ActivityFeedItem", "ActivityDashboard")

@@ -411,11 +411,11 @@ def format_activity_message(event: dict[str, Any], *, for_feed: bool = True) -> 
             return "Updated portfolio holdings"
 
         if event_type in ("portfolio_health_checked", "portfolio_check"):
-            label = str(m.get("review_type") or "portfolio health").strip()
+            label = str(m.get("review_type") or "portfolio analysis").strip()
             score = m.get("score")
             if score is not None:
-                return f"Ran portfolio health check ({label}, {float(score):.0f}/100)"
-            return "Ran portfolio health check"
+                return f"Portfolio Analysis ({label}, {float(score):.0f}/100)"
+            return "Portfolio Analysis"
 
         if event_type == "risk_profile_changed":
             if for_feed:
@@ -1220,7 +1220,35 @@ def build_activity_dashboard(
     today_summaries = build_today_summaries(events, now=now)
     remaining, synthetic_lines = _cluster_investment_setup(events)
 
+    try:
+        from activity_grouping import build_action_groups
+
+        action_groups = build_action_groups(
+            remaining,
+            now=now,
+            parse_ts=parse_activity_timestamp,
+            make_feed_item=_make_feed_item,
+            events_today_fn=lambda ev, n: _events_today(ev, now=n),
+        )
+        consumed_action_ids = action_groups.consumed_ids
+        action_rollups = list(action_groups.rollup_items)
+        today_summaries = tuple(
+            dict.fromkeys(list(today_summaries) + list(action_groups.today_summaries))
+        )
+        week_summaries = action_groups.week_summaries
+        recent_by_app = action_groups.recent_by_app
+        most_active = action_groups.most_active
+        feed_trace = action_groups.feed_trace
+    except ImportError:
+        consumed_action_ids = frozenset()
+        action_rollups = []
+        week_summaries = ()
+        recent_by_app = ()
+        most_active = ()
+        feed_trace = None
+
     consumed_rollup_ids, rollup_items = _build_rollup_items(remaining, now=now)
+    consumed_rollup_ids = consumed_rollup_ids | set(consumed_action_ids)
 
     highlights: list[ActivityFeedItem] = []
     recent_candidates: list[ActivityFeedItem] = []
@@ -1292,6 +1320,7 @@ def build_activity_dashboard(
         )
 
     recent_candidates.extend(rollup_items)
+    recent_candidates.extend(action_rollups)
 
     # Deduplicate highlights by message within window
     hl_ranked = sorted(highlights, key=lambda i: i.sort_key, reverse=True)
@@ -1330,6 +1359,10 @@ def build_activity_dashboard(
         today_summaries=today_summaries,
         highlights=tuple(hl_deduped[:highlight_limit]),
         recent=tuple(recent_deduped[:recent_limit]),
+        week_summaries=week_summaries,
+        recent_by_app=recent_by_app,
+        most_active_workflows=most_active,
+        feed_trace=feed_trace,
     )
 
 
