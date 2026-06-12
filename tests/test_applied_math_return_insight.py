@@ -5,9 +5,11 @@ from __future__ import annotations
 import unittest
 
 from applied_math_return_insight import (
+    AMI_INSIGHT_STORE_VERSION,
     _source_state_has_restore_payload,
     build_return_resume_key,
     metrics_for_source_app_return,
+    prepare_ami_insight_store_context,
     resolve_ami_return_source_state_for_store,
     store_applied_math_insight,
 )
@@ -156,11 +158,15 @@ class TestReturnInsightRestore(unittest.TestCase):
             store_applied_math_insight(insight, source_state=question_ss)
 
         self.assertTrue(captured)
-        trace = captured[0].get("_ami_store_trace") or {}
+        stored = captured[-1]
+        trace = stored.get("_ami_store_trace") or {}
         self.assertTrue(trace.get("store_source_state_exists"))
         self.assertTrue(trace.get("store_blob_written_success"))
         self.assertEqual(trace.get("store_insight_id"), "f0ac14c07b16500c")
         self.assertEqual(trace.get("store_question_id"), "q-store-trace")
+        self.assertTrue(stored.get("store_blob_written_success"))
+        self.assertEqual(stored.get("store_version"), AMI_INSIGHT_STORE_VERSION)
+        self.assertTrue(_source_state_has_restore_payload(stored.get("source_state")))
 
     def test_store_applied_math_insight_resolves_source_state_when_st_provided(self) -> None:
         from unittest.mock import patch
@@ -207,7 +213,57 @@ class TestReturnInsightRestore(unittest.TestCase):
             store_applied_math_insight(insight, st=st)
 
         self.assertTrue(captured)
-        self.assertTrue(_source_state_has_restore_payload(captured[0].get("source_state")))
+        self.assertTrue(_source_state_has_restore_payload(captured[-1].get("source_state")))
+
+    def test_prepare_ami_insight_store_context_prefers_session_question_id(self) -> None:
+        from unittest.mock import patch
+
+        class _FakeSessionState(dict):
+            def __getattr__(self, name):
+                return self[name]
+
+            def __setattr__(self, name, value):
+                self[name] = value
+
+        class _FakeSt:
+            def __init__(self) -> None:
+                self.session_state = _FakeSessionState(
+                    {
+                        "_suite_ai_question_id": "q-investment-send",
+                    }
+                )
+                self.query_params = {}
+
+        question_ss = {
+            "source_app": "investment",
+            "source_page": "Portfolio Health",
+            "entity_params": {
+                "holdings_fingerprint": "BND:50.0:Bonds|VYM:50.0:Dividend ETF",
+            },
+            "page_params": {"page": "Portfolio Health"},
+        }
+        st = _FakeSt()
+        with patch(
+            "suite_analytical_question.load_analytical_question_source_state",
+            return_value=question_ss,
+        ), patch(
+            "suite_analytical_question.build_question_payload",
+            return_value={"question_id": "q-regenerated-wrong", "source_app": "investment"},
+        ), patch(
+            "suite_analytical_question.persist_question_context_blob",
+            return_value=None,
+        ) as persist_mock:
+            payload, ss, qid = prepare_ami_insight_store_context(
+                st,
+                source_app="investment",
+                source_page="Portfolio Health",
+                question="How balanced is my portfolio?",
+                context={},
+            )
+        self.assertEqual(qid, "q-investment-send")
+        self.assertEqual(payload.get("question_id"), "q-investment-send")
+        self.assertTrue(_source_state_has_restore_payload(ss))
+        persist_mock.assert_called_once()
 
 
 if __name__ == "__main__":
