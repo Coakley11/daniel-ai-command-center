@@ -360,6 +360,45 @@ class TestRichContextPayloads(unittest.TestCase):
         self.assertEqual(loaded.get("team"), "Knicks")
         self.assertEqual(loaded.get("win_probability"), "55%")
 
+    def test_hydrate_prefers_question_id_blob_over_url(self) -> None:
+        qid = "ami-blob-first-test"
+        full_ctx = {
+            "player": "Corbin Carroll",
+            "draft_snapshot": {
+                "current_pick": 18,
+                "user_roster": ["Aaron Judge", "Juan Soto"],
+                "recommended_players": [{"player": "Elly De La Cruz"}],
+            },
+        }
+
+        class _QP:
+            def get(self, name: str) -> str:
+                if name == "suite_ai_question_id":
+                    return qid
+                if name == "suite_ai_question":
+                    return "Who should I draft next?"
+                if name == "suite_ai_context":
+                    return '{"player":"URL-only"}'
+                return ""
+
+        class _ST:
+            session_state: dict = {}
+            query_params = _QP()
+
+        st = _ST()
+        with unittest.mock.patch(
+            "suite_analytical_question.load_analytical_question_payload",
+            return_value={"context": full_ctx, "source_state": {"page": "Draft"}},
+        ):
+            from suite_analytical_question import hydrate_applied_intelligence_session
+
+            hydrate_applied_intelligence_session(st, metrics={"question_id": qid})
+
+        loaded = json.loads(st.session_state["_suite_ai_context"])
+        self.assertEqual(loaded.get("player"), "Corbin Carroll")
+        self.assertIn("draft_snapshot", loaded)
+        self.assertEqual(st.session_state.get("_suite_ai_hydrate_source"), "question_id_blob")
+
     def test_build_context_from_session_investment_health(self) -> None:
         session = {
             "_ami_investment_context": {"rebalance_drift": {"VTI": "+5pp"}},

@@ -1,6 +1,6 @@
 # Current Tasks — Daniel AI Command Center
 
-**Last updated:** 2026-06-08
+**Last updated:** 2026-06-11
 
 Actionable work items. Master context: [app_roadmap.md](./app_roadmap.md).
 
@@ -14,9 +14,21 @@ Central hub repo (`daniel-ai-command-center`) for suite homepage, activity aggre
 
 # Current Priorities
 
-**Focus: Baseball Phase 2 page audit — make Baseball the reference implementation for ownership/sync/AMI before porting to other apps.**
+**Focus (2026-06-11): AMI improvements — better context, reasoning, teaching, and app-state use across Music, Baseball, and Applied Mathematics.**
 
-### P0 — Baseball Phase 2: Full Page Audit
+**Master plan:** [plans/2026-06-11-ami-enhancement-roadmap.md](./plans/2026-06-11-ami-enhancement-roadmap.md)  
+**Sync audit:** Music + Baseball cross-device status documented in same plan (defer sync unless small high-impact win).
+
+### P0 — AMI Enhancement Program
+
+1. [ ] **Phase 0 (1–2 days):** Blob-first hydration by `question_id`; teaching response template (problem → analyst frame → variables → tradeoffs → decision)
+2. [ ] **Phase 1 (3–5 days):** Baseball contextual transfer — `_ami_*` hooks on all eligible pages; trend/compare/historical/draft numerics in answers
+3. [ ] **Phase 2 (1–2 weeks):** Music AMI — richer send context + music router/solvers (or OpenAI coach); chord function, rhythm, practice recommendations
+4. [ ] **Phase 3 (~1 week):** Applied Math teaching layer — interactive what-if, NBA stat-gap/matchup hooks, Investment rebalance drift
+
+**Optional sync (only if quick win):** Baseball draft board immediate force-save (1–3h); Music practice log + analysis history → Supabase (3–8h).
+
+### P0 (previous) — Baseball Phase 2 / Suite port
 
 **Plan:** [plans/2026-06-08-baseball-phase-2-page-audit.md](./plans/2026-06-08-baseball-phase-2-page-audit.md)  
 **Primary repo:** `baseball-stat-app` · **Shared modules:** sync via `scripts/sync_suite_cloud_modules.py`

@@ -139,6 +139,14 @@ _PUBLIC_CONTEXT_KEYS = (
     "rebalance_recommendation",
     "total_drift",
     "historical_comparison",
+    "draft_snapshot",
+    "roster",
+    "recommended_players",
+    "sleepers",
+    "scoring_settings",
+    "ami_guidance",
+    "projection",
+    "watchlist",
 )
 
 _CONTEXT_LABELS = {
@@ -438,20 +446,39 @@ def hydrate_applied_intelligence_session(st: Any, *, metrics: dict[str, Any] | N
     page = str(m.get("page") or _qp("suite_page") or "Solve a Problem").strip()
 
     ctx: dict[str, Any] = {}
+    source_state: dict[str, Any] = {}
+    hydrate_source = "none"
+
+    # Blob-first: full context by question_id before metrics/URL (avoids truncated deep links).
+    if qid:
+        blob_payload = load_analytical_question_payload(qid)
+        blob_ctx = blob_payload.get("context") if isinstance(blob_payload.get("context"), dict) else {}
+        if blob_ctx:
+            ctx = copy.deepcopy(blob_ctx)
+            hydrate_source = "question_id_blob"
+        blob_ss = blob_payload.get("source_state") if isinstance(blob_payload.get("source_state"), dict) else {}
+        if blob_ss:
+            source_state = copy.deepcopy(blob_ss)
+
+    metrics_ctx: dict[str, Any] = {}
     if isinstance(m.get("context"), dict):
-        ctx = copy.deepcopy(m["context"])
+        metrics_ctx = copy.deepcopy(m["context"])
     elif m.get("context_json"):
         try:
             parsed = json.loads(str(m["context_json"]))
             if isinstance(parsed, dict):
-                ctx = parsed
+                metrics_ctx = parsed
         except json.JSONDecodeError:
             pass
-    if not ctx and qid:
-        ctx = load_analytical_question_context(qid)
-    source_state: dict[str, Any] = {}
-    if qid:
-        source_state = load_analytical_question_source_state(qid)
+    if metrics_ctx:
+        if not ctx:
+            ctx = metrics_ctx
+            hydrate_source = "metrics"
+        else:
+            for key, val in metrics_ctx.items():
+                if key not in ctx or not ctx.get(key):
+                    ctx[key] = val
+
     if not ctx:
         raw_ctx = _qp("suite_ai_context")
         if raw_ctx:
@@ -459,6 +486,7 @@ def hydrate_applied_intelligence_session(st: Any, *, metrics: dict[str, Any] | N
                 parsed = json.loads(raw_ctx)
                 if isinstance(parsed, dict):
                     ctx = parsed
+                    hydrate_source = "url_query"
             except json.JSONDecodeError:
                 pass
 
@@ -479,6 +507,7 @@ def hydrate_applied_intelligence_session(st: Any, *, metrics: dict[str, Any] | N
         ss["_suite_ai_context"] = json.dumps(ctx, ensure_ascii=False)
     if source_state:
         ss["_suite_ai_source_state"] = copy.deepcopy(source_state)
+    ss["_suite_ai_hydrate_source"] = hydrate_source
 
 
 def _format_context_value(key: str, val: Any) -> str:
