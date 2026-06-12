@@ -121,6 +121,47 @@ class TestReturnInsightRestore(unittest.TestCase):
             "BND:50.0:Bonds|VYM:50.0:Dividend ETF",
         )
 
+    def test_store_applied_math_insight_embeds_store_trace_in_blob(self) -> None:
+        from unittest.mock import patch
+
+        question_ss = {
+            "source_app": "investment",
+            "source_page": "Portfolio Health",
+            "entity_params": {
+                "holdings_fingerprint": "BND:50.0:Bonds|VYM:50.0:Dividend ETF",
+                "holdings_df": [{"Ticker": "BND", "Weight (%)": 50.0}],
+            },
+            "page_params": {"page": "Portfolio Health"},
+        }
+        insight = {
+            "insight_id": "f0ac14c07b16500c",
+            "question_id": "q-store-trace",
+            "source_app": "investment",
+            "source_page": "Portfolio Health",
+            "conclusion": "Test",
+        }
+        captured: list[dict] = []
+
+        def _remember_saved_item(_app, _item_type, _item_key, *, title="", payload=None, **_kwargs):
+            captured.append(dict(payload or {}))
+            return True
+
+        with patch(
+            "suite_analytical_question.load_analytical_question_source_state",
+            return_value=question_ss,
+        ), patch("suite_account.remember_saved_item", side_effect=_remember_saved_item), patch(
+            "suite_activity_client.record_activity",
+            return_value=None,
+        ):
+            store_applied_math_insight(insight, source_state=question_ss)
+
+        self.assertTrue(captured)
+        trace = captured[0].get("_ami_store_trace") or {}
+        self.assertTrue(trace.get("store_source_state_exists"))
+        self.assertTrue(trace.get("store_blob_written_success"))
+        self.assertEqual(trace.get("store_insight_id"), "f0ac14c07b16500c")
+        self.assertEqual(trace.get("store_question_id"), "q-store-trace")
+
     def test_store_applied_math_insight_resolves_source_state_when_st_provided(self) -> None:
         from unittest.mock import patch
 
