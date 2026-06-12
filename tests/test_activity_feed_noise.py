@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import unittest
+from datetime import datetime, timezone
 
 from activity_feed import build_activity_feed, format_activity_message
 
@@ -44,10 +45,11 @@ class TestActivityFeedNoise(unittest.TestCase):
                 "metrics": {"review_type": "Good", "score": 80},
             },
         ]
-        feed = build_activity_feed(events, limit=5)
+        now = datetime(2026, 6, 1, 12, 0, tzinfo=timezone.utc)
+        feed = build_activity_feed(events, limit=5, now=now)
         messages = [item.message for item in feed]
-        self.assertTrue(any("starter portfolio" in m.lower() for m in messages))
-        self.assertTrue(any("portfolio health check" in m.lower() for m in messages))
+        self.assertTrue(any("new portfolio created" in m.lower() for m in messages))
+        self.assertTrue(any("portfolio analysis" in m.lower() for m in messages))
         self.assertFalse(any("Selected investment goal" in m for m in messages))
         self.assertFalse(any("Updated holdings" in m for m in messages))
 
@@ -97,11 +99,12 @@ class TestActivityFeedNoise(unittest.TestCase):
                 "metrics": {"review_type": "Good", "score": 82},
             },
         ]
-        feed = build_activity_feed(events, limit=10)
+        now = datetime(2026, 6, 1, 12, 0, tzinfo=timezone.utc)
+        feed = build_activity_feed(events, limit=10, now=now)
         messages = [item.message for item in feed]
-        portfolio_lines = [m for m in messages if "starter portfolio" in m.lower() and goal.lower() in m.lower()]
+        portfolio_lines = [m for m in messages if "new portfolio created" in m.lower() and goal.lower() in m.lower()]
         self.assertEqual(len(portfolio_lines), 1)
-        self.assertTrue(any("health check" in m.lower() for m in messages))
+        self.assertTrue(any("portfolio analysis" in m.lower() for m in messages))
 
     def test_health_sorted_by_recency_in_highlights(self) -> None:
         events = [
@@ -118,7 +121,7 @@ class TestActivityFeedNoise(unittest.TestCase):
                 "metrics": {"review_type": "Fair", "score": 65},
             },
         ]
-        feed = build_activity_feed(events, limit=2)
+        feed = build_activity_feed(events, limit=2, now=datetime(2026, 6, 1, 13, 0, tzinfo=timezone.utc))
         self.assertGreaterEqual(len(feed), 1)
         # Newer portfolio_created should appear before older health check (recency sort).
         self.assertIn("portfolio", feed[0].message.lower())

@@ -438,20 +438,13 @@ def _render_recent_activity_feed() -> None:
         unsafe_allow_html=True,
     )
     st.markdown(
-        '<div class="cc-section-sub">Accomplishments grouped by app — repeated work shows once with a count, '
-        "not every click.</div>",
+        '<div class="cc-section-sub">What meaningful work did you do today — grouped by app, '
+        "not every button click.</div>",
         unsafe_allow_html=True,
     )
 
     dashboard = build_activity_dashboard(load_all_events())
-    if (
-        not dashboard.today_summaries
-        and not dashboard.week_summaries
-        and not dashboard.recent_by_app
-        and not dashboard.most_active_workflows
-        and not dashboard.highlights
-        and not dashboard.recent
-    ):
+    if not dashboard.today_summaries:
         st.markdown(
             '<div class="cc-empty-box">No meaningful actions logged yet. Use your apps locally (sibling repos '
             "side-by-side) or add a cloud activity backend for Streamlit Cloud sync.</div>",
@@ -459,52 +452,14 @@ def _render_recent_activity_feed() -> None:
         )
         return
 
-    blocks: list[str] = []
-    if dashboard.most_active_workflows:
-        lines = "".join(
-            f'<div class="cc-today-work-item">· {html.escape(line)}</div>'
-            for line in dashboard.most_active_workflows[:5]
-        )
-        blocks.append(
-            f'<div class="cc-today-work"><div class="cc-today-work-title">Most active workflows</div>{lines}</div>'
-        )
-
-    if dashboard.today_summaries:
-        summary_lines = "".join(
-            f'<div class="cc-today-work-item">· {html.escape(line)}</div>'
-            for line in dashboard.today_summaries
-        )
-        blocks.append(
-            f'<div class="cc-today-work"><div class="cc-today-work-title">Today\'s Work</div>{summary_lines}</div>'
-        )
-
-    if dashboard.week_summaries:
-        week_lines = "".join(
-            f'<div class="cc-today-work-item">· {html.escape(line)}</div>'
-            for line in dashboard.week_summaries[:6]
-        )
-        blocks.append(
-            f'<div class="cc-today-work"><div class="cc-today-work-title">This week</div>{week_lines}</div>'
-        )
-
-    if dashboard.recent_by_app:
-        app_lines = "".join(
-            f'<div class="cc-today-work-item">· {html.escape(line)}</div>'
-            for line in dashboard.recent_by_app
-        )
-        blocks.append(
-            f'<div class="cc-today-work"><div class="cc-today-work-title">Recent work by app</div>{app_lines}</div>'
-        )
-
-    if dashboard.highlights:
-        blocks.append('<div class="cc-feed-section-label">Highlights</div>')
-        blocks.append(_render_feed_items(dashboard.highlights, highlight=True))
-
-    if dashboard.recent:
-        blocks.append('<div class="cc-feed-section-label">Recent Activity</div>')
-        blocks.append(_render_feed_items(dashboard.recent))
-
-    _render_unsafe_html("".join(blocks))
+    summary_lines = "".join(
+        f'<div class="cc-today-work-item">· {html.escape(line)}</div>'
+        for line in dashboard.today_summaries
+    )
+    blocks = (
+        f'<div class="cc-today-work"><div class="cc-today-work-title">Today\'s Work</div>{summary_lines}</div>'
+    )
+    _render_unsafe_html(blocks)
 
     if st.session_state.get(CC_DEV_MODE_KEY) and dashboard.feed_trace:
         with st.expander("Activity feed trace (dev)", expanded=False):

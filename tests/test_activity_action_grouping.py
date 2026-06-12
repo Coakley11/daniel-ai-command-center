@@ -21,11 +21,10 @@ class TestActivityActionGrouping(unittest.TestCase):
             for i in range(10)
         ]
         dash = build_activity_dashboard(events, now=now)
-        combined = [i.message for i in dash.recent] + list(dash.today_summaries)
-        portfolio_lines = [m for m in combined if "Portfolio Analysis" in m]
-        self.assertTrue(any("10 runs today" in m for m in portfolio_lines))
+        portfolio_lines = [m for m in dash.today_summaries if "Portfolio Analysis" in m]
+        self.assertTrue(any("(10 runs)" in m for m in portfolio_lines))
         self.assertLessEqual(
-            sum(1 for m in combined if m.startswith("Portfolio Analysis") and "10 runs" not in m),
+            sum(1 for m in dash.today_summaries if m.startswith("Portfolio Analysis") and "(10 runs)" not in m),
             1,
         )
         self.assertIsNotNone(dash.feed_trace)

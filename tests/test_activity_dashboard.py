@@ -9,7 +9,7 @@ from activity_feed import build_activity_dashboard
 
 
 class TestActivityDashboard(unittest.TestCase):
-    def test_comparison_rollup_in_recent(self) -> None:
+    def test_comparison_rollup_in_today_work(self) -> None:
         now = datetime(2026, 6, 3, 18, 0, tzinfo=timezone.utc)
         events = [
             {
@@ -32,11 +32,10 @@ class TestActivityDashboard(unittest.TestCase):
             },
         ]
         dash = build_activity_dashboard(events, now=now)
-        recent_msgs = [i.message for i in dash.recent]
-        self.assertTrue(any("3 player comparisons" in m for m in recent_msgs))
-        self.assertFalse(any("Compared A vs B" in m for m in recent_msgs))
+        self.assertTrue(any("Player Comparison (3 runs)" in m for m in dash.today_summaries))
+        self.assertFalse(dash.highlights)
 
-    def test_recency_not_priority(self) -> None:
+    def test_milestone_portfolio_created_in_today_work(self) -> None:
         now = datetime(2026, 6, 3, 18, 0, tzinfo=timezone.utc)
         events = [
             {
@@ -53,34 +52,21 @@ class TestActivityDashboard(unittest.TestCase):
             },
         ]
         dash = build_activity_dashboard(events, now=now)
-        hl = list(dash.highlights)
-        self.assertGreaterEqual(len(hl), 2)
-        self.assertGreater(hl[0].sort_key, hl[1].sort_key)
+        self.assertTrue(any("New portfolio created" in m for m in dash.today_summaries))
+        self.assertTrue(any("Portfolio Analysis" in m for m in dash.today_summaries))
 
     def test_today_summary_practice_songs(self) -> None:
         now = datetime(2026, 6, 3, 18, 0, tzinfo=timezone.utc)
         events = [
             {
                 "app": "music",
-                "event": "song_selected",
-                "timestamp": "2026-06-03T17:00:00Z",
-                "metrics": {"song": "Song A"},
-            },
-            {
-                "app": "music",
                 "event": "practice",
                 "timestamp": "2026-06-03T17:30:00Z",
-                "metrics": {"song": "Song B", "minutes": 10},
-            },
-            {
-                "app": "music",
-                "event": "practice",
-                "timestamp": "2026-06-03T17:45:00Z",
-                "metrics": {"song": "Song C", "minutes": 8},
+                "metrics": {"song": "Piano Man", "minutes": 10},
             },
         ]
         dash = build_activity_dashboard(events, now=now)
-        self.assertTrue(any("Practiced" in s for s in dash.today_summaries))
+        self.assertTrue(any("Piano Man" in s for s in dash.today_summaries))
 
 
 if __name__ == "__main__":

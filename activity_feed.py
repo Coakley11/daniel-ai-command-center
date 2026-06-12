@@ -771,6 +771,12 @@ def _summarize_investment_setup(cluster: list[dict[str, Any]]) -> str | None:
         ts = _parse_ts(event)
         if ts > latest_ts:
             latest_ts = ts
+    if any(str(e.get("event") or "") == "portfolio_created" for e in cluster):
+        if goal and holdings:
+            return f"New portfolio created ({holdings} holdings, {goal})"
+        if holdings:
+            return f"New portfolio created ({holdings} holdings)"
+        return "New portfolio created"
     if holdings <= 0 and not goal:
         return None
     if goal and holdings:
@@ -1213,15 +1219,20 @@ def build_activity_dashboard(
     recent_limit: int = 15,
     now: datetime | None = None,
 ) -> ActivityDashboard:
-    """Build Today's Work, Highlights, and Recent Activity sections."""
+    """Build Today's Work executive summary (grouped accomplishments)."""
     if now is None:
         now = datetime.now(timezone.utc)
 
-    today_summaries = build_today_summaries(events, now=now)
     remaining, synthetic_lines = _cluster_investment_setup(events)
+    today_summaries: tuple[str, ...] = ()
+    week_summaries: tuple[str, ...] = ()
+    recent_by_app: tuple[str, ...] = ()
+    most_active: tuple[str, ...] = ()
+    feed_trace: dict[str, Any] | None = None
+    action_rollups: list[ActivityFeedItem] = []
 
     try:
-        from activity_grouping import build_action_groups
+        from activity_grouping import APP_SUMMARY_LABELS, build_action_groups
 
         action_groups = build_action_groups(
             remaining,
@@ -1230,135 +1241,35 @@ def build_activity_dashboard(
             make_feed_item=_make_feed_item,
             events_today_fn=lambda ev, n: _events_today(ev, now=n),
         )
-        consumed_action_ids = action_groups.consumed_ids
-        action_rollups = list(action_groups.rollup_items)
-        today_summaries = tuple(
-            dict.fromkeys(list(today_summaries) + list(action_groups.today_summaries))
-        )
+        today_summaries = action_groups.today_summaries
         week_summaries = action_groups.week_summaries
         recent_by_app = action_groups.recent_by_app
         most_active = action_groups.most_active
         feed_trace = action_groups.feed_trace
+        action_rollups = list(action_groups.rollup_items)
     except ImportError:
-        consumed_action_ids = frozenset()
-        action_rollups = []
-        week_summaries = ()
-        recent_by_app = ()
-        most_active = ()
-        feed_trace = None
+        today_summaries = build_today_summaries(events, now=now)
 
-    consumed_rollup_ids, rollup_items = _build_rollup_items(remaining, now=now)
-    consumed_rollup_ids = consumed_rollup_ids | set(consumed_action_ids)
+    if synthetic_lines:
+        try:
+            from activity_grouping import APP_SUMMARY_LABELS
 
-    highlights: list[ActivityFeedItem] = []
-    recent_candidates: list[ActivityFeedItem] = []
-
-    for sort_key, app, message in synthetic_lines:
-        if now - sort_key <= HIGHLIGHT_MAX_AGE:
-            highlights.append(
-                _make_feed_item(
-                    None,
-                    app=app,
-                    message=message,
-                    sort_key=sort_key,
-                    is_highlight=True,
-                )
-            )
-
-    sorted_events = sorted(remaining, key=_parse_ts, reverse=True)
-    seen: list[tuple[str, datetime, int]] = []
-
-    for event in sorted_events:
-        if _event_identity(event) in consumed_rollup_ids:
-            continue
-
-        ts = _parse_ts(event)
-        app = str(event.get("app") or "")
-        priority = _feed_priority(event)
-
-        if _is_highlight_event(event, now=now):
-            msg = _format_item_message(event, for_highlight=True)
-            if msg:
-                highlights.append(
-                    _make_feed_item(
-                        event,
-                        app=app,
-                        message=msg,
-                        sort_key=ts,
-                        is_highlight=True,
-                    )
-                )
-            continue
-
-        message = format_activity_message(event, for_feed=True)
-        if not message:
-            continue
-        if priority <= 0:
-            continue
-        if (app, str(event.get("event") or "")) in COMPARISON_ROLLUP_EVENTS:
-            continue
-        if (app, str(event.get("event") or "")) in MUSIC_PRACTICE_ROLLUP_EVENTS:
-            continue
-        if str(event.get("event") or "") in INVESTMENT_PORTFOLIO_SESSION_EVENTS and app == "investment":
-            continue
-        if str(event.get("event") or "") in NBA_ANALYSIS_ROLLUP_EVENTS and app == "nba":
-            continue
-
-        key = _dedupe_key(event)
-        skip = False
-        for prev_key, prev_ts, prev_pri in seen:
-            if prev_key == key and abs((ts - prev_ts).total_seconds()) <= DEDUPE_WINDOW.total_seconds():
-                if priority <= prev_pri:
-                    skip = True
-                    break
-        if skip:
-            continue
-        seen.append((key, ts, priority))
-
-        recent_candidates.append(
-            _make_feed_item(event, app=app, message=message, sort_key=ts)
+            inv_label = APP_SUMMARY_LABELS.get("investment", "Investment App")
+        except ImportError:
+            inv_label = "Investment App"
+        synth = tuple(
+            f"{inv_label} · {msg}" if not str(msg).startswith(f"{inv_label} ·") else str(msg)
+            for _, _, msg in synthetic_lines
         )
+        today_summaries = tuple(dict.fromkeys(list(today_summaries) + list(synth)))
 
-    recent_candidates.extend(rollup_items)
-    recent_candidates.extend(action_rollups)
-
-    # Deduplicate highlights by message within window
-    hl_ranked = sorted(highlights, key=lambda i: i.sort_key, reverse=True)
-    hl_deduped: list[ActivityFeedItem] = []
-    hl_seen: list[tuple[str, str, datetime]] = []
-    for item in hl_ranked:
-        norm = _normalize_feed_message(item.message)
-        dup = False
-        for app, prev_norm, prev_ts in hl_seen:
-            if app == item.app and prev_norm == norm:
-                if abs((item.sort_key - prev_ts).total_seconds()) <= MESSAGE_DEDUPE_WINDOW.total_seconds():
-                    dup = True
-                    break
-        if dup:
-            continue
-        hl_deduped.append(item)
-        hl_seen.append((item.app, norm, item.sort_key))
-
-    recent_ranked = sorted(recent_candidates, key=lambda i: i.sort_key, reverse=True)
-    recent_deduped: list[ActivityFeedItem] = []
-    rc_seen: list[tuple[str, str, datetime]] = []
-    for item in recent_ranked:
-        norm = _normalize_feed_message(item.message)
-        dup = False
-        for app, prev_norm, prev_ts in rc_seen:
-            if app == item.app and prev_norm == norm:
-                if abs((item.sort_key - prev_ts).total_seconds()) <= MESSAGE_DEDUPE_WINDOW.total_seconds():
-                    dup = True
-                    break
-        if dup:
-            continue
-        recent_deduped.append(item)
-        rc_seen.append((item.app, norm, item.sort_key))
+    if not today_summaries:
+        today_summaries = build_today_summaries(events, now=now)
 
     return ActivityDashboard(
         today_summaries=today_summaries,
-        highlights=tuple(hl_deduped[:highlight_limit]),
-        recent=tuple(recent_deduped[:recent_limit]),
+        highlights=(),
+        recent=tuple(action_rollups[:recent_limit]),
         week_summaries=week_summaries,
         recent_by_app=recent_by_app,
         most_active_workflows=most_active,
@@ -1378,26 +1289,28 @@ def _dedupe_key(event: dict[str, Any]) -> str:
     return f"{app}:{event_type}"
 
 
-def build_activity_feed(events: list[dict[str, Any]], *, limit: int = 20) -> list[ActivityFeedItem]:
-    """Backward-compatible flat feed: highlights then recent, sorted by recency."""
-    dashboard = build_activity_dashboard(
-        events,
-        highlight_limit=max(8, limit // 2),
-        recent_limit=limit,
-    )
-    combined = list(dashboard.highlights) + [
-        item for item in dashboard.recent if item not in dashboard.highlights
-    ]
-    combined.sort(key=lambda i: i.sort_key, reverse=True)
-    seen_msgs: set[tuple[str, str]] = set()
-    deduped: list[ActivityFeedItem] = []
-    for item in combined:
-        key = (item.app, _normalize_feed_message(item.message))
-        if key in seen_msgs:
-            continue
-        seen_msgs.add(key)
-        deduped.append(item)
-    return deduped[:limit]
+def build_activity_feed(
+    events: list[dict[str, Any]],
+    *,
+    limit: int = 20,
+    now: datetime | None = None,
+) -> list[ActivityFeedItem]:
+    """Backward-compatible flat feed derived from Today's Work summaries."""
+    dashboard = build_activity_dashboard(events, recent_limit=limit, now=now)
+    items: list[ActivityFeedItem] = []
+    now = datetime.now(timezone.utc)
+    for line in dashboard.today_summaries:
+        app = "suite"
+        if " · " in line:
+            app_label, _msg = line.split(" · ", 1)
+            app_key = app_label.lower().replace(" app", "").replace(" ", "_")
+            if app_key in APP_LABELS:
+                app = app_key
+        items.append(
+            _make_feed_item(None, app=app, message=line, sort_key=now, is_rollup=True)
+        )
+    items.extend(dashboard.recent)
+    return items[:limit]
 
 
 __all__ = (
