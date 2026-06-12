@@ -92,6 +92,43 @@ def _stale(ts: datetime | None) -> bool:
     return datetime.now() - ts > timedelta(days=_PROJECT_STALE_DAYS)
 
 
+def _continue_row(
+    priority: int,
+    app: str,
+    title: str,
+    subtitle: str,
+    resume_key: str,
+    page: str,
+    metrics: dict[str, Any],
+    ts: datetime,
+) -> tuple[int, str, str, str, str, str, dict[str, Any]]:
+    """Emit a Continue candidate with an ISO timestamp for recency ranking."""
+    m = {**metrics, "_continue_ts": ts.isoformat(timespec="seconds")}
+    return (priority, app, title, subtitle, resume_key, page, m)
+
+
+def _row_continue_ts(row: tuple[int, str, str, str, str, str, dict[str, Any]]) -> datetime:
+    metrics = row[6] if len(row) > 6 else {}
+    return _parse_ts(str(metrics.get("_continue_ts") or "")) or datetime.min
+
+
+def _should_replace_continue(
+    prev: tuple[int, datetime, Any] | None,
+    priority: int,
+    ts: datetime,
+) -> bool:
+    if _stale(ts):
+        return False
+    if prev is None:
+        return True
+    old_prio, old_ts, _ = prev
+    if ts > old_ts:
+        return True
+    if ts < old_ts:
+        return False
+    return priority > old_prio
+
+
 def _music_song_identity(metrics: dict[str, Any], resume_key: str = "") -> str:
     """Stable song id for deduping music Continue cards (one workflow per song)."""
     pick = str(metrics.get("pick_key") or "").strip()
@@ -128,7 +165,12 @@ def _consolidate_music_continue_rows(
             continue
         mk = _continue_merge_key("music", row[4], row[6] if len(row) > 6 else {})
         prev = best.get(mk)
-        if prev is None or row[0] > prev[0]:
+        if prev is None:
+            best[mk] = row
+            continue
+        row_ts = _row_continue_ts(row)
+        prev_ts = _row_continue_ts(prev)
+        if row_ts > prev_ts or (row_ts == prev_ts and row[0] > prev[0]):
             best[mk] = row
     return other + list(best.values())
 
@@ -1013,37 +1055,46 @@ def _projects_from_events(
         if edit and (practice is None or (practice and edit > practice)) and not _stale(edit):
             rk = f"song:{pick_key}" if pick_key else f"music:edit:{song}"
             out.append(
-                (60, "music", f"Continue {song} chord edits", "Reinforce verified chart work", rk, "practice", resume_metrics)
+                _continue_row(
+                    60, "music", f"Continue {song} chord edits", "Reinforce verified chart work",
+                    rk, "practice", resume_metrics, edit,
+                )
             )
         if upload and (review is None or (review and upload > review)) and not _stale(upload):
             rk = f"song:{pick_key}" if pick_key else f"music:upload:{song}"
             out.append(
-                (55, "music", f"Review uploaded {song} recording", "Listen back & note improvements", rk, "recording", resume_metrics)
+                _continue_row(
+                    55, "music", f"Review uploaded {song} recording", "Listen back & note improvements",
+                    rk, "recording", resume_metrics, upload,
+                )
             )
         if practice and not _stale(practice):
             if edit is None or (edit and practice >= edit):
                 rk = f"song:{pick_key}" if pick_key else f"music:practice:{song}"
                 subtitle = str(sm.get("focus") or sm.get("artist") or "Build on your last session")
                 out.append(
-                    (42, "music", f"Continue {song} practice plan", subtitle, rk, "practice", resume_metrics)
+                    _continue_row(
+                        42, "music", f"Continue {song} practice plan", subtitle,
+                        rk, "practice", resume_metrics, practice,
+                    )
                 )
 
     if inv_health and (inv_rebalance is None or (inv_rebalance and inv_health > inv_rebalance)) and not _stale(inv_health):
         subtitle = snapshot.last_portfolio_review or str(inv_health_metrics.get("review_type") or "Health & recommendations")
         out.append(
-            (
-                58,
-                "investment",
-                "Review portfolio health results",
-                subtitle,
-                "portfolio:health",
-                "Portfolio Health",
-                inv_health_metrics,
+            _continue_row(
+                58, "investment", "Review portfolio health results", subtitle,
+                "portfolio:health", "Portfolio Health", inv_health_metrics, inv_health,
             )
         )
     if inv_scenario and (inv_rebalance is None or (inv_rebalance and inv_scenario > inv_rebalance)) and not _stale(inv_scenario):
         title = "Continue Monte Carlo analysis" if inv_scenario_monte else "Continue scenario analysis"
-        out.append((50, "investment", title, "Review recommendations next", "inv:scenario", "Efficient Frontier", {}))
+        out.append(
+            _continue_row(
+                50, "investment", title, "Review recommendations next",
+                "inv:scenario", "Efficient Frontier", {}, inv_scenario,
+            )
+        )
 
     if latest_music_workflow and not _stale(latest_music_workflow[0]):
         ts, song, wm, ev = latest_music_workflow
@@ -1062,39 +1113,30 @@ def _projects_from_events(
         dk = str(resume_metrics.get("display_key") or "")
         subtitle = " · ".join(p for p in [dk, inst, page] if p)
         out.append(
-            (
-                61,
-                "music",
-                f"Continue {song}",
-                subtitle or "Resume your last session",
-                rk,
-                page,
-                resume_metrics,
+            _continue_row(
+                61, "music", f"Continue {song}", subtitle or "Resume your last session",
+                rk, page, resume_metrics, ts,
             )
         )
 
     if latest_baseball_workflow and not _stale(latest_baseball_workflow[0]):
         ts, pr, title, subtitle, rk, page, bm = latest_baseball_workflow
-        out.append((pr, "baseball", title, subtitle, rk, page, bm))
+        out.append(_continue_row(pr, "baseball", title, subtitle, rk, page, bm, ts))
     elif baseball_projection and not baseball_compare:
         out.append((50, "baseball", "Continue player projection research", snapshot.last_baseball_player or "Projections tab", "bb:proj", "ML Projections", {}))
 
     if nba_game and not _stale(nba_game):
         short = nba_game_team.split()[-1] if nba_game_team else "team"
         out.append(
-            (
-                60,
-                "nba",
-                f"Continue {short} Live Game Center",
-                nba_game_page,
-                f"nba:game:{nba_game_team}",
-                "🔴 Live Game Center",
-                {"team": nba_game_team, "page": nba_game_page},
+            _continue_row(
+                60, "nba", f"Continue {short} Live Game Center", nba_game_page,
+                f"nba:game:{nba_game_team}", "🔴 Live Game Center",
+                {"team": nba_game_team, "page": nba_game_page}, nba_game,
             )
         )
     elif latest_nba_workflow and not _stale(latest_nba_workflow[0]):
         ts, pr, title, subtitle, rk, page, bm = latest_nba_workflow
-        out.append((pr, "nba", title, subtitle, rk, page, bm))
+        out.append(_continue_row(pr, "nba", title, subtitle, rk, page, bm, ts))
     elif nba_team:
         if nba_matchup:
             out.append((56, "nba", f"Continue {nba_team} matchup analysis", "Game outlook & rotations", f"nba:matchup:{nba_team}", "🧠 Matchup Intelligence", {"team": nba_team}))
@@ -1105,7 +1147,7 @@ def _projects_from_events(
 
     if latest_future_lens_workflow and not _stale(latest_future_lens_workflow[0]):
         ts, pr, title, subtitle, rk, page, bm = latest_future_lens_workflow
-        out.append((pr, "future_lens", title, subtitle, rk, page, bm))
+        out.append(_continue_row(pr, "future_lens", title, subtitle, rk, page, bm, ts))
     elif future_sim:
         lower = future_sim.lower()
         if "teach" in lower or "education" in lower:
@@ -1120,7 +1162,7 @@ def _projects_from_events(
 
     if latest_analytical and not _stale(latest_analytical[0]):
         ts, priority, title, subtitle, resume_key, page, metrics = latest_analytical
-        out.append((priority, "applied_intelligence", title, subtitle, resume_key, page, metrics))
+        out.append(_continue_row(priority, "applied_intelligence", title, subtitle, resume_key, page, metrics, ts))
 
     # Snapshot fallbacks when events are thin
     if snapshot.last_song and snapshot.last_music_edit_days_ago is not None and snapshot.last_music_edit_days_ago <= 5:
@@ -1176,7 +1218,7 @@ def build_project_continue_cards(
         meta = {app.key: {"name": app.name, "url": app.streamlit_url.strip()} for app in APP_DEFINITIONS}
     themes = suite_app_icons()
 
-    merged: dict[str, tuple[int, ContinueCard]] = {}
+    merged: dict[str, tuple[int, datetime, Any]] = {}
 
     from suite_analytical_question import (
         ANALYTICAL_QUESTION_BUTTON_LABEL,
@@ -1243,14 +1285,18 @@ def build_project_continue_cards(
         else:
             merge_key = str(resume_key or "").strip() or f"{app}:unknown"
         prev = merged.get(merge_key)
-        if prev is None or priority > prev[0]:
-            merged[merge_key] = (priority, card)
+        ts = _parse_ts(str(metrics.get("_continue_ts") or "")) or datetime.min
+        if _should_replace_continue(prev, priority, ts):
+            merged[merge_key] = (priority, ts, card)
 
     for item in load_active_resume_items(limit=30):
         if item.app not in meta or not meta[item.app]["url"]:
             continue
         title, subtitle, priority = _polish_resume(item)
         if _is_passive_music_resume_item(item, title, priority):
+            continue
+        item_ts = _parse_ts(item.updated_at) or datetime.min
+        if _stale(item_ts):
             continue
         button_label = ANALYTICAL_QUESTION_BUTTON_LABEL if item.item_key.startswith("ai:question:") else "Continue"
         card_title, card_subtitle = title, subtitle
@@ -1300,11 +1346,17 @@ def build_project_continue_cards(
         else:
             merge_key = str(item.item_key or "").strip() or f"{item.app}:unknown"
         prev = merged.get(merge_key)
-        if prev is None or priority > prev[0]:
-            merged[merge_key] = (priority, card)
+        if _should_replace_continue(prev, priority, item_ts):
+            merged[merge_key] = (priority, item_ts, card)
 
-    ordered = sorted(merged.values(), key=lambda row: row[0], reverse=True)
-    return [card for _, card in ordered[:limit]]
+    by_app: dict[str, tuple[int, datetime, Any]] = {}
+    for _merge_key, (priority, ts, card) in merged.items():
+        prev = by_app.get(card.app_key)
+        if prev is None or ts > prev[1] or (ts == prev[1] and priority > prev[0]):
+            by_app[card.app_key] = (priority, ts, card)
+
+    ordered = sorted(by_app.values(), key=lambda row: (row[1], row[0]), reverse=True)
+    return [card for _, _, card in ordered[:limit]]
 
 
 def generate_cross_app_insights(snapshot: ActivitySnapshot) -> list[CrossAppInsight]:

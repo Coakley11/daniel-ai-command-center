@@ -121,6 +121,67 @@ class TestContinueClassification(unittest.TestCase):
         self.assertEqual(len(nba), 1)
         self.assertIn("Jalen Brunson vs Tyrese Maxey", nba[0][2])
 
+    def test_music_resume_card_prefers_newer_song(self) -> None:
+        snap = ActivitySnapshot()
+        old = (datetime.now() - timedelta(days=3)).isoformat(timespec="seconds")
+        recent = (datetime.now() - timedelta(hours=1)).isoformat(timespec="seconds")
+        events = [
+            {
+                "app": "music",
+                "event": "practice",
+                "timestamp": old,
+                "metrics": {"song": "Perfect", "pick_key": "perfect", "instrument": "Voice"},
+            },
+            {
+                "app": "music",
+                "event": "backing_track_started",
+                "timestamp": recent,
+                "metrics": {
+                    "song": "Piano Man",
+                    "pick_key": "piano_man",
+                    "instrument": "Tenor Sax",
+                    "studio_page": "backing",
+                },
+            },
+        ]
+        with patch("project_intelligence.load_all_events", return_value=events), patch(
+            "project_intelligence.load_active_resume_items", return_value=[]
+        ):
+            cards = build_project_continue_cards(snap, limit=6)
+        music = [c for c in cards if c.app_key == "music"]
+        self.assertEqual(len(music), 1)
+        self.assertIn("Piano Man", music[0].title)
+        self.assertIn("Tenor Sax", music[0].subtitle)
+
+    def test_stale_resume_item_does_not_override_recent_event(self) -> None:
+        from suite_storage import ResumeItem
+
+        snap = ActivitySnapshot()
+        recent = (datetime.now() - timedelta(hours=1)).isoformat(timespec="seconds")
+        events = [
+            {
+                "app": "music",
+                "event": "practice",
+                "timestamp": recent,
+                "metrics": {"song": "Piano Man", "pick_key": "piano_man", "instrument": "Tenor Sax"},
+            },
+        ]
+        stale_item = ResumeItem(
+            app="music",
+            item_key="song:perfect",
+            title="Continue: Perfect",
+            subtitle="Voice",
+            action_url="https://example.com",
+            updated_at=(datetime.now() - timedelta(days=20)).isoformat(timespec="seconds"),
+        )
+        with patch("project_intelligence.load_all_events", return_value=events), patch(
+            "project_intelligence.load_active_resume_items", return_value=[stale_item]
+        ):
+            cards = build_project_continue_cards(snap, limit=6)
+        music = [c for c in cards if c.app_key == "music"]
+        self.assertEqual(len(music), 1)
+        self.assertIn("Piano Man", music[0].title)
+
     def test_directory_shows_portfolio_preset_from_snapshot(self) -> None:
         snap = ActivitySnapshot(
             investment_portfolio_preset="Long-term retirement portfolio",

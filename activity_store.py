@@ -613,6 +613,26 @@ def _disk_resume_from_block(app_key: str, block: dict[str, Any]) -> tuple[str, s
 
 def _sync_disk_user_states_to_storage() -> None:
     """Mirror sibling-app ``*_user_state.json`` files into SQLite for Continue + highlights."""
+    def _disk_ts(raw: str) -> datetime | None:
+        try:
+            return datetime.fromisoformat(str(raw or "")[:19])
+        except ValueError:
+            return None
+
+    latest_event_by_app: dict[str, datetime] = {}
+    try:
+        from suite_storage import load_all_events
+
+        for event in load_all_events():
+            app = str(event.get("app") or "").strip()
+            ts = _disk_ts(str(event.get("timestamp") or ""))
+            if app and ts:
+                prev = latest_event_by_app.get(app)
+                if prev is None or ts > prev:
+                    latest_event_by_app[app] = ts
+    except Exception:
+        pass
+
     for app_key in APP_REPO_DIRS:
         block = load_app_user_state_block(app_key)
         if not block:
@@ -622,6 +642,18 @@ def _sync_disk_user_states_to_storage() -> None:
             continue
         page, summary, resume_key, title, subtitle, metrics = payload
         save_current_state(app_key, page=page, summary=summary, metrics=metrics)
+
+        disk_ts = _disk_ts(str(block.get("saved_at") or block.get("updated_at") or ""))
+        app_event_ts = latest_event_by_app.get(app_key)
+        passive_disk_key = (
+            (app_key == "music" and str(resume_key).startswith("song:"))
+            or (app_key == "baseball" and str(resume_key).startswith("page:"))
+        )
+        if passive_disk_key:
+            continue
+        if app_event_ts and (disk_ts is None or app_event_ts >= disk_ts):
+            continue
+
         try:
             from suite_deep_links import build_resume_action_url
 
