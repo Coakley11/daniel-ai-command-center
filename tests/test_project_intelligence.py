@@ -157,6 +157,23 @@ class TestProjectIntelligence(unittest.TestCase):
         )
         self.assertTrue(summary.has_any)
 
+    def test_applied_math_continue_url_uses_ami_host(self) -> None:
+        from project_intelligence import _applied_math_continue_action_url
+
+        meta = {
+            "baseball": {"name": "Baseball", "url": "https://baseball.example.com"},
+            "applied_intelligence": {"name": "AMI", "url": "https://ami.example.com"},
+        }
+        url = _applied_math_continue_action_url(
+            "ai:question:abc123def456",
+            "Solve a Problem",
+            {"question": "Who should I draft?", "source_app": "baseball"},
+            meta=meta,
+        )
+        self.assertIn("ami.example.com", url)
+        self.assertIn("suite_ai_question_id=abc123def456", url)
+        self.assertIn("suite_resume=ai%3Aquestion%3Aabc123def456", url)
+
 
 if __name__ == "__main__":
     unittest.main()

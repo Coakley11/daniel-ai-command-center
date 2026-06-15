@@ -1205,6 +1205,48 @@ def _projects_from_events(
     return out
 
 
+def _applied_math_continue_action_url(
+    resume_key: str,
+    page: str,
+    metrics: dict[str, Any],
+    *,
+    meta: dict[str, dict[str, str]],
+    stored_action_url: str = "",
+) -> str:
+    """Always route analytical-question resume keys to Applied Intelligence with qid in URL."""
+    rk = str(resume_key or "").strip()
+    if not rk.startswith("ai:question:"):
+        return ""
+    cont = str(metrics.get("continue_action_url") or stored_action_url or "").strip()
+    if cont and (
+        "suite_ai_question_id=" in cont
+        or "suite_resume=ai%3Aquestion" in cont
+        or "suite_resume=ai:question" in cont
+    ):
+        return cont
+    target = "applied_intelligence"
+    if target not in meta or not meta[target].get("url"):
+        return cont
+    m = dict(metrics or {})
+    qid = rk.split(":", 2)[-1].strip() if rk.count(":") >= 2 else ""
+    if qid:
+        m.setdefault("question_id", qid)
+        m.setdefault("dedupe_fingerprint", qid)
+    m.setdefault("page", page or "Solve a Problem")
+    try:
+        from suite_deep_links import build_resume_action_url
+
+        return build_resume_action_url(
+            target,
+            resume_key=rk,
+            page=page or "Solve a Problem",
+            metrics=m,
+            base_url=meta[target]["url"],
+        )
+    except Exception:
+        return cont
+
+
 def build_project_continue_cards(
     snapshot: ActivitySnapshot,
     *,
@@ -1258,23 +1300,34 @@ def build_project_continue_cards(
                 }
             )
         try:
-            from suite_deep_links import build_resume_action_url
+            if str(resume_key).startswith("ai:question:"):
+                deep = _applied_math_continue_action_url(
+                    resume_key,
+                    page,
+                    metrics,
+                    meta=meta,
+                )
+                card_app = "applied_intelligence"
+            else:
+                from suite_deep_links import build_resume_action_url
 
-            deep = build_resume_action_url(
-                app,
-                resume_key=resume_key,
-                page=page,
-                metrics=metrics,
-                base_url=meta[app]["url"],
-            )
+                deep = build_resume_action_url(
+                    app,
+                    resume_key=resume_key,
+                    page=page,
+                    metrics=metrics,
+                    base_url=meta[app]["url"],
+                )
+                card_app = app
         except Exception:
             deep = ""
+            card_app = app if not str(resume_key).startswith("ai:question:") else "applied_intelligence"
         card = ContinueCard(
-            app_key=app,
-            app_name=meta[app]["name"],
+            app_key=card_app,
+            app_name=meta[card_app]["name"],
             title=card_title,
             subtitle=card_subtitle,
-            action_url=deep or meta[app]["url"],
+            action_url=deep or meta[card_app]["url"],
             emoji=themes.get(app, "▶"),
             button_label=button_label,
         )
@@ -1320,19 +1373,37 @@ def build_project_continue_cards(
                         "context": metrics.get("context") if isinstance(metrics.get("context"), dict) else {},
                     }
                 )
-            deep = build_resume_action_url(
-                item.app,
-                resume_key=item.item_key,
-                page=page_hint,
-                metrics=metrics,
-                base_url=meta[item.app]["url"],
-            )
+            if item.item_key.startswith("ai:question:"):
+                deep = _applied_math_continue_action_url(
+                    item.item_key,
+                    page_hint,
+                    metrics,
+                    meta=meta,
+                    stored_action_url=str(item.action_url or ""),
+                )
+                card_app = "applied_intelligence"
+            else:
+                from suite_deep_links import build_resume_action_url
+
+                deep = build_resume_action_url(
+                    item.app,
+                    resume_key=item.item_key,
+                    page=page_hint,
+                    metrics=metrics,
+                    base_url=meta[item.app]["url"],
+                )
+                card_app = item.app
         except Exception:
             deep = ""
-        url = deep or (item.action_url or "").strip() or meta[item.app]["url"]
+            card_app = (
+                "applied_intelligence"
+                if str(item.item_key).startswith("ai:question:")
+                else item.app
+            )
+        url = deep or (item.action_url or "").strip() or meta[card_app]["url"]
         card = ContinueCard(
-            app_key=item.app,
-            app_name=meta[item.app]["name"],
+            app_key=card_app,
+            app_name=meta[card_app]["name"],
             title=card_title,
             subtitle=card_subtitle,
             action_url=url,
