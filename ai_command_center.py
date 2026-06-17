@@ -32,6 +32,7 @@ from app_registry import APP_DEFINITIONS, AppStatus, get_app_url, verify_connect
 from app_urls import BUILD_VERSION, HOMEPAGE_DEV_URL, HOMEPAGE_PRODUCTION_URL
 from coach_engine import CoachInsight, generate_coach_insights
 from continue_dashboard import ContinueCard, continue_cards_for_snapshot, recently_used_apps
+from ami_recent_dashboard import RecentAmiQuestion, load_recent_ami_questions
 from project_intelligence import generate_cross_app_insights, weekly_accomplishment_lines
 from suite_deploy_marker import (
     DEPLOY_COMMITS_INCLUDED,
@@ -56,6 +57,7 @@ SECTION_ICONS = {
     "weekly": "📅",
     "apps": "📱",
     "continue": "⏯",
+    "ami": "🧠",
 }
 
 CC_DEV_MODE_KEY = "cc_developer_mode"
@@ -370,6 +372,35 @@ def _render_continue_section(snapshot: ActivitySnapshot, cards: list[ContinueCar
                 _render_go_button(btn_label, card.action_url, f"continue_{card.app_key}_{idx}_{group_start}")
 
 
+def _render_recent_ami_questions(questions: list[RecentAmiQuestion]) -> None:
+    st.markdown(
+        f'<div class="cc-section-title">{SECTION_ICONS["ami"]} Recent AMI Questions</div>',
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        '<div class="cc-section-sub">Your last analytical questions across Baseball, Music, Investment, and more — reopen the full analysis without changing today\'s workspace.</div>',
+        unsafe_allow_html=True,
+    )
+    if not questions:
+        st.markdown(
+            '<div class="cc-empty-box">No AMI questions yet. Ask a coach question in any suite app and it will appear here.</div>',
+            unsafe_allow_html=True,
+        )
+        return
+
+    for idx, item in enumerate(questions, start=1):
+        meta_bits = [html.escape(item.source_label)]
+        if item.display_time:
+            meta_bits.append(html.escape(item.display_time))
+        meta_line = " · ".join(meta_bits)
+        _render_unsafe_html(
+            f'<div class="cc-continue-card" style="border-left:4px solid #6366f1;margin-bottom:0.75rem;">'
+            f'<div class="cc-continue-app">{idx}. {meta_line}</div>'
+            f'<div class="cc-continue-title">{html.escape(item.question)}</div></div>'
+        )
+        _render_go_button("Open full analysis", item.action_url, f"recent_ami_{idx}_{item.item_key[-8:]}")
+
+
 def _render_coach_insights(insights: list[CoachInsight]) -> None:
     st.markdown(
         f'<div class="cc-section-title">{SECTION_ICONS["coach"]} Coach Insights</div>',
@@ -666,12 +697,14 @@ with st.sidebar:
 snapshot = load_activity_snapshot()
 insights = generate_coach_insights(snapshot)
 continue_cards = continue_cards_for_snapshot(snapshot, limit=6)
+recent_ami_questions = load_recent_ami_questions(limit=8)
 connections = _cached_connections()
 
 _render_hero(snapshot)
 if st.session_state.get(CC_DEV_MODE_KEY):
     _render_deploy_banner()
 _render_continue_section(snapshot, continue_cards)
+_render_recent_ami_questions(recent_ami_questions)
 if st.session_state.get(CC_DEV_MODE_KEY):
     _render_raw_baseball_events_table()
     with st.expander("Continue workflow candidates (top 10)", expanded=False):
