@@ -1,8 +1,6 @@
 # Current Tasks — Daniel AI Command Center
 
-**Last updated:** 2026-06-11
-
-Actionable work items. Master context: [app_roadmap.md](./app_roadmap.md).
+**Last updated:** 2026-06-19
 
 ---
 
@@ -14,19 +12,57 @@ Central hub repo (`daniel-ai-command-center`) for suite homepage, activity aggre
 
 # Current Priorities
 
-**Focus (2026-06-11): AMI improvements — better context, reasoning, teaching, and app-state use across Music, Baseball, and Applied Mathematics.**
+**Focus (2026-06-19): Finish Workspace Profiles v1 — the primary foundation of the ecosystem. Do not start Real Accounts or Live Draft Room until P0 is stable.**
 
-**Master plan:** [plans/2026-06-11-ami-enhancement-roadmap.md](./plans/2026-06-11-ami-enhancement-roadmap.md)  
-**Sync audit:** Music + Baseball cross-device status documented in same plan (defer sync unless small high-impact win).
+**Master plan:** [plans/2026-06-19-workspace-profiles-real-accounts-live-draft-room.md](./plans/2026-06-19-workspace-profiles-real-accounts-live-draft-room.md) *(user confirmed priority order)*
 
-### P0 — AMI Enhancement Program
+### P0 — Workspace Profiles Phase 1 (finish isolation)
 
-1. [ ] **Phase 0 (1–2 days):** Blob-first hydration by `question_id`; teaching response template (problem → analyst frame → variables → tradeoffs → decision)
-2. [ ] **Phase 1 (3–5 days):** Baseball contextual transfer — `_ami_*` hooks on all eligible pages; trend/compare/historical/draft numerics in answers
-3. [ ] **Phase 2 (1–2 weeks):** Music AMI — richer send context + music router/solvers (or OpenAI coach); chord function, rhythm, practice recommendations
-4. [ ] **Phase 3 (~1 week):** Applied Math teaching layer — interactive what-if, NBA stat-gap/matchup hooks, Investment rebalance drift
+**Model:** `workspace_id → app_id → state` · Command Center = profile switcher · Not real auth yet.
 
-**Optional sync (only if quick win):** Baseball draft board immediate force-save (1–3h); Music practice log + analysis history → Supabase (3–8h).
+**Hard gates:** Do **not** start Phase 2 (Real Accounts) or Phase 3+ (Live Draft Room) until P0 exit criteria pass.
+
+**Mostly complete (v1):**
+
+- [x] Command Center — sidebar selector, workspace badge, scoped activity/resume reads
+- [x] Investment Portfolio Analyzer
+- [x] Baseball Analytics
+- [x] Applied Mathematical Intelligence
+- [x] Music Practice Coach
+
+**Remaining rollout (final major milestone: NBA + FutureLens):**
+
+1. [ ] **NBA Companion AI** — finish workspace isolation (team/page, LGC, Legacy Tracker, cloud keys, activity)
+2. [ ] **FutureLens** — finish workspace isolation (career/timeline/sim + Continue/Directory under Ariel vs Daniel)
+3. [ ] **Command Center** — verify activity isolation across profiles (final validation)
+4. [ ] **Music** — verify isolation if needed on acceptance pass
+
+**Exit criteria:** Switch Daniel → Ariel; no shared drafts, portfolios, AMI history, or cross-profile activity in feed/Continue.
+
+### P1 — AMI Baseball Draft Intelligence (after P0; behind workspace completion)
+
+**Primary owner:** send/hydration / context packaging — not catcher logic, not player-specific logic, not new AMI reasoning modes.
+
+**Known symptoms:** generic Q3/Q4 recommendations; incorrect player pool; wrong available-player context; top-12 EV slice not hydrated correctly; occasional fallback behavior.
+
+**Sequence:**
+
+1. [ ] Confirm Baseball AMI context counts in Dev Mode (`available_players`, `draft_snapshot`, `needed_positions`, `category_needs`, `hydrate_source`, deploy builds)
+2. [ ] Verify `available_players` hydration on deployed Dev Mode
+3. [ ] Fix top-12 EV → position-representative pool issue
+4. [ ] Fix remaining AMI draft context packaging problems
+5. [ ] Secondary: restatement layer unknown intent → compare default
+
+**Related plan:** [plans/2026-06-11-ami-enhancement-roadmap.md](./plans/2026-06-11-ami-enhancement-roadmap.md)
+
+### P2 — AMI Enhancement Program (parallel where not blocked)
+
+1. [ ] **Phase 0:** Blob-first hydration by `question_id`; teaching response template
+2. [ ] **Phase 1:** Baseball contextual transfer — remaining pages (Career, Leaderboards, Valuation, ML, Historical numerics depth)
+   - [x] Draft board persistence unblocked (v15 JSON sanitize)
+   - [x] Draft AMI context depth: Draft Assistant, Live Draft Room, Fantasy Sleepers
+3. [ ] **Phase 2:** Music AMI — richer send context + music router/solvers
+4. [ ] **Phase 3:** Applied Math teaching layer — interactive what-if, NBA/Investment hooks
 
 ### P0 (previous) — Baseball Phase 2 / Suite port
 
@@ -225,7 +261,17 @@ Per-app phases:
 
 # Long-Term Vision
 
-*See [app_roadmap.md](./app_roadmap.md) and [app_feature_backlog.md](./app_feature_backlog.md).*
+### Sequenced (confirmed 2026-06-19 — do not skip)
+
+| Step | Work | Gate |
+|------|------|------|
+| 1 | Finish Workspace Profiles v1 | **Active P0** |
+| 2 | Baseball AMI context packaging | **P1** — after P0 |
+| 3 | Real Accounts (Daniel admin, Ariel user) | **Phase 2** — do not start yet |
+| 4 | Simple Live Draft Room v1 | **Phase 3** — after Phase 2 |
+| 5 | Advanced Live Draft Room | **Phase 4** — after Simple v1 |
+
+*Detail:* [plans/2026-06-19-workspace-profiles-real-accounts-live-draft-room.md](./plans/2026-06-19-workspace-profiles-real-accounts-live-draft-room.md) · [app_roadmap.md](./app_roadmap.md) · [app_feature_backlog.md](./app_feature_backlog.md)
 
 ---
 
@@ -251,8 +297,10 @@ Recent task completions (see [app_completed_features.md](./app_completed_feature
 
 | Plan | Status |
 |------|--------|
-| [plans/2026-06-08-baseball-phase-2-page-audit.md](./plans/2026-06-08-baseball-phase-2-page-audit.md) | **Active P0** — canonical page state, acceptance tests, suite port gate |
-| [plans/README.md](./plans/README.md) | Folder ready — add plans as work starts |
+| [plans/2026-06-19-workspace-profiles-real-accounts-live-draft-room.md](./plans/2026-06-19-workspace-profiles-real-accounts-live-draft-room.md) | **Active P0** — finish profiles → accounts → Live Draft Room |
+| [plans/2026-06-11-ami-enhancement-roadmap.md](./plans/2026-06-11-ami-enhancement-roadmap.md) | **Active P1/P2** — AMI context + teaching; draft pool hydration blocked on Dev Mode confirm |
+| [plans/2026-06-08-baseball-phase-2-page-audit.md](./plans/2026-06-08-baseball-phase-2-page-audit.md) | Shipped — suite port reference |
+| [plans/2026-06-08-sprint-7-suite-port.md](./plans/2026-06-08-sprint-7-suite-port.md) | Active — Music Phase C slice 2+; NBA/Investment/AMI audits |
 | [plans/suite-usability-audit-2026-06-08.md](./plans/suite-usability-audit-2026-06-08.md) | **Active** — Continue, Music/NBA/FL persistence, Applied Math roadmap |
 | [plans/command-center-workflow-classification-audit.md](./plans/command-center-workflow-classification-audit.md) | P1 — Continue vs Directory (detail) |
 | [plans/investment-ui-transparency-mockups.md](./plans/investment-ui-transparency-mockups.md) | P3 — wording mockups |

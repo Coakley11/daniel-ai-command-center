@@ -1,6 +1,6 @@
 # Completed Features — Daniel AI Command Center
 
-**Last updated:** 2026-06-08
+**Last updated:** 2026-06-19
 
 ---
 
@@ -29,6 +29,26 @@ Historical record of shipped Command Center and shared-suite infrastructure capa
 ---
 
 # Completed Features
+
+### Workspace Profiles v1 — Phase 1 foundation (2026-06-19)
+
+- [x] `suite_workspace.py` — presets (Daniel, Ariel, Guest, Test User), normalization, legacy migration to Daniel workspace dir
+- [x] Workspace-scoped disk paths — `data/workspaces/{workspace_id}/{app}_user_state.json` via `suite_user_persistence.py`
+- [x] Cloud app id scoping — `scoped_cloud_app_id()` (`investment__ariel`, etc.) for Supabase isolation
+- [x] Command Center profile switcher — sidebar selector, workspace badge in hero, dev-tools gating for Daniel workspace
+- [x] Deep links — `suite_workspace` query param on Continue/Open URLs (`suite_deep_links.py`, `suite_resume_launch.py`)
+- [x] Activity/resume reads filtered by active workspace (`suite_storage_supabase.py`, `test_workspace_cc_activity.py`)
+- [x] Tests: `test_suite_workspace.py` (normalization, paths, migration, cloud keys, selector)
+- [x] **Mostly validated across apps:** Command Center, Investment, Baseball, Applied Math, Music
+
+### Baseball AMI Phase 1 — Draft context depth (2026-06-11)
+
+- [x] `draft_ami_helpers.py` — JSON-safe recommendation/sleeper rows, live draft section gather, page-specific AMI guidance
+- [x] `cache_draft_assistant_ami_context` — roster needs, category needs, scarcity, best available, canonical board
+- [x] `cache_live_draft_ami_context` — round/pick, my next pick, recommendations, latest picks, queue/watchlist
+- [x] `cache_fantasy_sleepers_ami_context` — sleeper candidates, bust risks, drafted exclusions, roster needs
+- [x] Streamlit hooks on Draft Assistant, Live Draft Room, Fantasy Sleepers pages
+- [x] Tests: `test_draft_ami_helpers.py`, extended `test_applied_math_context.py`
 
 ### Baseball Career Totals canonical state (2026-06-08)
 

@@ -69,6 +69,8 @@ class TestWorkspacePaths(unittest.TestCase):
         self.assertEqual(scoped_cloud_app_id("investment", "daniel"), "investment")
         self.assertEqual(scoped_cloud_app_id("investment", "ariel"), "investment__ariel")
         self.assertEqual(scoped_cloud_app_id("baseball", "guest"), "baseball__guest")
+        self.assertEqual(scoped_cloud_app_id("nba", "daniel"), "nba")
+        self.assertEqual(scoped_cloud_app_id("nba", "ariel"), "nba__ariel")
 
     def test_workspace_storage_app_keys(self) -> None:
         from suite_workspace import workspace_storage_app_keys
@@ -106,6 +108,31 @@ class TestWorkspacePaths(unittest.TestCase):
                     daniel_path.read_text(encoding="utf-8"),
                     ariel_path.read_text(encoding="utf-8"),
                 )
+
+    def test_nba_ariel_and_daniel_separate_files(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            data = Path(tmp)
+            with patch("suite_workspace.DATA_DIR", data), patch("suite_user_persistence.DATA_DIR", data):
+                save_user_state(
+                    "nba",
+                    {"favorite_team": "New York Knicks", "page_label_last": "Live Game Center"},
+                    workspace_id="daniel",
+                )
+                save_user_state(
+                    "nba",
+                    {"favorite_team": "Boston Celtics", "page_label_last": "Playoff Bracket"},
+                    workspace_id="ariel",
+                )
+                daniel_path = state_file_path("nba", "daniel")
+                ariel_path = state_file_path("nba", "ariel")
+                self.assertIn("workspaces", str(daniel_path))
+                self.assertIn("nba_user_state.json", str(daniel_path))
+                self.assertTrue(daniel_path.is_file())
+                self.assertTrue(ariel_path.is_file())
+                daniel_blob = json.loads(daniel_path.read_text(encoding="utf-8"))
+                ariel_blob = json.loads(ariel_path.read_text(encoding="utf-8"))
+                self.assertEqual(daniel_blob["state"]["favorite_team"], "New York Knicks")
+                self.assertEqual(ariel_blob["state"]["favorite_team"], "Boston Celtics")
 
 
 class TestDeveloperWorkspace(unittest.TestCase):

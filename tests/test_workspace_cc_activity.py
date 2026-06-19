@@ -102,6 +102,36 @@ class TestWorkspaceCloudReads(unittest.TestCase):
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]["item_key"], "ariel")
 
+    @patch("suite_storage_supabase._cloud_user_id", return_value="uid-1")
+    @patch("suite_storage_supabase._request")
+    def test_load_events_filters_nba_ariel_workspace(self, mock_req: MagicMock, _uid: MagicMock) -> None:
+        mock_req.return_value = [
+            {
+                "app": "nba",
+                "event": "daniel_game",
+                "page": "Live Game Center",
+                "timestamp": "2026-06-18T10:00:00",
+                "metrics": {},
+            },
+            {
+                "app": "nba__ariel",
+                "event": "ariel_game",
+                "page": "Playoff Bracket",
+                "timestamp": "2026-06-18T11:00:00",
+                "metrics": {},
+            },
+        ]
+        with patch(
+            "suite_workspace.workspace_storage_app_keys",
+            return_value=frozenset({"nba__ariel", "investment__ariel"}),
+        ):
+            from suite_storage_supabase import load_events
+
+            events = load_events(limit=10)
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["event"], "ariel_game")
+        self.assertEqual(events[0]["app"], "nba")
+
 
 class TestWorkspaceSqliteReads(unittest.TestCase):
     def test_sqlite_load_events_respects_workspace(self) -> None:

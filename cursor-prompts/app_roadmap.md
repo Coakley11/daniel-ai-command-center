@@ -1,6 +1,6 @@
 # Daniel AI Command Center — Master Roadmap
 
-**Last updated:** 2026-06-08 · **Branch:** `dev` · **Entry app:** `ai_command_center.py` · **Build:** `2026-06-03-v30`
+**Last updated:** 2026-06-19 · **Branch:** `dev` · **Entry app:** `ai_command_center.py` · **Build:** `2026-06-03-v30`
 
 This is the master planning document. Related files:
 
@@ -24,34 +24,54 @@ This is the master planning document. Related files:
 
 # Current Priorities
 
-1. **Suite port (Sprint 7)** — Port Baseball reference architecture to Music → NBA → Investment → Applied Intelligence. [plans/2026-06-08-sprint-7-suite-port.md](./plans/2026-06-08-sprint-7-suite-port.md) · Reference tag: `baseball-sync-reference-v1`
-2. **Continue vs App Directory (P1)** — Classification audit complete; fix placement before ranking. [plans/suite-usability-audit-2026-06-08.md](./plans/suite-usability-audit-2026-06-08.md) §1
-3. **Music persistence (P2)** — Broad coverage; verify cross-device + CPL gaps. §2
-4. **NBA persistence (P3)** — Team/page fixed; LGC + Legacy Tracker sub-state gaps. §3
-5. **Future Lens persistence (P4)** — Thin vs peers; career activity dead; resume URLs incomplete. §4
-6. **Applied Math quality roadmap (P5)** — Context gaps; no implementation yet. §5
-7. **Investment** — Transparency Phase 1 shipped (`76969f4`); formulas/macro **paused** until suite stable.
+**Confirmed sequence (2026-06-19):** P0 Workspace Profiles → P1 AMI draft context → Phase 2 Real Accounts → Phase 3 Simple LDR → Phase 4 Advanced LDR.
+
+1. **Workspace Profiles Phase 1 (P0)** — Primary ecosystem foundation. [plans/2026-06-19-workspace-profiles-real-accounts-live-draft-room.md](./plans/2026-06-19-workspace-profiles-real-accounts-live-draft-room.md)
+   - **Mostly complete:** Command Center, Investment, Baseball, AMI, Music
+   - **Remaining:** NBA Companion AI, FutureLens, Command Center activity isolation validation, Music validation if needed
+   - **Milestone:** Finishing NBA + FutureLens = final major Workspace Profile work before Phase 2
+   - **Do not start:** Real Accounts or Live Draft Room
+2. **AMI Baseball Draft Intelligence (P1)** — Context packaging / send-hydration. **Behind workspace completion.** Symptoms: generic Q3/Q4, wrong pool, top-12 EV slice gaps, fallbacks.
+3. **Suite port (Sprint 7)** — Music Phase C+; NBA/Investment/AMI audits. [plans/2026-06-08-sprint-7-suite-port.md](./plans/2026-06-08-sprint-7-suite-port.md)
+4. **Continue vs App Directory** — Smoke-test on live Command Center.
+5. **Investment** — Transparency Phase 1 shipped; formulas/macro **paused** until workspace stable.
 
 ---
 
 # Next Features
 
-- **Baseball reference protocol** — Phase 2 complete; `docs/BASEBALL_PAGE_STATE_PROTOCOL.md` + acceptance matrix in baseball repo. Port to Music, NBA, Investment, Applied Intelligence (Sprint 7).
-- Ship Activity Feed Phase B to `origin/dev` with tests (`test_activity_dashboard.py`, `test_activity_time.py`).
-- Per-app activity coverage expansion (Applied Intelligence, Future Lens Phase A tables in admin panel).
-- Smarter Continue cards when `full_session` cloud state is richer across apps.
-- Optional user-facing filter (hide noise events) without breaking coach logic.
-- Homepage dev/prod URL auto-discovery refresh (`scripts/resolve_deploy_urls.py`).
+### Queued (do not start yet)
+
+- **Phase 2 — Real accounts** — username, email, `user_id`, login/auth, permissions, admin/developer + standard user roles, user-specific cloud storage. Daniel → admin; Ariel → normal user. Workspace profiles become authenticated accounts.
+- **Phase 3 — Simple Live Draft Room v1** — room code, join room, shared board/picks/rosters/**clock** (after Phase 2)
+- **Phase 4 — Advanced Live Draft Room** — private queues/notes/AMI, permissions, reconnect, conflict prevention, team-specific intelligence. Shared vs private state split enforced.
+
+### Near-term (parallel where safe)
+
+- **Baseball reference protocol** — Phase 2 complete; port to Music, NBA, Investment, Applied Intelligence (Sprint 7)
+- **AMI send/hydration** — position-representative `available_players` for draft-market questions (catchers, scarcity, player fit)
+- Per-app activity coverage expansion; smarter Continue cards when `full_session` is richer
+- Homepage dev/prod URL auto-discovery refresh (`scripts/resolve_deploy_urls.py`)
 
 ---
 
 # Long-Term Vision
 
-- Unified **suite identity** — one `suite_user_id`, consistent resume URLs, session sync on every app (Investment pattern).
-- **AI command layer** — LLM-generated weekly narrative from real events (not placeholder coach strings).
-- **Mobile-first homepage** — compact continue row, swipe-friendly app cards.
-- **Operational dashboard** — deploy health, last event per app, secret rotation checklist in UI.
-- **Teacher/coach mode** — share read-only activity summaries (future).
+### Identity & multiplayer (sequenced — confirmed)
+
+1. **Workspace Profiles v1** (now, P0) — preset profiles, Command Center switcher, `workspace_id → app_id → state`
+2. **AMI Baseball draft context** (P1) — after workspace complete
+3. **Real accounts** (Phase 2) — do not start yet
+4. **Simple Live Draft Room** (Phase 3) — shared room state only; after Phase 2
+5. **Advanced Live Draft Room** (Phase 4) — private user state + realtime polish
+
+### Suite platform
+
+- Unified **suite identity** — workspace today → `user_id` tomorrow; consistent resume URLs; session sync on every app
+- **AI command layer** — LLM weekly narrative from real events; AMI with full draft-context hydration
+- **Mobile-first homepage** — compact continue row, swipe-friendly app cards
+- **Operational dashboard** — deploy health, last event per app, secret rotation checklist in UI
+- **Teacher/coach mode** — share read-only activity summaries (future)
 
 ---
 
@@ -125,6 +145,9 @@ Rendered top-to-bottom in `ai_command_center.py`:
 
 | Issue | Area | Notes |
 |-------|------|-------|
+| Workspace isolation incomplete | NBA, FutureLens | Daniel/Ariel state may still overlap in unscoped paths |
+| AMI draft context too thin | Baseball AMI | Top-12 EV `available_players` often omits catchers and key targets; not a reasoning bug |
+| AMI restatement defaults to compare | AMI | Unknown Draft Assistant intents show generic compare framing |
 | README claims "placeholder data" | Docs | Misleading when Supabase is live |
 | Cloud deploy lag | Activity feed | Confirm Streamlit dev shows build `2026-06-03-v30` |
 | `APP_BRANCH` shows `DEV` not `dev` | `app_urls.py` | Display string only; Streamlit uses `dev` |

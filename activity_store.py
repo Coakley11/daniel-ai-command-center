@@ -53,15 +53,34 @@ APP_REPO_DIRS: dict[str, str] = {
 }
 
 def _user_state_paths(app_key: str) -> tuple[Path, ...]:
-    """Per-app ``data/{app}_user_state.json`` written by suite persistence."""
+    """Per-app user state JSON — workspace-scoped paths first, then legacy flat file."""
     repo = APP_REPO_DIRS.get(app_key, "")
     fname = f"{app_key}_user_state.json"
     if not repo:
         return ()
-    return (
-        Path(__file__).resolve().parent.parent / repo / "data" / fname,
-        Path.home() / "Documents" / "GitHub" / repo / "data" / fname,
+    bases = (
+        Path(__file__).resolve().parent.parent / repo / "data",
+        Path.home() / "Documents" / "GitHub" / repo / "data",
     )
+    paths: list[Path] = []
+    try:
+        from suite_workspace import get_active_workspace_id
+
+        ws = get_active_workspace_id()
+    except ImportError:
+        ws = "daniel"
+    for base in bases:
+        paths.append(base / "workspaces" / ws / fname)
+    for base in bases:
+        paths.append(base / fname)
+    seen: set[str] = set()
+    out: list[Path] = []
+    for path in paths:
+        key = str(path)
+        if key not in seen:
+            seen.add(key)
+            out.append(path)
+    return tuple(out)
 
 
 APP_STATE_CANDIDATES: dict[str, tuple[Path, ...]] = {
