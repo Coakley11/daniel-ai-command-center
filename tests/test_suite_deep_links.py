@@ -71,13 +71,14 @@ class TestSuiteDeepLinks(unittest.TestCase):
             "baseball",
             resume_key="compare:Juan Soto:Mike Piazza",
             page="Comparison Tool",
-            metrics={"player_a": "Juan Soto", "player_b": "Mike Piazza"},
+            metrics={"player_a": "Juan Soto", "player_b": "Mike Piazza", "workspace_id": "daniel"},
         )
         p = _params(url)
         self.assertEqual(p["suite_resume"], "compare:Juan Soto:Mike Piazza")
         self.assertEqual(p["suite_page"], "Comparison Tool")
         self.assertEqual(p["suite_player_a"], "Juan Soto")
         self.assertEqual(p["suite_player_b"], "Mike Piazza")
+        self.assertEqual(p["suite_workspace"], "daniel")
 
     def test_nba_knicks_live_game_center(self) -> None:
         url = build_resume_action_url(

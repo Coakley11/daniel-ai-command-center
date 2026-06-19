@@ -14,6 +14,7 @@ from __future__ import annotations
 import html
 import json
 from datetime import datetime
+from typing import Any
 
 import streamlit as st
 
@@ -68,6 +69,20 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
 )
+
+try:
+    from suite_workspace import get_active_workspace_id, init_suite_workspace, workspace_badge_html, workspace_label
+
+    init_suite_workspace(st)
+except ImportError:
+    def workspace_badge_html(_workspace_id: str | None = None) -> str:  # type: ignore[misc]
+        return "Profile: Daniel"
+
+    def workspace_label(_workspace_id: str | None = None) -> str:  # type: ignore[misc]
+        return "Daniel"
+
+    def get_active_workspace_id(_st: Any | None = None) -> str:  # type: ignore[misc]
+        return "daniel"
 
 st.markdown(
     """
@@ -306,10 +321,11 @@ def _render_hero(snapshot: ActivitySnapshot) -> None:
     build_note = ""
     if st.session_state.get(CC_DEV_MODE_KEY):
         build_note = f" Build {SUITE_BUILD_LABEL} ({GIT_COMMIT_SHORT}) ·"
+    profile_tag = html.escape(workspace_badge_html(get_active_workspace_id(st)))
     st.markdown(
         f"""
         <div class="cc-hero">
-            <div class="cc-hero-tag">👋 Welcome back</div>
+            <div class="cc-hero-tag">👋 Welcome back · {profile_tag}</div>
             <h1>🏠 Daniel Cohen AI Command Center</h1>
             <p>Your cross-app activity dashboard — continue work, coach insights, and app launchers.{build_note} {activity_tag}.</p>
         </div>
@@ -596,7 +612,7 @@ def _build_app_card_html(app_key: str, snapshot: ActivitySnapshot) -> str:
 
 def _render_app_card(app_key: str, snapshot: ActivitySnapshot) -> None:
     app = next(a for a in APP_DEFINITIONS if a.key == app_key)
-    url = get_app_url(app.key)
+    url = get_app_url(app.key, workspace_id=get_active_workspace_id(st))
     _render_unsafe_html(_build_app_card_html(app_key, snapshot))
     _render_go_button("Open", url, f"app_{app.key}")
 
@@ -687,6 +703,13 @@ def _render_deployment_admin_panel(snapshot: ActivitySnapshot, connections) -> N
 
 
 with st.sidebar:
+    try:
+        from suite_workspace import render_workspace_selector_sidebar
+
+        render_workspace_selector_sidebar(st)
+    except ImportError:
+        st.caption("Workspace profiles unavailable on this deploy.")
+    st.divider()
     with st.expander("Advanced", expanded=False):
         st.toggle(
             "Developer Mode",

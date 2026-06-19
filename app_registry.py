@@ -189,11 +189,20 @@ def _url_is_live(url: str) -> bool:
         return False
 
 
-def get_app_url(key: str, connections: list[ConnectionStatus] | None = None) -> str:
+def get_app_url(key: str, connections: list[ConnectionStatus] | None = None, *, workspace_id: str = "") -> str:
     """Return the public Streamlit viewer URL for navigation buttons."""
     for app in APP_DEFINITIONS:
         if app.key == key:
-            return app.streamlit_url.strip()
+            base = app.streamlit_url.strip()
+            if not base:
+                return ""
+            try:
+                from suite_workspace import append_suite_workspace_param, resolve_workspace_id
+
+                ws = workspace_id or resolve_workspace_id()
+                return append_suite_workspace_param(base, workspace_id=ws)
+            except ImportError:
+                return base
     return ""
 
 
