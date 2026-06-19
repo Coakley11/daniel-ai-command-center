@@ -263,14 +263,36 @@ def _fallback_event_paths(app: str) -> tuple[Path, ...]:
     names: list[Path] = [
         DATA_DIR / f"{app}_activity_fallback.json",
     ]
+    try:
+        from suite_workspace import DEFAULT_WORKSPACE_ID, get_active_workspace_id, scoped_cloud_app_id
+
+        ws = get_active_workspace_id()
+        if ws and ws != DEFAULT_WORKSPACE_ID:
+            scoped = scoped_cloud_app_id(app, ws)
+            names.append(DATA_DIR / f"{scoped}_activity_fallback.json")
+    except ImportError:
+        pass
     if repo:
-        names.extend(
-            [
-                Path(__file__).resolve().parent.parent / repo / "data" / f"{app}_activity_fallback.json",
-                Path(__file__).resolve().parent.parent / repo / f"{app}_activity_fallback.json",
-                Path.home() / "Documents" / "GitHub" / repo / "data" / f"{app}_activity_fallback.json",
-            ]
-        )
+        base_paths = [
+            Path(__file__).resolve().parent.parent / repo / "data" / f"{app}_activity_fallback.json",
+            Path(__file__).resolve().parent.parent / repo / f"{app}_activity_fallback.json",
+            Path.home() / "Documents" / "GitHub" / repo / "data" / f"{app}_activity_fallback.json",
+        ]
+        names.extend(base_paths)
+        try:
+            from suite_workspace import DEFAULT_WORKSPACE_ID, get_active_workspace_id, scoped_cloud_app_id
+
+            ws = get_active_workspace_id()
+            if ws and ws != DEFAULT_WORKSPACE_ID:
+                scoped = scoped_cloud_app_id(app, ws)
+                names.extend(
+                    [
+                        Path(__file__).resolve().parent.parent / repo / "data" / f"{scoped}_activity_fallback.json",
+                        Path.home() / "Documents" / "GitHub" / repo / "data" / f"{scoped}_activity_fallback.json",
+                    ]
+                )
+        except ImportError:
+            pass
     return tuple(names)
 
 
@@ -1238,6 +1260,10 @@ def _ingest_suite_events(snapshot: ActivitySnapshot) -> None:
                 "game_outlook",
                 "playoff_tracking",
                 "playoff_tracker_review",
+                "team_selected",
+                "team_session",
+                "legacy_tracker_focus",
+                "nba_settings_change",
             }:
                 snapshot.nba_analyses_this_week += 1
             if app == "applied_intelligence" and event_name in {
@@ -1261,6 +1287,8 @@ def _ingest_suite_events(snapshot: ActivitySnapshot) -> None:
                 snapshot.last_nba_team = str(metrics["team"])
             if app == "nba" and metrics.get("page"):
                 snapshot.last_nba_page = str(metrics["page"])
+            if app == "nba" and metrics.get("player"):
+                snapshot.nba_workspace_player = str(metrics["player"])
             if app == "music" and not snapshot.last_song and metrics.get("song"):
                 snapshot.last_song = str(metrics["song"])
             if app == "music" and metrics.get("focus"):

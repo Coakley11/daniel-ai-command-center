@@ -164,6 +164,10 @@ NBA_ANALYSIS_ROLLUP_EVENTS: frozenset[str] = frozenset(
         "playoff_simulation",
         "playoff_tracker_review",
         "playoff_tracking",
+        "team_selected",
+        "team_session",
+        "legacy_tracker_focus",
+        "nba_settings_change",
     }
 )
 
@@ -586,6 +590,31 @@ def format_activity_message(event: dict[str, Any], *, for_feed: bool = True) -> 
 
     if event_type == "playoff_tracking" and app == "nba":
         return "Tracked playoff performance"
+
+    if event_type == "team_selected" and app == "nba":
+        team = str(m.get("team") or "").strip()
+        return f"Selected {team}" if team else "Selected NBA team"
+
+    if event_type == "team_session" and app == "nba":
+        team = str(m.get("team") or "").strip()
+        pg = str(m.get("page") or page or "").strip()
+        if team and pg:
+            return f"Working with {team} — {pg}"
+        return f"Working with {team}" if team else None
+
+    if event_type == "legacy_tracker_focus" and app == "nba":
+        team = str(m.get("team") or "").strip()
+        player = str(m.get("player") or "").strip()
+        if team and player:
+            return f"Tracking {player} ({team})"
+        return f"Tracking {player}" if player else "Updated Legacy Tracker"
+
+    if event_type == "nba_settings_change" and app == "nba":
+        setting = str(m.get("setting") or "").strip()
+        team = str(m.get("team") or "").strip()
+        if setting and team:
+            return f"Updated {setting} ({team})"
+        return f"Updated {setting}" if setting else "Updated NBA settings"
 
     if app == "future_lens" and event_type in {"timeline_completed", "technology_timeline_review"}:
         topic = str(m.get("simulation") or m.get("project") or page or "").strip()
