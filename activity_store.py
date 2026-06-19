@@ -847,6 +847,12 @@ def _apply_music_edit_metrics(snapshot: ActivitySnapshot, metrics: dict[str, Any
 
 def _import_sibling_fallback_events() -> None:
     """Merge per-app fallback JSON from sibling repos into the Command Center SQLite log."""
+    try:
+        from suite_workspace import DEFAULT_WORKSPACE_ID, get_active_workspace_id
+
+        active_ws = get_active_workspace_id()
+    except ImportError:
+        active_ws = "daniel"
     existing: set[tuple[str, str, str]] = set()
     for row in _load_db_events(limit=500):
         metrics = row.get("metrics") if isinstance(row.get("metrics"), dict) else {}
@@ -859,7 +865,14 @@ def _import_sibling_fallback_events() -> None:
             )
         )
     for event in _load_fallback_events():
+        app_key = str(event.get("app") or "")
         metrics = event.get("metrics") if isinstance(event.get("metrics"), dict) else {}
+        event_ws = str(metrics.get("workspace_id") or "").strip().lower()
+        if app_key == "nba" and active_ws != DEFAULT_WORKSPACE_ID:
+            if event_ws and event_ws != active_ws:
+                continue
+            if not event_ws:
+                continue
         song = str(metrics.get("song") or metrics.get("last_edited_song") or "")
         key = (str(event.get("app") or ""), str(event.get("event") or ""), song)
         if key in existing and song:

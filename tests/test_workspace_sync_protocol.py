@@ -290,6 +290,31 @@ class TestWorkspaceSyncProtocol(unittest.TestCase):
         self.assertEqual(applied, [])
         self.assertEqual(st.session_state.get("active_page"), "Comparison Tool")
 
+    def test_already_synced_does_not_block_autosave(self) -> None:
+        st = MagicMock()
+        st.session_state = {
+            "active_page": "Comparison Tool",
+            "main_sidebar_page": "Comparison Tool",
+            "_suite_workspace_synced::baseball": True,
+            "_suite_applied_cloud_ts::baseball": "2026-06-08T14:00:00+00:00",
+            "_suite_last_persisted_page": "Comparison Tool",
+        }
+        cloud_state = {"active_page": "Comparison Tool", "page_filter_state": {}}
+        build = MagicMock(return_value={"active_page": "Comparison Tool"})
+
+        with patch("suite_cloud_state.should_skip_workspace_restore_for_resume", return_value=False), patch(
+            "suite_cloud_state.load_cloud_full_session",
+            return_value=(cloud_state, "2026-06-08T14:00:00+00:00"),
+        ), patch(
+            "suite_user_persistence._load_raw",
+            return_value=({"active_page": "Comparison Tool"}, None, "2026-06-08T14:00:00+00:00"),
+        ), patch("suite_user_persistence.save_user_state", return_value=True) as save_disk:
+            sync_workspace_protocol(st, "baseball", apply_state=lambda _s, _d: None)
+            autosave_if_changed(st, "baseball", build_state=build)
+
+        self.assertNotIn("_suite_autosave_blocked::baseball", st.session_state)
+        save_disk.assert_called_once()
+
     def test_user_nav_skip_does_not_block_page_change_cloud_save(self) -> None:
         st = MagicMock()
         st.session_state = {
