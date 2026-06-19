@@ -123,6 +123,8 @@ def _on_active_workspace_changed(st: Any) -> None:
         sk = str(key)
         if sk.startswith(("_cc_", "_ami_", "activity_", "_suite_activity")):
             ss.pop(key, None)
+    for key in DEVELOPER_SESSION_FLAG_KEYS:
+        ss.pop(key, None)
     try:
         import streamlit as st_module
 
@@ -151,6 +153,60 @@ def workspace_storage_app_keys(workspace_id: str | None = None) -> frozenset[str
 
 def storage_app_in_workspace(storage_app: str, workspace_id: str | None = None) -> bool:
     return str(storage_app or "").strip() in workspace_storage_app_keys(workspace_id)
+
+
+DEVELOPER_QUERY_PARAM = "dev"
+DEVELOPER_SESSION_FLAG_KEYS: tuple[str, ...] = (
+    "_suite_dev_mode",
+    "cc_developer_mode",
+    "app_developer_mode",
+    "developer_mode",
+    "investment_show_dev_diagnostics",
+    "investment_pr1_diagnostics_enabled",
+    "dev_lab_enabled",
+)
+
+
+def is_developer_workspace(*, st: Any | None = None, workspace_id: str | None = None) -> bool:
+    """Daniel is the admin/developer workspace (Phase 1 — not auth)."""
+    wid = workspace_id if workspace_id not in (None, "") else resolve_workspace_id(st=st)
+    return normalize_workspace_id(wid) == DEFAULT_WORKSPACE_ID
+
+
+def _developer_query_enabled(st: Any | None = None) -> bool:
+    val = _qp_get(st, DEVELOPER_QUERY_PARAM) if st is not None else ""
+    if not val:
+        try:
+            import streamlit as st_module  # noqa: WPS433
+
+            raw = st_module.query_params.get(DEVELOPER_QUERY_PARAM)
+            if raw is None:
+                return False
+            val = str(raw[0] if isinstance(raw, list) else raw).strip()
+        except Exception:
+            return False
+    return val.lower() in ("1", "true", "yes", "on")
+
+
+def is_developer_mode_enabled(*, st: Any | None = None) -> bool:
+    """True when ?dev=1 or a developer-mode session toggle is on (any workspace)."""
+    if _developer_query_enabled(st):
+        return True
+    try:
+        import streamlit as st_module  # noqa: WPS433
+
+        ss = st.session_state if st is not None else st_module.session_state
+        for key in DEVELOPER_SESSION_FLAG_KEYS:
+            if ss.get(key):
+                return True
+    except Exception:
+        pass
+    return False
+
+
+def can_show_developer_tools(*, st: Any | None = None) -> bool:
+    """Daniel workspace only, with explicit developer mode enabled."""
+    return is_developer_workspace(st=st) and is_developer_mode_enabled(st=st)
 
 
 def _qp_get(st: Any, name: str) -> str:

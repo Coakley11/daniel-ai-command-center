@@ -107,15 +107,15 @@ class TestWorkspaceSqliteReads(unittest.TestCase):
     def test_sqlite_load_events_respects_workspace(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             data = Path(tmp)
-            with patch("suite_storage.DATA_DIR", data):
+            db_path = data / "suite_activity.db"
+            with patch("suite_storage.DATA_DIR", data), patch("suite_storage.DB_PATH", db_path):
                 from suite_storage import _sqlite_append_event, _sqlite_load_events
 
-                with patch("suite_workspace.scoped_cloud_app_id", return_value="baseball"):
+                with patch("suite_storage._scoped_storage_app", side_effect=["baseball", "baseball__ariel"]):
                     _sqlite_append_event("baseball", "daniel_event")
-                with patch("suite_workspace.scoped_cloud_app_id", return_value="baseball__ariel"):
                     _sqlite_append_event("baseball", "ariel_event")
                 with patch(
-                    "suite_workspace.workspace_storage_app_keys",
+                    "suite_storage._workspace_storage_keys",
                     return_value=frozenset({"baseball__ariel"}),
                 ):
                     events = _sqlite_load_events(limit=10)

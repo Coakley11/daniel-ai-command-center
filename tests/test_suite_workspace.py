@@ -15,6 +15,7 @@ from suite_user_persistence import save_user_state, state_file_path
 from suite_workspace import (
     DEFAULT_WORKSPACE_ID,
     append_suite_workspace_param,
+    can_show_developer_tools,
     get_active_workspace_id,
     init_suite_workspace,
     migrate_legacy_app_state_to_daniel,
@@ -105,6 +106,32 @@ class TestWorkspacePaths(unittest.TestCase):
                     daniel_path.read_text(encoding="utf-8"),
                     ariel_path.read_text(encoding="utf-8"),
                 )
+
+
+class TestDeveloperWorkspace(unittest.TestCase):
+    def test_non_daniel_never_gets_developer_tools(self) -> None:
+        class FakeState(dict):
+            pass
+
+        st = type("St", (), {"session_state": FakeState(), "query_params": {"dev": "1"}})()
+        set_active_workspace_id(st, "ariel")
+        self.assertFalse(can_show_developer_tools(st=st))
+
+    def test_daniel_needs_explicit_dev_mode(self) -> None:
+        class FakeState(dict):
+            pass
+
+        st = type("St", (), {"session_state": FakeState(), "query_params": {}})()
+        set_active_workspace_id(st, "daniel")
+        self.assertFalse(can_show_developer_tools(st=st))
+
+    def test_daniel_with_dev_query_shows_tools(self) -> None:
+        class FakeState(dict):
+            pass
+
+        st = type("St", (), {"session_state": FakeState(), "query_params": {"dev": "1"}})()
+        set_active_workspace_id(st, "daniel")
+        self.assertTrue(can_show_developer_tools(st=st))
 
 
 class TestWorkspaceSession(unittest.TestCase):

@@ -71,7 +71,14 @@ st.set_page_config(
 )
 
 try:
-    from suite_workspace import get_active_workspace_id, init_suite_workspace, workspace_badge_html, workspace_label
+    from suite_workspace import (
+        can_show_developer_tools,
+        get_active_workspace_id,
+        init_suite_workspace,
+        is_developer_workspace,
+        workspace_badge_html,
+        workspace_label,
+    )
 
     init_suite_workspace(st)
 except ImportError:
@@ -83,6 +90,12 @@ except ImportError:
 
     def get_active_workspace_id(_st: Any | None = None) -> str:  # type: ignore[misc]
         return "daniel"
+
+    def is_developer_workspace(*, st: Any | None = None, workspace_id: str | None = None) -> bool:  # type: ignore[misc]
+        return True
+
+    def can_show_developer_tools(*, st: Any | None = None) -> bool:  # type: ignore[misc]
+        return bool(st.session_state.get(CC_DEV_MODE_KEY)) if st is not None else False
 
 st.markdown(
     """
@@ -319,7 +332,7 @@ def _render_workflow_diagnostics_table(snapshot: ActivitySnapshot) -> None:
 def _render_hero(snapshot: ActivitySnapshot) -> None:
     activity_tag = "Live activity" if snapshot.has_real_data else "Waiting for activity data"
     build_note = ""
-    if st.session_state.get(CC_DEV_MODE_KEY):
+    if can_show_developer_tools(st=st):
         build_note = f" Build {SUITE_BUILD_LABEL} ({GIT_COMMIT_SHORT}) ·"
     profile_tag = html.escape(workspace_badge_html(get_active_workspace_id(st)))
     st.markdown(
@@ -508,7 +521,7 @@ def _render_recent_activity_feed() -> None:
     )
     _render_unsafe_html(blocks)
 
-    if st.session_state.get(CC_DEV_MODE_KEY) and dashboard.feed_trace:
+    if can_show_developer_tools(st=st) and dashboard.feed_trace:
         with st.expander("Activity feed trace (dev)", expanded=False):
             st.json(dashboard.feed_trace)
 
@@ -710,12 +723,13 @@ with st.sidebar:
     except ImportError:
         st.caption("Workspace profiles unavailable on this deploy.")
     st.divider()
-    with st.expander("Advanced", expanded=False):
-        st.toggle(
-            "Developer Mode",
-            key=CC_DEV_MODE_KEY,
-            help="Shows raw baseball events and Continue workflow diagnostics.",
-        )
+    if is_developer_workspace(st=st):
+        with st.expander("Advanced", expanded=False):
+            st.toggle(
+                "Developer Mode",
+                key=CC_DEV_MODE_KEY,
+                help="Shows raw baseball events and Continue workflow diagnostics.",
+            )
 
 snapshot = load_activity_snapshot()
 insights = generate_coach_insights(snapshot)
@@ -724,11 +738,11 @@ recent_ami_questions = load_recent_ami_questions(limit=8)
 connections = _cached_connections()
 
 _render_hero(snapshot)
-if st.session_state.get(CC_DEV_MODE_KEY):
+if can_show_developer_tools(st=st):
     _render_deploy_banner()
 _render_continue_section(snapshot, continue_cards)
 _render_recent_ami_questions(recent_ami_questions)
-if st.session_state.get(CC_DEV_MODE_KEY):
+if can_show_developer_tools(st=st):
     _render_raw_baseball_events_table()
     with st.expander("Continue workflow candidates (top 10)", expanded=False):
         _render_workflow_diagnostics_table(snapshot)
@@ -738,11 +752,11 @@ _render_recent_activity_feed()
 _render_weekly_summary(snapshot)
 _render_app_directory(snapshot)
 
-if st.session_state.get(CC_DEV_MODE_KEY):
+if can_show_developer_tools(st=st):
     with st.expander("Deployment & link audit (admin)"):
         _render_deployment_admin_panel(snapshot, connections)
 
-if st.session_state.get(CC_DEV_MODE_KEY):
+if can_show_developer_tools(st=st):
     st.caption(
         f"Daniel Cohen AI Command Center · {datetime.now().strftime('%B %d, %Y')} · "
         f"build {SUITE_BUILD_LABEL} · commit {GIT_COMMIT_SHORT} · branch {GIT_BRANCH}"
