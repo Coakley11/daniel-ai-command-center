@@ -69,6 +69,22 @@ class TestWorkspacePaths(unittest.TestCase):
         self.assertEqual(scoped_cloud_app_id("investment", "ariel"), "investment__ariel")
         self.assertEqual(scoped_cloud_app_id("baseball", "guest"), "baseball__guest")
 
+    def test_workspace_storage_app_keys(self) -> None:
+        from suite_workspace import workspace_storage_app_keys
+
+        daniel = workspace_storage_app_keys("daniel")
+        ariel = workspace_storage_app_keys("ariel")
+        self.assertIn("baseball", daniel)
+        self.assertNotIn("baseball__ariel", daniel)
+        self.assertIn("baseball__ariel", ariel)
+        self.assertNotIn("baseball", ariel)
+
+    def test_logical_storage_app_key(self) -> None:
+        from suite_workspace import logical_storage_app_key
+
+        self.assertEqual(logical_storage_app_key("baseball__ariel"), "baseball")
+        self.assertEqual(logical_storage_app_key("investment"), "investment")
+
     def test_disk_first_when_workspace_file_exists(self) -> None:
         from suite_workspace import workspace_restore_cloud_first
 

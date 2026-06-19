@@ -29,6 +29,15 @@ WORKSPACE_PRESETS: tuple[dict[str, str], ...] = (
 
 _VALID_IDS = frozenset(p["id"] for p in WORKSPACE_PRESETS)
 
+_SUITE_STORAGE_APP_IDS: tuple[str, ...] = (
+    "music",
+    "investment",
+    "baseball",
+    "nba",
+    "applied_intelligence",
+    "future_lens",
+)
+
 
 def normalize_workspace_id(raw: str | None) -> str:
     text = str(raw or "").strip().lower()
@@ -98,9 +107,50 @@ def get_active_workspace_id(st: Any | None = None) -> str:
 
 def set_active_workspace_id(st: Any, workspace_id: str) -> str:
     ws = normalize_workspace_id(workspace_id)
+    prev_raw = st.session_state.get(SESSION_KEY)
+    prev = normalize_workspace_id(str(prev_raw)) if prev_raw not in (None, "") else None
     st.session_state[SESSION_KEY] = ws
     persist_active_workspace_id(ws)
+    if prev is not None and prev != ws:
+        _on_active_workspace_changed(st)
     return ws
+
+
+def _on_active_workspace_changed(st: Any) -> None:
+    """Drop Command Center aggregation caches when the active profile changes."""
+    ss = st.session_state
+    for key in list(ss.keys()):
+        sk = str(key)
+        if sk.startswith(("_cc_", "_ami_", "activity_", "_suite_activity")):
+            ss.pop(key, None)
+    try:
+        import streamlit as st_module
+
+        st_module.cache_data.clear()
+    except Exception:
+        pass
+
+
+def logical_storage_app_key(storage_app: str) -> str:
+    """Map cloud row key ``baseball__ariel`` → ``baseball`` for CC aggregation."""
+    base = str(storage_app or "").strip()
+    if base == "math":
+        base = "applied_intelligence"
+    if "__" in base:
+        base = base.split("__", 1)[0]
+    return base
+
+
+def workspace_storage_app_keys(workspace_id: str | None = None) -> frozenset[str]:
+    """Scoped Supabase ``app`` keys for the active (or given) workspace profile."""
+    ws = normalize_workspace_id(
+        workspace_id if workspace_id not in (None, "") else resolve_workspace_id()
+    )
+    return frozenset(scoped_cloud_app_id(app, ws) for app in _SUITE_STORAGE_APP_IDS)
+
+
+def storage_app_in_workspace(storage_app: str, workspace_id: str | None = None) -> bool:
+    return str(storage_app or "").strip() in workspace_storage_app_keys(workspace_id)
 
 
 def _qp_get(st: Any, name: str) -> str:
@@ -188,6 +238,10 @@ def render_workspace_selector_sidebar(st: Any) -> str:
     if selected != current:
         set_active_workspace_id(st, selected)
         current = selected
+        try:
+            st.rerun()
+        except Exception:
+            pass
     st.caption(f"Active profile: **{workspace_label(current)}** (`{current}`)")
     return current
 

@@ -57,6 +57,36 @@ def normalize_app_key(app: str) -> str:
     return cleaned
 
 
+def _scoped_storage_app(app: str) -> str:
+    app_key = normalize_app_key(app)
+    if "__" in app_key:
+        return app_key
+    try:
+        from suite_workspace import scoped_cloud_app_id
+
+        return scoped_cloud_app_id(app_key)
+    except Exception:
+        return app_key
+
+
+def _logical_storage_app(storage_app: str) -> str:
+    try:
+        from suite_workspace import logical_storage_app_key
+
+        return logical_storage_app_key(storage_app)
+    except Exception:
+        return normalize_app_key(storage_app)
+
+
+def _workspace_storage_keys() -> frozenset[str]:
+    try:
+        from suite_workspace import workspace_storage_app_keys
+
+        return workspace_storage_app_keys()
+    except Exception:
+        return ACTIVE_APP_KEYS
+
+
 def _use_cloud() -> bool:
     return cloud_storage_enabled()
 
@@ -304,7 +334,7 @@ def _sqlite_append_event(
     page: str = "",
     metrics: dict[str, Any] | None = None,
 ) -> None:
-    app_key = normalize_app_key(app)
+    app_key = _scoped_storage_app(app)
     if not app_key:
         return
     payload = metrics or {}
@@ -332,9 +362,10 @@ def _sqlite_save_current_state(
     summary: str = "",
     metrics: dict[str, Any] | None = None,
 ) -> None:
-    app_key = normalize_app_key(app)
-    if app_key not in ACTIVE_APP_KEYS:
+    logical = normalize_app_key(app)
+    if logical not in ACTIVE_APP_KEYS:
         return
+    app_key = _scoped_storage_app(app)
     uid = _sqlite_user_id()
     ts = _now_iso()
     ensure_storage()
@@ -368,12 +399,13 @@ def _sqlite_upsert_resume_item(
     subtitle: str = "",
     action_url: str = "",
 ) -> None:
-    app_key = normalize_app_key(app)
+    logical = normalize_app_key(app)
+    app_key = _scoped_storage_app(app)
     key = str(item_key or "").strip()
     title_clean = str(title or "").strip()
     if not app_key or not key or not title_clean:
         return
-    if app_key not in ACTIVE_APP_KEYS:
+    if logical not in ACTIVE_APP_KEYS:
         return
     ts = _now_iso()
     uid = _sqlite_user_id()
@@ -395,7 +427,7 @@ def _sqlite_upsert_resume_item(
 
 
 def _sqlite_invalidate_resume_item(app: str, item_key: str) -> None:
-    app_key = normalize_app_key(app)
+    app_key = _scoped_storage_app(app)
     key = str(item_key or "").strip()
     if not app_key or not key:
         return
@@ -408,7 +440,7 @@ def _sqlite_invalidate_resume_item(app: str, item_key: str) -> None:
 
 
 def _sqlite_invalidate_app_resume_items(app: str) -> None:
-    app_key = normalize_app_key(app)
+    app_key = _scoped_storage_app(app)
     if not app_key:
         return
     ensure_storage()
@@ -421,27 +453,34 @@ def _sqlite_invalidate_app_resume_items(app: str) -> None:
 
 def _sqlite_load_events(limit: int = MAX_EVENTS) -> list[dict[str, Any]]:
     uid = _sqlite_user_id()
+    allowed = sorted(_workspace_storage_keys())
+    if not allowed:
+        return []
     ensure_storage()
+    placeholders = ",".join("?" * len(allowed))
     with _connect() as conn:
         rows = conn.execute(
-            """
+            f"""
             SELECT app, event, page, timestamp, metrics_json
             FROM activity_events
-            WHERE user_id = ?
+            WHERE user_id = ? AND app IN ({placeholders})
             ORDER BY id DESC
             LIMIT ?
             """,
-            (uid, limit),
+            (uid, *allowed, limit),
         ).fetchall()
     out: list[dict[str, Any]] = []
     for row in reversed(rows):
+        storage_app = str(row["app"])
+        if storage_app not in allowed:
+            continue
         try:
             metrics = json.loads(row["metrics_json"] or "{}")
         except json.JSONDecodeError:
             metrics = {}
         out.append(
             {
-                "app": row["app"],
+                "app": _logical_storage_app(storage_app),
                 "event": row["event"],
                 "page": row["page"],
                 "timestamp": row["timestamp"],
@@ -453,22 +492,33 @@ def _sqlite_load_events(limit: int = MAX_EVENTS) -> list[dict[str, Any]]:
 
 def _sqlite_load_current_states() -> dict[str, dict[str, Any]]:
     uid = _sqlite_user_id()
+    allowed = _workspace_storage_keys()
+    if not allowed:
+        return {}
+    placeholders = ",".join("?" * len(allowed))
     ensure_storage()
     with _connect() as conn:
         rows = conn.execute(
-            "SELECT app, page, summary, metrics_json, updated_at FROM app_current_state WHERE user_id = ?",
-            (uid,),
+            f"""
+            SELECT app, page, summary, metrics_json, updated_at
+            FROM app_current_state
+            WHERE user_id = ? AND app IN ({placeholders})
+            """,
+            (uid, *sorted(allowed)),
         ).fetchall()
     out: dict[str, dict[str, Any]] = {}
     for row in rows:
-        app = str(row["app"])
-        if app not in ACTIVE_APP_KEYS:
+        storage_app = str(row["app"])
+        if storage_app not in allowed:
+            continue
+        logical = _logical_storage_app(storage_app)
+        if logical not in ACTIVE_APP_KEYS:
             continue
         try:
             metrics = json.loads(row["metrics_json"] or "{}")
         except json.JSONDecodeError:
             metrics = {}
-        out[app] = {
+        out[logical] = {
             "page": row["page"],
             "summary": row["summary"],
             "metrics": metrics,
@@ -479,6 +529,9 @@ def _sqlite_load_current_states() -> dict[str, dict[str, Any]]:
 
 def _sqlite_load_active_resume_items(limit: int = 8) -> list[ResumeItem]:
     uid = _sqlite_user_id()
+    allowed = sorted(_workspace_storage_keys())
+    if not allowed:
+        return []
     ensure_storage()
     with _connect() as conn:
         rows = conn.execute(
@@ -488,12 +541,12 @@ def _sqlite_load_active_resume_items(limit: int = 8) -> list[ResumeItem]:
             WHERE user_id = ? AND valid=1 AND app IN ({})
             ORDER BY updated_at DESC
             LIMIT ?
-            """.format(",".join("?" * len(ACTIVE_APP_KEYS))),
-            (uid, *sorted(ACTIVE_APP_KEYS), limit),
+            """.format(",".join("?" * len(allowed))),
+            (uid, *allowed, limit),
         ).fetchall()
     return [
         ResumeItem(
-            app=str(row["app"]),
+            app=_logical_storage_app(str(row["app"])),
             item_key=str(row["item_key"]),
             title=str(row["title"]),
             subtitle=str(row["subtitle"] or ""),
@@ -501,6 +554,7 @@ def _sqlite_load_active_resume_items(limit: int = 8) -> list[ResumeItem]:
             updated_at=str(row["updated_at"]),
         )
         for row in rows
+        if str(row["app"]) in allowed
     ]
 
 
@@ -726,7 +780,7 @@ def _sqlite_upsert_saved_item(
     title: str,
     payload: dict[str, Any] | None = None,
 ) -> None:
-    app_key = normalize_app_key(app)
+    app_key = _scoped_storage_app(app)
     key = str(item_key or "").strip()
     title_clean = str(title or "").strip()
     itype = str(item_type or "item").strip() or "item"
@@ -751,7 +805,7 @@ def _sqlite_upsert_saved_item(
 
 
 def _sqlite_invalidate_saved_item(app: str, item_type: str, item_key: str) -> None:
-    app_key = normalize_app_key(app)
+    app_key = _scoped_storage_app(app)
     key = str(item_key or "").strip()
     itype = str(item_type or "item").strip() or "item"
     if not app_key or not key:
@@ -775,6 +829,7 @@ def _sqlite_load_saved_items(
     limit: int = 100,
 ) -> list[dict[str, Any]]:
     uid = _sqlite_user_id()
+    allowed = _workspace_storage_keys()
     ensure_storage()
     query = """
         SELECT app, item_type, item_key, title, payload_json, updated_at
@@ -784,7 +839,11 @@ def _sqlite_load_saved_items(
     params: list[Any] = [uid]
     if app:
         query += " AND app = ?"
-        params.append(normalize_app_key(app))
+        params.append(_scoped_storage_app(app))
+    elif allowed:
+        placeholders = ",".join("?" * len(allowed))
+        query += f" AND app IN ({placeholders})"
+        params.extend(sorted(allowed))
     if item_type:
         query += " AND item_type = ?"
         params.append(item_type)
@@ -794,13 +853,16 @@ def _sqlite_load_saved_items(
         rows = conn.execute(query, params).fetchall()
     out: list[dict[str, Any]] = []
     for row in rows:
+        storage_app = str(row["app"])
+        if not app and storage_app not in allowed:
+            continue
         try:
             payload = json.loads(row["payload_json"] or "{}")
         except json.JSONDecodeError:
             payload = {}
         out.append(
             {
-                "app": row["app"],
+                "app": _logical_storage_app(storage_app),
                 "item_type": row["item_type"],
                 "item_key": row["item_key"],
                 "title": row["title"],
