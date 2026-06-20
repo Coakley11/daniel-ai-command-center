@@ -39,7 +39,26 @@ Historical record of shipped Command Center and shared-suite infrastructure capa
 - [x] Deep links — `suite_workspace` query param on Continue/Open URLs (`suite_deep_links.py`, `suite_resume_launch.py`)
 - [x] Activity/resume reads filtered by active workspace (`suite_storage_supabase.py`, `test_workspace_cc_activity.py`)
 - [x] Tests: `test_suite_workspace.py` (normalization, paths, migration, cloud keys, selector)
-- [x] **Mostly validated across apps:** Command Center, Investment, Baseball, Applied Math, Music
+- [x] **Mostly validated across apps:** Command Center, Investment, Baseball, Applied Math, Music, **NBA** (2026-06-19)
+
+### Workspace Profiles v1 — NBA Companion AI (2026-06-19)
+
+- [x] `workspace_id → nba → state` — scoped disk paths, cloud keys (`nba__ariel`), activity writes with `workspace_id`
+- [x] Team selector persistence — profile defaults (Daniel→Knicks, Ariel→Celtics), no Hawks reset on refresh
+- [x] Shell-first Fast Load — defer cloud sync, usable startup without forced team reset
+- [x] Command Center activity isolation — scoped fallback files, Ariel/Daniel feed filtering
+- [x] Daniel-only startup diagnostics; developer tools hidden for non-Daniel workspaces
+- [x] User validation PASS — team persistence, workspace separation, CC activity isolation, Fast Load
+
+### Workspace Profiles v1 — FutureLens (2026-06-19, pending validation)
+
+- [x] `prepare_future_lens_workspace()` — `sync_workspace_protocol`, disk shell restore, startup flag clearing on profile switch
+- [x] `init_suite_workspace` + workspace bootstrap in `future_lens_boot.py`
+- [x] Activity writes tag `workspace_id`; scoped fallback paths in `suite_activity_client.py`
+- [x] Cloud keys via `scoped_cloud_app_id` (`future_lens__ariel`); disk `data/workspaces/{id}/future_lens_user_state.json`
+- [x] Command Center — `future_lens` in workspace-scoped fallback import filter; CC activity/resume read tests
+- [x] Tests: `test_future_lens_workspace.py`, extended CC workspace activity tests
+- [ ] **User validation pending** — Daniel vs Ariel domain/area/sim, Continue/Directory, CC feed isolation
 
 ### Baseball AMI Phase 1 — Draft context depth (2026-06-11)
 

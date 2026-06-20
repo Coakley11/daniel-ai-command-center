@@ -867,6 +867,9 @@ def _apply_music_edit_metrics(snapshot: ActivitySnapshot, metrics: dict[str, Any
     snapshot.has_real_data = True
 
 
+_WORKSPACE_SCOPED_FALLBACK_APPS = frozenset({"nba", "future_lens"})
+
+
 def _import_sibling_fallback_events() -> None:
     """Merge per-app fallback JSON from sibling repos into the Command Center SQLite log."""
     try:
@@ -890,7 +893,7 @@ def _import_sibling_fallback_events() -> None:
         app_key = str(event.get("app") or "")
         metrics = event.get("metrics") if isinstance(event.get("metrics"), dict) else {}
         event_ws = str(metrics.get("workspace_id") or "").strip().lower()
-        if app_key == "nba" and active_ws != DEFAULT_WORKSPACE_ID:
+        if app_key in _WORKSPACE_SCOPED_FALLBACK_APPS and active_ws != DEFAULT_WORKSPACE_ID:
             if event_ws and event_ws != active_ws:
                 continue
             if not event_ws:

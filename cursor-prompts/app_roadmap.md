@@ -27,9 +27,10 @@ This is the master planning document. Related files:
 **Confirmed sequence (2026-06-19):** P0 Workspace Profiles → P1 AMI draft context → Phase 2 Real Accounts → Phase 3 Simple LDR → Phase 4 Advanced LDR.
 
 1. **Workspace Profiles Phase 1 (P0)** — Primary ecosystem foundation. [plans/2026-06-19-workspace-profiles-real-accounts-live-draft-room.md](./plans/2026-06-19-workspace-profiles-real-accounts-live-draft-room.md)
-   - **Mostly complete:** Command Center, Investment, Baseball, AMI, Music
-   - **Remaining:** NBA Companion AI, FutureLens, Command Center activity isolation validation, Music validation if needed
-   - **Milestone:** Finishing NBA + FutureLens = final major Workspace Profile work before Phase 2
+   - **Mostly complete:** Command Center, Investment, Baseball, AMI, Music, **NBA** (validated 2026-06-19)
+   - **In validation:** FutureLens workspace isolation (implemented; Daniel/Ariel acceptance pass pending)
+   - **After FutureLens:** final ecosystem-wide Command Center activity isolation validation
+   - **Milestone:** FutureLens validation = last major Workspace Profile rollout before Phase 2
    - **Do not start:** Real Accounts or Live Draft Room
 2. **AMI Baseball Draft Intelligence (P1)** — Context packaging / send-hydration. **Behind workspace completion.** Symptoms: generic Q3/Q4, wrong pool, top-12 EV slice gaps, fallbacks.
 3. **Suite port (Sprint 7)** — Music Phase C+; NBA/Investment/AMI audits. [plans/2026-06-08-sprint-7-suite-port.md](./plans/2026-06-08-sprint-7-suite-port.md)
@@ -145,7 +146,7 @@ Rendered top-to-bottom in `ai_command_center.py`:
 
 | Issue | Area | Notes |
 |-------|------|-------|
-| Workspace isolation incomplete | NBA, FutureLens | Daniel/Ariel state may still overlap in unscoped paths |
+| Workspace isolation incomplete | FutureLens (validation pending) | Daniel/Ariel state may overlap until acceptance pass; NBA validated 2026-06-19 |
 | AMI draft context too thin | Baseball AMI | Top-12 EV `available_players` often omits catchers and key targets; not a reasoning bug |
 | AMI restatement defaults to compare | AMI | Unknown Draft Assistant intents show generic compare framing |
 | README claims "placeholder data" | Docs | Misleading when Supabase is live |

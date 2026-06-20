@@ -30,11 +30,11 @@ Central hub repo (`daniel-ai-command-center`) for suite homepage, activity aggre
 - [x] Applied Mathematical Intelligence
 - [x] Music Practice Coach
 
-**Remaining rollout (final major milestone: NBA + FutureLens):**
+**Remaining rollout (final major milestone: FutureLens + ecosystem validation):**
 
-1. [ ] **NBA Companion AI** — finish workspace isolation (team/page, LGC, Legacy Tracker, cloud keys, activity)
-2. [ ] **FutureLens** — finish workspace isolation (career/timeline/sim + Continue/Directory under Ariel vs Daniel)
-3. [ ] **Command Center** — verify activity isolation across profiles (final validation)
+1. [x] **NBA Companion AI** — workspace isolation validated (team persistence, CC activity isolation, Fast Load, Daniel/Ariel separation)
+2. [ ] **FutureLens** — workspace isolation implemented; **awaiting user validation** (career/timeline/sim + Continue/Directory under Ariel vs Daniel)
+3. [ ] **Command Center** — verify activity isolation across profiles (final ecosystem-wide validation after FutureLens)
 4. [ ] **Music** — verify isolation if needed on acceptance pass
 
 **Exit criteria:** Switch Daniel → Ariel; no shared drafts, portfolios, AMI history, or cross-profile activity in feed/Continue.
@@ -292,6 +292,7 @@ Recent task completions (see [app_completed_features.md](./app_completed_feature
 - Work on branch **`dev`**; push `origin/dev` for Streamlit Cloud dev homepage.
 - When a task ships, move detail to `app_completed_features.md` and uncheck here.
 - Large plans → `cursor-prompts/plans/YYYY-MM-DD-title.md` and link below.
+- **FutureLens validation (P0):** Daniel Technology/domain/sim → refresh persists; Ariel Finance/different sim → refresh persists; CC Daniel feed shows Daniel FL only; CC Ariel feed shows Ariel FL only; Continue/Directory resume keys scoped per workspace; developer tools hidden for Ariel.
 
 ### Active plans
 

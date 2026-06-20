@@ -90,7 +90,8 @@ Queued enhancements for the suite homepage and shared infrastructure — not sib
 
 # Notes
 
-- **Do not start** Real Accounts (Phase 2) or Live Draft Room (Phase 3+) until Workspace Profiles v1 is stable.
+- **Do not start** Real Accounts (Phase 2), Live Draft Room (Phase 3+), or FutureLens AMI expansion until Workspace Profiles v1 is stable across all apps.
+- NBA Workspace Profiles v1 validated 2026-06-19. FutureLens implementation complete; user acceptance pass pending.
 - Workspace Profiles v1 = primary foundation; not authentication.
 - Experimental: LLM-generated coach insights; Supabase realtime subscription instead of poll-on-load
 - Do not backlog duplicate features already owned by sibling apps — link out instead

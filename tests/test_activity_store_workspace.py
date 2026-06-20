@@ -47,6 +47,15 @@ class TestActivityStoreWorkspacePaths(unittest.TestCase):
 
             self.assertEqual(block.get("favorite_team"), "Boston Celtics")
 
+    def test_future_lens_workspace_path(self) -> None:
+        with patch("suite_workspace.get_active_workspace_id", return_value="ariel"):
+            from activity_store import _user_state_paths
+
+            paths = _user_state_paths("future_lens")
+        self.assertIn("workspaces", str(paths[0]))
+        self.assertIn("ariel", str(paths[0]))
+        self.assertEqual(paths[0].name, "future_lens_user_state.json")
+
 
 if __name__ == "__main__":
     unittest.main()
