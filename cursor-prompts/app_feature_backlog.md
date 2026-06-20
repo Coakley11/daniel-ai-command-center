@@ -14,13 +14,38 @@ Queued enhancements for the suite homepage and shared infrastructure — not sib
 
 # Current Priorities
 
-*Active P0: Workspace Profiles v1 — finish NBA + FutureLens as final major milestone. Do not start Real Accounts or Live Draft Room. P1 AMI draft context stays behind P0.*
+*Active: Account Settings UX → workspace polish → Real Problem Importer MVP. Close Workspace P0 (FutureLens + CC isolation) in parallel. See [plan](./plans/2026-06-19-account-settings-real-problem-importer-roadmap.md).*
 
 ---
 
 # Next Features
 
-### Phase 2 — Real accounts (**do not start yet** — after workspace profiles stable)
+### Account Settings UX (P1 — **shipped Sprint A 2026-06-20**)
+
+- [x] CC profile/settings panel: email, workspace, cloud ids, scoped key preview, isolation diagnostics
+- [x] Global workspace badge in CC sidebar
+- [x] `suite_account_settings.py` + tests (`test_account_settings_panel.py`)
+- [ ] Sync module to sibling app sidebars (Sprint B)
+
+### Workspace & account polish (P1b)
+
+- Global workspace badge; deep links with `?suite_workspace=`
+- Namespace mismatch warnings; activity sync audit all apps → CC
+
+### Real Problem Importer (P2 — AMI)
+
+- Manual-field decision import + EV/break-even/edge math
+- Persist `dec_*` keys; educational disclaimer
+
+### Kalshi / prediction-market coach (P3)
+
+- First specialized template on importer foundation
+
+### More real-life templates (P4)
+
+- Investing, sports, business, cost-benefit, portfolio, time management
+
+### Phase 2 — Real accounts (**do not start yet** — after settings + importer stable)
 
 - Username, email, `user_id`, login/authentication (password and/or Google OAuth)
 - User-specific private cloud storage

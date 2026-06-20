@@ -724,11 +724,19 @@ def _render_deployment_admin_panel(snapshot: ActivitySnapshot, connections) -> N
 
 with st.sidebar:
     try:
+        from suite_account_settings import render_global_workspace_badge
         from suite_workspace import render_workspace_selector_sidebar
 
+        render_global_workspace_badge(st)
         render_workspace_selector_sidebar(st)
+        st.caption("Account & workspace details are on the homepage below the welcome banner.")
     except ImportError:
-        st.caption("Workspace profiles unavailable on this deploy.")
+        try:
+            from suite_workspace import render_workspace_selector_sidebar
+
+            render_workspace_selector_sidebar(st)
+        except ImportError:
+            st.caption("Workspace profiles unavailable on this deploy.")
     st.divider()
     if is_developer_workspace(st=st):
         with st.expander("Advanced", expanded=False):
@@ -745,6 +753,12 @@ recent_ami_questions = load_recent_ami_questions(limit=8)
 connections = _cached_connections()
 
 _render_hero(snapshot)
+try:
+    from suite_account_settings import render_account_settings_panel
+
+    render_account_settings_panel(st, expanded=False, show_title=False)
+except ImportError:
+    pass
 if can_show_developer_tools(st=st):
     _render_deploy_banner()
 _render_continue_section(snapshot, continue_cards)

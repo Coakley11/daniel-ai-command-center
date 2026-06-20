@@ -24,22 +24,30 @@ This is the master planning document. Related files:
 
 # Current Priorities
 
-**Confirmed sequence (2026-06-19):** P0 Workspace Profiles → P1 AMI draft context → Phase 2 Real Accounts → Phase 3 Simple LDR → Phase 4 Advanced LDR.
+**Confirmed sequence (2026-06-19, revised):** Close Workspace P0 validation → **Account Settings UX** → **Workspace polish** → **Real Problem Importer MVP** → Kalshi coach → more templates → Real Accounts (auth).
 
-1. **Workspace Profiles Phase 1 (P0)** — Primary ecosystem foundation. [plans/2026-06-19-workspace-profiles-real-accounts-live-draft-room.md](./plans/2026-06-19-workspace-profiles-real-accounts-live-draft-room.md)
-   - **Mostly complete:** Command Center, Investment, Baseball, AMI, Music, **NBA** (validated 2026-06-19)
-   - **In validation:** FutureLens workspace isolation (implemented; Daniel/Ariel acceptance pass pending)
-   - **After FutureLens:** final ecosystem-wide Command Center activity isolation validation
-   - **Milestone:** FutureLens validation = last major Workspace Profile rollout before Phase 2
-   - **Do not start:** Real Accounts or Live Draft Room
-2. **AMI Baseball Draft Intelligence (P1)** — Context packaging / send-hydration. **Behind workspace completion.** Symptoms: generic Q3/Q4, wrong pool, top-12 EV slice gaps, fallbacks.
-3. **Suite port (Sprint 7)** — Music Phase C+; NBA/Investment/AMI audits. [plans/2026-06-08-sprint-7-suite-port.md](./plans/2026-06-08-sprint-7-suite-port.md)
-4. **Continue vs App Directory** — Smoke-test on live Command Center.
-5. **Investment** — Transparency Phase 1 shipped; formulas/macro **paused** until workspace stable.
+**Plan:** [plans/2026-06-19-account-settings-real-problem-importer-roadmap.md](./plans/2026-06-19-account-settings-real-problem-importer-roadmap.md)
+
+1. **Workspace Profiles Phase 1 (P0 close-out)** — FutureLens validation + final CC isolation pass. AMI persistence/sync validated (`87d2785`).
+2. **Account Settings (new P1)** — Profile page: email, workspace, account/cloud ids, diagnostics; Daniel vs Ariel clarity. *Not full login/auth yet.*
+3. **Workspace & account polish (P1b)** — Global badge, deep links, namespace warnings, activity sync audit across apps.
+4. **Real Problem Importer MVP (P2)** — Manual-field decision import + EV math on AMI; educational framing.
+5. **Kalshi / prediction-market coach (P3)** — Template + sections on importer foundation.
+6. **More real-life templates (P4)** — Investing, sports, business, etc.
+7. **AMI Baseball Draft Intelligence** — **Deferred** (resume after Importer v1 or narrow fixes when blocked).
+8. **Real Accounts / auth (roadmap Phase 2)** — After settings + importer stable; replaces secrets-based identity.
 
 ---
 
 # Next Features
+
+### Active (approved order)
+
+- **Account Settings UX** — CC profile page, workspace/account diagnostics ([plan](./plans/2026-06-19-account-settings-real-problem-importer-roadmap.md))
+- **Workspace polish** — global badge, namespace warnings, deep-link audit
+- **Real Problem Importer MVP** — AMI manual-field EV decision tool
+- **Kalshi decision coach** — specialized template (after MVP)
+- **Real-life template library** — investing, sports, business, …
 
 ### Queued (do not start yet)
 

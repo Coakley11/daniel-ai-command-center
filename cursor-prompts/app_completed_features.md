@@ -30,6 +30,21 @@ Historical record of shipped Command Center and shared-suite infrastructure capa
 
 # Completed Features
 
+### AMI persistence & workspace sync (2026-06-19)
+
+- [x] AMI UI-state cloud persistence (`_ami_ui_state`, `mie_*`/`ps_*` keys) — `maybe_persist`, one-shot reapply fix (`87d2785`)
+- [x] Cloud-first workspace restore; Explore + session activity to Command Center
+- [x] CC workspace activity namespace diagnostics; `analytical_question` in weekly stats
+- [x] Tests: `test_applied_intelligence_ui_cloud_persist.py`, `test_workspace_cc_activity.py`
+
+### Account Settings UX — Sprint A (2026-06-20)
+
+- [x] `suite_account_settings.py` — identity summary, scoped cloud key preview, namespace mismatch warnings
+- [x] Command Center — global workspace badge (sidebar), Account & workspace panel (homepage)
+- [x] Password reset stub (Real Accounts Phase 2)
+- [x] Tests: `test_account_settings_panel.py`; extended `test_workspace_cc_activity.py`, `test_suite_workspace.py`
+- [x] FutureLens workspace validation — 10 passed in sibling repo
+
 ### Workspace Profiles v1 — Phase 1 foundation (2026-06-19)
 
 - [x] `suite_workspace.py` — presets (Daniel, Ariel, Guest, Test User), normalization, legacy migration to Daniel workspace dir

@@ -16,6 +16,7 @@ MODULE_FILES = (
     "suite_activity_client.py",
     "suite_user.py",
     "suite_account.py",
+    "suite_account_settings.py",
     "suite_deep_links.py",
     "suite_resume_launch.py",
     "suite_cloud_state.py",

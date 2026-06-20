@@ -201,6 +201,12 @@ class TestDeepLinks(unittest.TestCase):
         url = append_suite_workspace_param("https://example.test/app", workspace_id="daniel")
         self.assertIn("suite_workspace=daniel", url)
 
+    def test_future_lens_scoped_keys_isolated(self) -> None:
+        from suite_workspace import scoped_cloud_app_id
+
+        self.assertEqual(scoped_cloud_app_id("future_lens", "daniel"), "future_lens")
+        self.assertEqual(scoped_cloud_app_id("future_lens", "ariel"), "future_lens__ariel")
+
 
 class TestPersistedWorkspace(unittest.TestCase):
     def test_persist_and_load(self) -> None:

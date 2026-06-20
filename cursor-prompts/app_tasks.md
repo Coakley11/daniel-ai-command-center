@@ -2,6 +2,54 @@
 
 **Last updated:** 2026-06-19
 
+**Master plan (revised):** [plans/2026-06-19-account-settings-real-problem-importer-roadmap.md](./plans/2026-06-19-account-settings-real-problem-importer-roadmap.md)
+
+**Focus:** Account Settings → workspace polish → Real Problem Importer. Close Workspace P0 in parallel. Defer AMI Baseball draft P1 until after Importer MVP unless draft work blocks.
+
+### P0 — Workspace Profiles close-out (parallel, small)
+
+- [x] FutureLens — Daniel/Ariel validation (10 tests pass in `future-lens-ai-transition-simulator`)
+- [x] Command Center — final activity isolation pass (Daniel-only FutureLens filter test + existing CC tests)
+- [x] AMI — persistence, cloud sync, UI-state one-shot reapply (`87d2785`)
+
+### P1 — Account Settings UX (**Sprint A shipped 2026-06-20**)
+
+- [x] Command Center Account Settings page — email, display name, `suite_user_id`, Supabase `user_id`, cloud mode
+- [x] Active workspace + scoped cloud key preview (Daniel vs Ariel)
+- [x] Read-only persistence/namespace diagnostics + mismatch warnings
+- [x] Password reset — stub “Real Accounts” unless Supabase Auth wired
+- [x] Shared `suite_account_settings.py` + sync script entry (sync to siblings on next port)
+- [x] Global workspace badge in CC sidebar
+
+### P1b — Workspace & account polish
+
+- [ ] Global workspace badge in all app sidebars
+- [ ] Audit `init_suite_workspace` + `?suite_workspace=` on every app open URL
+- [ ] Namespace mismatch warning when write/read keys disagree
+- [ ] Activity sync audit (session_activity, analytical_question) all apps → CC
+
+### P2 — Real Problem Importer MVP (AMI)
+
+- [ ] Manual form: question, implied prob, cost, payout, horizon, user prob, notes
+- [ ] Pure EV / break-even / edge / capped position-size math (`decision_math.py`)
+- [ ] Persist `dec_*` keys; workspace-scoped activity
+- [ ] Educational disclaimer (not gambling advice)
+
+### P3 — Kalshi / prediction-market coach
+
+- [ ] Template + 6 sections on importer foundation
+- [ ] Optional paste parse (regex); scenario questions
+
+### P4 — More real-life templates
+
+- [ ] Template registry: investing, sports, business, cost-benefit, …
+
+### Deferred — AMI Baseball Draft Intelligence (was P1)
+
+Resume after Importer v1 or when draft season requires narrow hydration fixes only.
+
+**Master plan (workspace/auth/LDR):** [plans/2026-06-19-workspace-profiles-real-accounts-live-draft-room.md](./plans/2026-06-19-workspace-profiles-real-accounts-live-draft-room.md)
+
 ---
 
 # Project Description
@@ -12,50 +60,9 @@ Central hub repo (`daniel-ai-command-center`) for suite homepage, activity aggre
 
 # Current Priorities
 
-**Focus (2026-06-19): Finish Workspace Profiles v1 — the primary foundation of the ecosystem. Do not start Real Accounts or Live Draft Room until P0 is stable.**
+See task sections above (P0 close-out → P1 Account Settings → P1b polish → P2 Importer).
 
-**Master plan:** [plans/2026-06-19-workspace-profiles-real-accounts-live-draft-room.md](./plans/2026-06-19-workspace-profiles-real-accounts-live-draft-room.md) *(user confirmed priority order)*
-
-### P0 — Workspace Profiles Phase 1 (finish isolation)
-
-**Model:** `workspace_id → app_id → state` · Command Center = profile switcher · Not real auth yet.
-
-**Hard gates:** Do **not** start Phase 2 (Real Accounts) or Phase 3+ (Live Draft Room) until P0 exit criteria pass.
-
-**Mostly complete (v1):**
-
-- [x] Command Center — sidebar selector, workspace badge, scoped activity/resume reads
-- [x] Investment Portfolio Analyzer
-- [x] Baseball Analytics
-- [x] Applied Mathematical Intelligence
-- [x] Music Practice Coach
-
-**Remaining rollout (final major milestone: FutureLens + ecosystem validation):**
-
-1. [x] **NBA Companion AI** — workspace isolation validated (team persistence, CC activity isolation, Fast Load, Daniel/Ariel separation)
-2. [ ] **FutureLens** — workspace isolation implemented; **awaiting user validation** (career/timeline/sim + Continue/Directory under Ariel vs Daniel)
-3. [ ] **Command Center** — verify activity isolation across profiles (final ecosystem-wide validation after FutureLens)
-4. [ ] **Music** — verify isolation if needed on acceptance pass
-
-**Exit criteria:** Switch Daniel → Ariel; no shared drafts, portfolios, AMI history, or cross-profile activity in feed/Continue.
-
-### P1 — AMI Baseball Draft Intelligence (after P0; behind workspace completion)
-
-**Primary owner:** send/hydration / context packaging — not catcher logic, not player-specific logic, not new AMI reasoning modes.
-
-**Known symptoms:** generic Q3/Q4 recommendations; incorrect player pool; wrong available-player context; top-12 EV slice not hydrated correctly; occasional fallback behavior.
-
-**Sequence:**
-
-1. [ ] Confirm Baseball AMI context counts in Dev Mode (`available_players`, `draft_snapshot`, `needed_positions`, `category_needs`, `hydrate_source`, deploy builds)
-2. [ ] Verify `available_players` hydration on deployed Dev Mode
-3. [ ] Fix top-12 EV → position-representative pool issue
-4. [ ] Fix remaining AMI draft context packaging problems
-5. [ ] Secondary: restatement layer unknown intent → compare default
-
-**Related plan:** [plans/2026-06-11-ami-enhancement-roadmap.md](./plans/2026-06-11-ami-enhancement-roadmap.md)
-
-### P2 — AMI Enhancement Program (parallel where not blocked)
+### P2 (parallel) — AMI Enhancement Program (not blocked by Account Settings)
 
 1. [ ] **Phase 0:** Blob-first hydration by `question_id`; teaching response template
 2. [ ] **Phase 1:** Baseball contextual transfer — remaining pages (Career, Leaderboards, Valuation, ML, Historical numerics depth)
