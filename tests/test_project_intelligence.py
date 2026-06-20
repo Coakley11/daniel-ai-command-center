@@ -90,6 +90,31 @@ class TestProjectIntelligence(unittest.TestCase):
         self.assertTrue(str(ami[0][4]).startswith("ai:question:"))
         self.assertEqual(ami[0][0], 64)
 
+    def test_applied_intelligence_native_analytical_question_continue(self) -> None:
+        snap = ActivitySnapshot()
+        recent = (datetime.now() - timedelta(minutes=3)).isoformat(timespec="seconds")
+        events = [
+            {
+                "app": "applied_intelligence",
+                "event": "analytical_question",
+                "timestamp": recent,
+                "metrics": {
+                    "question": "What is the break-even probability for this prop?",
+                    "source_app": "applied_intelligence",
+                    "source_page": "Solve a Problem",
+                    "question_id": "ami-native-q1",
+                    "resume_key": "ai:question:ami-native-q1",
+                    "workspace_id": "daniel",
+                },
+            },
+        ]
+        with patch("project_intelligence.load_all_events", return_value=events):
+            cards = _projects_from_events(snap)
+        ami = [c for c in cards if c[1] == "applied_intelligence"]
+        self.assertEqual(len(ami), 1)
+        self.assertIn("break-even probability", ami[0][3].lower())
+        self.assertEqual(ami[0][4], "ai:question:ami-native-q1")
+
     def test_workflow_candidate_diagnostic_marks_included_trend(self) -> None:
         snap = ActivitySnapshot()
         recent = (datetime.now() - timedelta(hours=1)).isoformat(timespec="seconds")

@@ -510,10 +510,17 @@ def format_activity_message(event: dict[str, Any], *, for_feed: bool = True) -> 
             return f"Compared trend charts for {pa} vs {pb}"
         return "Compared multi-player trend charts"
 
-    if event_type == "analytical_question" and app in {"baseball", "nba", "investment", "music"}:
+    if event_type == "analytical_question" and app in {
+        "baseball",
+        "nba",
+        "investment",
+        "music",
+        "applied_intelligence",
+    }:
         from suite_analytical_question import source_question_card_title
 
-        title = source_question_card_title(app)
+        source_app = str(m.get("source_app") or app).strip() or app
+        title = source_question_card_title(source_app)
         question = str(m.get("question") or "").strip()
         if question:
             return f"{title}: {question[:80]}"

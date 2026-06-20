@@ -163,6 +163,40 @@ class TestWorkspaceCloudReads(unittest.TestCase):
         self.assertEqual(events[0]["app"], "future_lens")
 
 
+class TestWorkspaceAmiActivity(unittest.TestCase):
+    @patch("suite_storage_supabase._cloud_user_id", return_value="uid-1")
+    @patch("suite_storage_supabase._request")
+    def test_load_events_filters_applied_intelligence_ariel_workspace(
+        self, mock_req: MagicMock, _uid: MagicMock
+    ) -> None:
+        mock_req.return_value = [
+            {
+                "app": "applied_intelligence",
+                "event": "daniel_ami",
+                "page": "Solve a Problem",
+                "timestamp": "2026-06-18T10:00:00",
+                "metrics": {"workspace_id": "daniel"},
+            },
+            {
+                "app": "applied_intelligence__ariel",
+                "event": "ariel_ami",
+                "page": "Solve a Problem",
+                "timestamp": "2026-06-18T11:00:00",
+                "metrics": {"workspace_id": "ariel"},
+            },
+        ]
+        with patch(
+            "suite_workspace.workspace_storage_app_keys",
+            return_value=frozenset({"applied_intelligence__ariel"}),
+        ):
+            from suite_storage_supabase import load_events
+
+            events = load_events(limit=10)
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["event"], "ariel_ami")
+        self.assertEqual(events[0]["app"], "applied_intelligence")
+
+
 class TestWorkspaceSqliteReads(unittest.TestCase):
     def test_sqlite_load_events_respects_workspace(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

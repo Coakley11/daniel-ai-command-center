@@ -497,6 +497,26 @@ def _raw_event_workflow_candidate(event: dict[str, Any]) -> dict[str, Any] | Non
             "title": title,
             "stale": _stale(ts),
         }
+    elif app == "applied_intelligence":
+        if event_name == "analytical_question":
+            return _analytical_question_workflow(app, m, ts, ts_raw)
+        if event_name == "problem_solved":
+            lesson = str(m.get("lesson") or m.get("analysis") or m.get("question") or "").strip()
+            if not lesson:
+                return None
+            resume_key = str(m.get("resume_key") or f"ai:problem:{lesson[:40]}")
+            priority = 48
+            title = f"Continue: {lesson[:48]}"
+            return {
+                "timestamp": ts_raw[:19],
+                "app": app,
+                "event_type": event_name,
+                "resume_key": resume_key,
+                "priority": priority,
+                "title": title,
+                "stale": _stale(ts),
+            }
+        return None
     else:
         return None
 
@@ -770,7 +790,13 @@ def _projects_from_events(
             continue
         m = _metrics(event)
 
-        if event_name == "analytical_question" and app in {"baseball", "nba", "investment", "music"}:
+        if event_name == "analytical_question" and app in {
+            "baseball",
+            "nba",
+            "investment",
+            "music",
+            "applied_intelligence",
+        }:
             question = str(m.get("question") or "").strip()
             if question:
                 from suite_analytical_question import (
@@ -780,11 +806,12 @@ def _projects_from_events(
                 )
 
                 ctx = m.get("context") if isinstance(m.get("context"), dict) else {}
+                source_app = str(m.get("source_app") or app).strip() or app
                 qid = str(
                     m.get("question_id")
                     or _qid_fn(
                         question,
-                        source_app=app,
+                        source_app=source_app,
                         source_page=str(m.get("source_page") or ""),
                         context=ctx,
                     )
@@ -792,7 +819,7 @@ def _projects_from_events(
                 resume_key = str(m.get("resume_key") or f"ai:question:{qid}")
                 title, subtitle, _ = analytical_question_continue_copy(
                     {
-                        "source_app": app,
+                        "source_app": source_app,
                         "question": question,
                         "context": m.get("context") if isinstance(m.get("context"), dict) else {},
                         "context_summary": m.get("context_summary"),
