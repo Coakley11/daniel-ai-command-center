@@ -543,6 +543,10 @@ def format_activity_message(event: dict[str, Any], *, for_feed: bool = True) -> 
         topic = str(m.get("lesson") or m.get("analysis") or m.get("topic") or page or "").strip()
         return f"Solved applied math problem: {topic}" if topic else "Solved applied math problem"
 
+    if event_type == "session_activity" and app == "applied_intelligence":
+        label = str(m.get("view_mode") or page or m.get("lesson") or "").strip()
+        return f"Applied Intelligence: {label}" if label else "Applied Intelligence session"
+
     if event_type == "module_completed" and app == "applied_intelligence":
         topic = str(m.get("lesson") or page or "").strip()
         return f"Finished learning module: {topic}" if topic else "Finished learning module"

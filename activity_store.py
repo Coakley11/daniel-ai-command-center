@@ -1276,6 +1276,8 @@ def _ingest_suite_events(snapshot: ActivitySnapshot) -> None:
                 "module_completed",
                 "reasoning_exercise_completed",
                 "analysis",
+                "analytical_question",
+                "session_activity",
             }:
                 snapshot.applied_lessons_completed_this_week += 1
             if app == "baseball" and metrics.get("player"):
@@ -1337,8 +1339,13 @@ def _ingest_suite_events(snapshot: ActivitySnapshot) -> None:
             snapshot.last_song = str(metrics["song"])
         if app_key == "music" and metrics.get("instrument"):
             snapshot.last_instrument = str(metrics["instrument"])
-        if app_key == "applied_intelligence" and page:
-            snapshot.last_applied_intelligence_page = page
+        if app_key == "applied_intelligence":
+            if not page:
+                full_session = metrics.get("full_session")
+                if isinstance(full_session, dict):
+                    page = str(full_session.get("view_mode") or full_session.get("page") or "")
+            if page:
+                snapshot.last_applied_intelligence_page = page
         if app_key == "future_lens" and metrics.get("project"):
             snapshot.future_project = str(metrics["project"])
         if updated_at and (newest_state is None or updated_at >= newest_state[2]):

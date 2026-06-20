@@ -197,6 +197,58 @@ class TestWorkspaceAmiActivity(unittest.TestCase):
         self.assertEqual(events[0]["app"], "applied_intelligence")
 
 
+class TestArielAmiWriteCcRead(unittest.TestCase):
+    @patch("suite_storage_supabase._cloud_user_id", return_value="uid-1")
+    @patch("suite_storage_supabase._request")
+    def test_ariel_session_activity_visible_in_cc_reads(self, mock_req: MagicMock, _uid: MagicMock) -> None:
+        mock_req.return_value = [
+            {
+                "app": "applied_intelligence__ariel",
+                "event": "session_activity",
+                "page": "Explore a Math Idea",
+                "timestamp": "2026-06-20T12:00:00",
+                "metrics": {"workspace_id": "ariel", "view_mode": "Explore a Math Idea"},
+            }
+        ]
+        with patch(
+            "suite_workspace.workspace_storage_app_keys",
+            return_value=frozenset({"applied_intelligence__ariel"}),
+        ):
+            from suite_storage_supabase import load_events
+
+            events = load_events(limit=10)
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["event"], "session_activity")
+        self.assertEqual(events[0]["app"], "applied_intelligence")
+        self.assertEqual(events[0]["page"], "Explore a Math Idea")
+
+    @patch("suite_storage_supabase._cloud_user_id", return_value="uid-1")
+    @patch("suite_storage_supabase._request")
+    def test_ariel_current_state_page_from_full_session(self, mock_req: MagicMock, _uid: MagicMock) -> None:
+        mock_req.return_value = [
+            {
+                "app": "applied_intelligence__ariel",
+                "page": "",
+                "summary": "Explore a Math Idea",
+                "metrics": {
+                    "full_session": {
+                        "view_mode": "Explore a Math Idea",
+                        "_ami_ui_state": {"mie_example": "Derivative"},
+                    }
+                },
+                "updated_at": "2026-06-20T12:00:00",
+            }
+        ]
+        with patch(
+            "suite_workspace.workspace_storage_app_keys",
+            return_value=frozenset({"applied_intelligence__ariel"}),
+        ):
+            from suite_storage_supabase import load_current_states
+
+            states = load_current_states()
+        self.assertEqual(states["applied_intelligence"]["page"], "Explore a Math Idea")
+
+
 class TestWorkspaceSqliteReads(unittest.TestCase):
     def test_sqlite_load_events_respects_workspace(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

@@ -57,6 +57,7 @@ PHASE_A_NBA_EVENTS = (
 
 PHASE_A_APPLIED_EVENTS = (
     "analytical_question",
+    "session_activity",
     "lesson_completed",
     "case_study_completed",
     "module_completed",
