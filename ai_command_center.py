@@ -694,6 +694,13 @@ def _render_deployment_admin_panel(snapshot: ActivitySnapshot, connections) -> N
     if diag.supabase_error:
         st.error(f"Supabase read error: {diag.supabase_error}")
     st.info(diag.recommendation)
+    ws_ns = diag.workspace_namespace or {}
+    if ws_ns:
+        st.markdown("##### Workspace activity namespace (AMI / Ariel isolation)")
+        st.code(json.dumps(ws_ns, indent=2), language="json")
+        hint = str(ws_ns.get("namespace_mismatch_hint") or "").strip()
+        if hint:
+            st.warning(hint)
     try:
         from project_intelligence import diagnose_baseball_continue
 

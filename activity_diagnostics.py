@@ -56,6 +56,7 @@ PHASE_A_NBA_EVENTS = (
 )
 
 PHASE_A_APPLIED_EVENTS = (
+    "analytical_question",
     "lesson_completed",
     "case_study_completed",
     "module_completed",
@@ -206,6 +207,90 @@ class LiveActivityDiagnostics:
     # Legacy fields for compact summary row
     can_command_center_see_music_verified: bool = False
     sqlite_verified_count: int = 0
+    workspace_namespace: dict[str, Any] = field(default_factory=dict)
+
+
+def build_workspace_activity_namespace_diagnostics(st: Any | None = None) -> dict[str, Any]:
+    """Compare CC fetch namespace vs last AMI activity rows for active workspace."""
+    out: dict[str, Any] = {
+        "active_workspace_id": "",
+        "suite_user_id": "",
+        "account_user_id": "",
+        "cc_fetch_namespaces": [],
+        "applied_intelligence_fetch_key": "",
+        "last_ami_event_in_cc": None,
+        "last_ami_event_in_supabase_raw": None,
+        "namespace_mismatch_hint": "",
+    }
+    try:
+        from suite_user import get_account_user_id, get_external_user_id
+        from suite_workspace import get_active_workspace_id, scoped_cloud_app_id, workspace_storage_app_keys
+
+        if st is not None:
+            ws = get_active_workspace_id(st)
+        else:
+            ws = get_active_workspace_id()
+        out["active_workspace_id"] = ws
+        out["suite_user_id"] = get_external_user_id()
+        out["account_user_id"] = get_account_user_id()
+        fetch_keys = sorted(workspace_storage_app_keys(ws))
+        out["cc_fetch_namespaces"] = fetch_keys
+        out["applied_intelligence_fetch_key"] = scoped_cloud_app_id("applied_intelligence", ws)
+    except Exception as exc:
+        out["error"] = str(exc)
+        return out
+
+    cc_events = load_all_events(limit=300)
+    ami_cc = [
+        e
+        for e in cc_events
+        if str(e.get("app") or "") == "applied_intelligence"
+        and str(e.get("event") or "") in {"analytical_question", "problem_solved", "lesson_completed"}
+    ]
+    if ami_cc:
+        latest = max(ami_cc, key=lambda e: str(e.get("timestamp") or ""))
+        metrics = latest.get("metrics") if isinstance(latest.get("metrics"), dict) else {}
+        out["last_ami_event_in_cc"] = {
+            "event": latest.get("event"),
+            "timestamp": latest.get("timestamp"),
+            "page": latest.get("page"),
+            "metrics_workspace_id": metrics.get("workspace_id"),
+        }
+
+    sb_events, sb_err = _load_supabase_events(300)
+    out["supabase_error"] = sb_err
+    expected = out["applied_intelligence_fetch_key"]
+    ami_sb = [
+        e
+        for e in sb_events
+        if str(e.get("app") or "") in {expected, "applied_intelligence", "applied_intelligence__ariel"}
+        and str(e.get("event") or "") in {"analytical_question", "problem_solved", "lesson_completed"}
+    ]
+    if ami_sb:
+        latest_sb = max(ami_sb, key=lambda e: str(e.get("timestamp") or ""))
+        metrics = latest_sb.get("metrics") if isinstance(latest_sb.get("metrics"), dict) else {}
+        out["last_ami_event_in_supabase_raw"] = {
+            "app": latest_sb.get("app"),
+            "event": latest_sb.get("event"),
+            "timestamp": latest_sb.get("timestamp"),
+            "metrics_workspace_id": metrics.get("workspace_id"),
+        }
+        sb_app = str(latest_sb.get("app") or "")
+        if ws != "daniel" and sb_app == "applied_intelligence":
+            out["namespace_mismatch_hint"] = (
+                "Supabase row uses Daniel unscoped app=applied_intelligence; "
+                f"Ariel CC reads {expected} only."
+            )
+        elif ws == "daniel" and sb_app.endswith("__ariel"):
+            out["namespace_mismatch_hint"] = (
+                "Supabase row is Ariel-scoped but CC Daniel profile reads unscoped applied_intelligence."
+            )
+    elif ws != "daniel":
+        out["namespace_mismatch_hint"] = (
+            f"No AMI events in Supabase for {expected}. "
+            "Confirm AMI opened with ?suite_workspace=ariel (AMI deploy defaults to daniel)."
+        )
+    return out
 
 
 def _detect_deployment_mode() -> str:
@@ -340,6 +425,8 @@ def run_live_activity_diagnostics() -> LiveActivityDiagnostics:
     sb_sorted = sorted(supabase_events, key=lambda e: str(e.get("timestamp") or ""), reverse=True)
     cc_sorted = sorted(cc_events, key=lambda e: str(e.get("timestamp") or ""), reverse=True)
 
+    workspace_ns = build_workspace_activity_namespace_diagnostics()
+
     return LiveActivityDiagnostics(
         deployment_mode=mode,
         cloud_storage_configured=cloud_cfg,
@@ -367,6 +454,7 @@ def run_live_activity_diagnostics() -> LiveActivityDiagnostics:
         investment_health_in_feed=investment_health_feed,
         can_command_center_see_music_verified=bool(verified_cc),
         sqlite_verified_count=len(verified_cc),
+        workspace_namespace=workspace_ns,
     )
 
 
