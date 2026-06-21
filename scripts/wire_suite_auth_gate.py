@@ -47,11 +47,11 @@ def main() -> None:
         "    apply_suite_resume_launch(st, \"music\")\nexcept Exception:\n    pass\n",
         "Music",
     )
-    boot = GITHUB / "future-lens-ai-transition-simulator" / "future_lens_boot.py"
+    boot = GITHUB / "future-lens-ai-transition-simulator" / "streamlit_app.py"
     _insert_after(
         boot,
-        "        init_suite_workspace(st)\n    except Exception:\n        pass\n",
-        "FutureLens boot",
+        "    initial_sidebar_state=\"expanded\",\n)\n",
+        "FutureLens",
     )
 
 
