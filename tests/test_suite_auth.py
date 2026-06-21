@@ -88,6 +88,28 @@ class TestSuiteAuth(unittest.TestCase):
                 enforce_workspace_ownership(session)
         self.assertEqual(session.get(SESSION_KEY), "ariel")
 
+    def test_resolve_auth_external_id_prefers_email_over_supabase_uuid(self) -> None:
+        from suite_auth import AUTH_USER_EMAIL_KEY, AUTH_USER_ID_KEY, resolve_auth_external_id
+
+        session = {
+            AUTH_USER_ID_KEY: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+            AUTH_USER_EMAIL_KEY: "daniel@example.com",
+        }
+        self.assertEqual(resolve_auth_external_id(session), "daniel")
+
+    def test_daniel_email_includes_ariel_in_allowed_workspaces_with_uuid_user_id(self) -> None:
+        from suite_auth import AUTH_USER_EMAIL_KEY, AUTH_USER_ID_KEY, allowed_workspaces_for_session
+
+        session = {
+            AUTH_SESSION_KEY: True,
+            AUTH_USER_ID_KEY: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+            AUTH_USER_EMAIL_KEY: "daniel@example.com",
+        }
+        with unittest.mock.patch("suite_auth.is_auth_enabled", return_value=True):
+            with unittest.mock.patch("suite_auth.is_authenticated", return_value=True):
+                allowed = allowed_workspaces_for_session(session)
+        self.assertIn("ariel", allowed)
+
     def test_login_requires_supabase_when_enabled(self) -> None:
         os.environ["SUITE_AUTH_ENABLED"] = "true"
         session = {}
