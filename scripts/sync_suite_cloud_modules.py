@@ -21,6 +21,7 @@ MODULE_FILES = (
     "suite_activity_audit.py",
     "suite_workspace_deep_link_audit.py",
     "suite_auth.py",
+    "suite_auth_browser.py",
     "suite_command_center_link.py",
     "suite_deep_links.py",
     "suite_resume_launch.py",

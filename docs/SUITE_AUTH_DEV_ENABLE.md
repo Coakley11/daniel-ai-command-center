@@ -71,7 +71,10 @@ Add if missing:
 
 ```
 supabase>=2.0.0
+extra-streamlit-components>=0.1.60
 ```
+
+`extra-streamlit-components` is required for **C2b** — browser refresh (F5) preserves login via secure cookie persistence.
 
 Redeploy after changing requirements (push to `dev` or reboot).
 
@@ -94,7 +97,14 @@ python scripts/verify_auth_configuration.py
 Expected when ready:
 
 - `auth backend ready: True`
-- `message: Auth backend ready.`
+- `message: Auth backend ready (C2b browser persistence enabled).`
+
+### C2b — refresh preserves login
+
+1. Log in on CC dev with `?dev=1` optional.
+2. Hard refresh (F5) — should **remain signed in** (no auth gate).
+3. Log out — refresh again — auth gate should return.
+4. Repeat on one sibling app (Music or AMI) for cross-app cookie behavior (same browser, per-origin cookie).
 
 Then manual C1–C5 on CC dev:
 
