@@ -1,0 +1,182 @@
+[
+  {
+    "item": "C1",
+    "status": "BLOCKED",
+    "notes": "Auth not enabled on dev \u2014 add suite_auth_enabled=true + reboot"
+  },
+  {
+    "item": "C2",
+    "status": "BLOCKED",
+    "notes": "Auth not enabled"
+  },
+  {
+    "item": "C3",
+    "status": "BLOCKED",
+    "notes": "Auth not enabled"
+  },
+  {
+    "item": "C4",
+    "status": "BLOCKED",
+    "notes": "Auth not enabled"
+  },
+  {
+    "item": "C5",
+    "status": "BLOCKED",
+    "notes": "Auth not enabled \u2014 live test requires auth"
+  },
+  {
+    "item": "W8/continue_open_links_ariel",
+    "status": "FAIL",
+    "notes": "found 0 links; workspace param present=False"
+  },
+  {
+    "item": "W1_music/badge_ariel",
+    "status": "FAIL",
+    "notes": "missing Active workspace/ariel in sidebar"
+  },
+  {
+    "item": "W1_music/account_panel",
+    "status": "FAIL",
+    "notes": "expander not found"
+  },
+  {
+    "item": "W1_music/cc_link_workspace",
+    "status": "FAIL",
+    "notes": "no suite_workspace link found"
+  },
+  {
+    "item": "W2_ami/badge_ariel",
+    "status": "FAIL",
+    "notes": "missing Active workspace/ariel in sidebar"
+  },
+  {
+    "item": "W2_ami/account_panel",
+    "status": "FAIL",
+    "notes": "expander not found"
+  },
+  {
+    "item": "W2_ami/cc_link_workspace",
+    "status": "FAIL",
+    "notes": "no suite_workspace link found"
+  },
+  {
+    "item": "W4_investment/badge_ariel",
+    "status": "FAIL",
+    "notes": "missing Active workspace/ariel in sidebar"
+  },
+  {
+    "item": "W4_investment/account_panel",
+    "status": "FAIL",
+    "notes": "expander not found"
+  },
+  {
+    "item": "W4_investment/cc_link_workspace",
+    "status": "FAIL",
+    "notes": "no suite_workspace link found"
+  },
+  {
+    "item": "W5_nba/badge_ariel",
+    "status": "FAIL",
+    "notes": "missing Active workspace/ariel in sidebar"
+  },
+  {
+    "item": "W5_nba/account_panel",
+    "status": "FAIL",
+    "notes": "expander not found"
+  },
+  {
+    "item": "W5_nba/cc_link_workspace",
+    "status": "FAIL",
+    "notes": "no suite_workspace link found"
+  },
+  {
+    "item": "W6_future_lens/badge_ariel",
+    "status": "FAIL",
+    "notes": "missing Active workspace/ariel in sidebar"
+  },
+  {
+    "item": "W6_future_lens/account_panel",
+    "status": "FAIL",
+    "notes": "expander not found"
+  },
+  {
+    "item": "W6_future_lens/cc_link_workspace",
+    "status": "FAIL",
+    "notes": "no suite_workspace link found"
+  },
+  {
+    "item": "A4/namespace_mismatch_warning",
+    "status": "FAIL",
+    "notes": "no mismatch warning detected"
+  },
+  {
+    "item": "A1/workspace_badge_all_apps",
+    "status": "FAIL",
+    "notes": "0/5 apps show badge"
+  },
+  {
+    "item": "A2/account_panel_all_apps",
+    "status": "FAIL",
+    "notes": "0/5 apps show account expander"
+  },
+  {
+    "item": "W3/baseball",
+    "status": "N/A",
+    "notes": "Baseball entry not wired locally"
+  },
+  {
+    "item": "W7/activity_isolation",
+    "status": "PASS",
+    "notes": "Automated: test_workspace_cc_activity.py"
+  },
+  {
+    "item": "P1",
+    "status": "PENDING",
+    "notes": "Requires phone + Dell manual test"
+  },
+  {
+    "item": "P2",
+    "status": "PENDING",
+    "notes": "Requires phone + Dell manual test"
+  },
+  {
+    "item": "P3",
+    "status": "PENDING",
+    "notes": "Requires phone + Dell manual test"
+  },
+  {
+    "item": "P4",
+    "status": "PENDING",
+    "notes": "Requires phone + Dell manual test"
+  },
+  {
+    "item": "P5",
+    "status": "PENDING",
+    "notes": "Requires phone + Dell manual test"
+  },
+  {
+    "item": "M1",
+    "status": "PENDING",
+    "notes": "Requires Music CPL manual regression"
+  },
+  {
+    "item": "M2",
+    "status": "PENDING",
+    "notes": "Requires Music CPL manual regression"
+  },
+  {
+    "item": "M3",
+    "status": "PENDING",
+    "notes": "Requires Music CPL manual regression"
+  },
+  {
+    "item": "M4",
+    "status": "PENDING",
+    "notes": "Requires Music CPL manual regression"
+  },
+  {
+    "item": "M5",
+    "status": "PENDING",
+    "notes": "Requires Music CPL manual regression"
+  }
+]
