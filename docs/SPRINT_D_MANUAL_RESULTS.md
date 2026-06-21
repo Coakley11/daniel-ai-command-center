@@ -47,7 +47,7 @@
 |-----|--------|-------|
 | C2 | | Sibling app login (Music or AMI) |
 | C3 | | Logout + F5 → auth gate |
-| C4 | PARTIAL | Email delivery PASS; reset link FAIL — Site URL / redirect_to (see investigation) |
+| C4 | PARTIAL | Email PASS; redirect PASS; recovery panel pending retest after 221ab44+ fix |
 | C5 live | | Ariel cannot stay on Daniel workspace |
 
 ---

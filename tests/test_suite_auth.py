@@ -158,6 +158,27 @@ class TestSuiteAuth(unittest.TestCase):
         )
         self.assertIn("example.test", msg)
 
+    def test_recovery_landing_detects_hash_probe(self) -> None:
+        from suite_auth import _needs_recovery_hash_bridge, auth_recovery_diagnostics
+
+        class FakeState(dict):
+            pass
+
+        st = type("St", (), {"session_state": FakeState(), "query_params": {"suite_auth_hash_probe": "recovery"}})()
+        self.assertTrue(_needs_recovery_hash_bridge(st))
+        diag = auth_recovery_diagnostics(st=st)
+        self.assertTrue(diag["recovery_mode_detected"])
+        self.assertTrue(diag["hash_bridge_waiting"])
+
+    def test_recovery_landing_skips_bridge_after_probe_none(self) -> None:
+        from suite_auth import _needs_recovery_hash_bridge
+
+        class FakeState(dict):
+            pass
+
+        st = type("St", (), {"session_state": FakeState(), "query_params": {"suite_auth_hash_probe": "none"}})()
+        self.assertFalse(_needs_recovery_hash_bridge(st))
+
 
 if __name__ == "__main__":
     unittest.main()
