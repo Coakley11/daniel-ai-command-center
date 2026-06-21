@@ -25,6 +25,7 @@ MODULE_FILES = (
     "suite_deep_links.py",
     "suite_resume_launch.py",
     "suite_cloud_state.py",
+    "suite_egress_trace.py",
     "suite_user_persistence.py",
     "suite_workspace.py",
     "suite_analytical_question.py",

@@ -1330,6 +1330,16 @@ def _ingest_suite_events(snapshot: ActivitySnapshot) -> None:
         snapshot.last_opened_page = last_opened[1]
 
     current_states = load_current_states()
+    ami_block = current_states.get("applied_intelligence") or {}
+    if not str(ami_block.get("page") or "").strip():
+        try:
+            from suite_storage import load_current_state_for_app
+
+            full_ami = load_current_state_for_app("applied_intelligence")
+            if full_ami:
+                current_states["applied_intelligence"] = full_ami
+        except Exception:
+            pass
     newest_state: tuple[str, str, str] | None = None
     for app_key, state in current_states.items():
         page = str(state.get("page") or "")

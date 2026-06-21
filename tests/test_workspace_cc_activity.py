@@ -243,10 +243,10 @@ class TestArielAmiWriteCcRead(unittest.TestCase):
             "suite_workspace.workspace_storage_app_keys",
             return_value=frozenset({"applied_intelligence__ariel"}),
         ):
-            from suite_storage_supabase import load_current_states
+            from suite_storage_supabase import load_current_state_for_app
 
-            states = load_current_states()
-        self.assertEqual(states["applied_intelligence"]["page"], "Explore a Math Idea")
+            row = load_current_state_for_app("applied_intelligence")
+        self.assertEqual(row["page"], "Explore a Math Idea")
 
 
 class TestWorkspaceSqliteReads(unittest.TestCase):

@@ -688,15 +688,58 @@ def load_events(limit: int = MAX_EVENTS) -> list[dict[str, Any]]:
     return _sqlite_load_events(limit=limit)
 
 
-def load_current_states() -> dict[str, dict[str, Any]]:
+def load_current_states(*, include_metrics: bool = False) -> dict[str, dict[str, Any]]:
     if _use_cloud():
         import suite_storage_supabase as cloud
 
         try:
-            return cloud.load_current_states()
+            return cloud.load_current_states(include_metrics=include_metrics)
         except Exception:
             return _sqlite_load_current_states()
     return _sqlite_load_current_states()
+
+
+def load_current_states_summary() -> dict[str, dict[str, Any]]:
+    if _use_cloud():
+        import suite_storage_supabase as cloud
+
+        try:
+            return cloud.load_current_states_summary()
+        except Exception:
+            return _sqlite_load_current_states()
+    return _sqlite_load_current_states()
+
+
+def load_current_state_for_app(app: str) -> dict[str, Any]:
+    if _use_cloud():
+        import suite_storage_supabase as cloud
+
+        try:
+            return cloud.load_current_state_for_app(app)
+        except Exception:
+            pass
+    states = _sqlite_load_current_states()
+    key = normalize_app_key(app)
+    return dict(states.get(key) or {})
+
+
+def load_current_state_meta_for_app(app: str) -> dict[str, Any]:
+    if _use_cloud():
+        import suite_storage_supabase as cloud
+
+        try:
+            return cloud.load_current_state_meta_for_app(app)
+        except Exception:
+            pass
+    states = _sqlite_load_current_states()
+    key = normalize_app_key(app)
+    block = states.get(key) or {}
+    return {
+        "app": key,
+        "page": str(block.get("page") or ""),
+        "summary": str(block.get("summary") or ""),
+        "updated_at": str(block.get("updated_at") or "")[:19],
+    }
 
 
 def load_active_resume_items(limit: int = 8) -> list[ResumeItem]:
