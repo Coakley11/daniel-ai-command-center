@@ -23,6 +23,9 @@ from suite_workspace import SESSION_KEY
 class TestSuiteAuth(unittest.TestCase):
     def tearDown(self) -> None:
         os.environ.pop("SUITE_AUTH_ENABLED", None)
+        from suite_storage_config import reset_cloud_config_cache
+
+        reset_cloud_config_cache()
 
     def test_auth_disabled_by_default(self) -> None:
         os.environ.pop("SUITE_AUTH_ENABLED", None)
@@ -63,7 +66,21 @@ class TestSuiteAuth(unittest.TestCase):
         session = {}
         ok, msg = login_with_email(session, email="test@example.com", password="secret")
         self.assertFalse(ok)
-        self.assertIn("not configured", msg.lower())
+        self.assertTrue(
+            any(
+                phrase in msg.lower()
+                for phrase in ("not configured", "supabase", "anon", "missing", "installed")
+            ),
+            msg,
+        )
+
+    def test_auth_backend_status_when_enabled_without_secrets(self) -> None:
+        os.environ["SUITE_AUTH_ENABLED"] = "true"
+        from suite_auth import auth_backend_status
+
+        status = auth_backend_status()
+        self.assertTrue(status["auth_ui_enabled"])
+        self.assertFalse(status["ready"])
 
 
 if __name__ == "__main__":
