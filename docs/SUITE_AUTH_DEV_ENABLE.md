@@ -15,6 +15,21 @@ Previously, code called `get_supabase_client()` which **did not exist** and `sup
 
 ---
 
+## C2b browser persistence (Streamlit Cloud)
+
+**CookieManager does not work on Streamlit Cloud** — component iframes cannot read/write the parent app cookie jar.
+
+C2b uses:
+
+1. **Opaque session id** in URL: `?suite_sid=<uuid>` via `st.query_params` (survives F5)
+2. **Token bundle** in Supabase `suite_saved_items` (`app=_auth_browser`, `item_type=browser_session`)
+
+After login the URL will include `suite_sid=...`. Refresh preserves that param → restore loads tokens from Supabase.
+
+**Security:** URL holds only a random UUID, not JWTs. Logout invalidates the server row and removes the query param.
+
+---
+
 ## 1. Supabase project (dashboard)
 
 **Authentication → Providers**
@@ -71,10 +86,7 @@ Add if missing:
 
 ```
 supabase>=2.0.0
-extra-streamlit-components>=0.1.60
 ```
-
-`extra-streamlit-components` is required for **C2b** — browser refresh (F5) preserves login via secure cookie persistence.
 
 Redeploy after changing requirements (push to `dev` or reboot).
 
@@ -97,32 +109,34 @@ python scripts/verify_auth_configuration.py
 Expected when ready:
 
 - `auth backend ready: True`
-- `message: Auth backend ready (C2b browser persistence enabled).`
+- `message: Auth backend ready (C2b query-param + Supabase session storage).`
 
 ### C2b — refresh preserves login
 
-CookieManager needs **one bootstrap rerun** after page load before cookies are readable/writable. After login, expect **one extra rerun** while the auth cookie syncs.
-
 1. Log in on CC dev with `?dev=1` optional.
-2. Sidebar → **Auth persistence (dev)** — after login, `cookie_present` should become `true`.
-3. Hard refresh (F5) — should **remain signed in** (no auth gate).
-4. Log out — refresh again — auth gate should return.
-5. Repeat on one sibling app (Music or AMI) for per-origin cookie behavior.
-
-Then manual C1–C5 on CC dev:
-
-| # | Check |
-|---|-------|
-| C1 | Create account (email/password) |
-| C2 | Log in on CC + one sibling app |
-| C3 | Log out |
-| C4 | Password reset email |
-| C5 | Ariel account clamped to Ariel workspace |
-
-Login errors should now show Supabase messages (invalid password, etc.), **not** “Auth is not configured”.
+2. Confirm URL contains `suite_sid=<uuid>` after login.
+3. Sidebar → **Auth persistence (dev)** — expect:
+   - `storage: supabase_query_param`
+   - `session_id_present: true`
+   - `cloud_payload_present: true`
+4. Hard refresh (F5) — should **remain signed in** (URL keeps `suite_sid`).
+5. Log out — `suite_sid` removed — refresh shows auth gate.
+6. Repeat on one sibling app (separate origin → separate `suite_sid` per app).
 
 ---
 
-## 6. Roll back
+## 6. Cross-app note
 
-Set `suite_auth_enabled = false` or remove it; reboot. Apps revert to secrets-based Workspace Profiles v1.
+Each `*.streamlit.app` deployment has its own URL and `suite_sid`. Logging in on Command Center does not auto-login Music — log in once per app; refresh then preserves each.
+
+---
+
+## 7. Troubleshooting
+
+| Symptom | Check |
+|---------|--------|
+| Logged out after F5 | URL missing `suite_sid` → login save failed (check Supabase write) |
+| `cloud_payload_present: false` | Row missing in `suite_saved_items` for `_auth_browser` / `browser_session` |
+| Auth gate after login | `ensure_user_row` / `auth_user_id` mismatch — see logs |
+
+Run: `python scripts/verify_auth_configuration.py`

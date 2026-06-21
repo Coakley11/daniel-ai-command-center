@@ -37,7 +37,7 @@ User enabled `suite_auth_enabled = true` on dev secrets (all apps). Auth-gate wi
 |---|----------|--------|-------|
 | C1 | Create account (email/password) | **MANUAL PENDING** | Auth enabled; complete in browser on CC dev |
 | C2 | Log in | **MANUAL PENDING** | CC + one sibling app |
-| C2b | **Browser refresh (F5) preserves login** | **MANUAL PENDING** | Cookie + `restore_auth_session()` — login → F5 → still signed in |
+| C2b | **Browser refresh (F5) preserves login** | **MANUAL PENDING** | URL `suite_sid` + Supabase session row — login → F5 → still signed in |
 | C3 | Log out | **MANUAL PENDING** | Session + browser cookie cleared |
 | C4 | Password reset email | **MANUAL PENDING** | Supabase Auth email delivery |
 | C5 | Ariel account cannot access Daniel workspace | **PASS (unit)** | `test_enforce_workspace_ownership_clamps_profile`; live **MANUAL PENDING** |
