@@ -49,7 +49,34 @@ class TestSuiteAuth(unittest.TestCase):
     def test_allowed_workspaces_for_ariel(self) -> None:
         self.assertEqual(allowed_workspaces_for_user("ariel"), ("ariel",))
 
+    def test_allowed_workspaces_for_daniel_admin(self) -> None:
+        self.assertIn("ariel", allowed_workspaces_for_user("daniel"))
+
     def test_enforce_workspace_ownership_clamps_profile(self) -> None:
+        os.environ["SUITE_AUTH_ENABLED"] = "true"
+        session = {
+            AUTH_SESSION_KEY: True,
+            AUTH_EXTERNAL_ID_KEY: "ariel",
+            SESSION_KEY: "daniel",
+        }
+        with unittest.mock.patch("suite_auth.is_auth_enabled", return_value=True):
+            with unittest.mock.patch("suite_auth.is_authenticated", return_value=True):
+                enforce_workspace_ownership(session)
+        self.assertEqual(session.get(SESSION_KEY), "ariel")
+
+    def test_daniel_admin_keeps_ariel_workspace_when_authenticated(self) -> None:
+        os.environ["SUITE_AUTH_ENABLED"] = "true"
+        session = {
+            AUTH_SESSION_KEY: True,
+            AUTH_EXTERNAL_ID_KEY: "daniel",
+            SESSION_KEY: "ariel",
+        }
+        with unittest.mock.patch("suite_auth.is_auth_enabled", return_value=True):
+            with unittest.mock.patch("suite_auth.is_authenticated", return_value=True):
+                enforce_workspace_ownership(session)
+        self.assertEqual(session.get(SESSION_KEY), "ariel")
+
+    def test_ariel_account_cannot_use_daniel_workspace(self) -> None:
         os.environ["SUITE_AUTH_ENABLED"] = "true"
         session = {
             AUTH_SESSION_KEY: True,
