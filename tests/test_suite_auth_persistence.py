@@ -87,10 +87,11 @@ class TestRestoreAuthSession(unittest.TestCase):
         auth.set_session.assert_called_once_with("access-token-abc", "refresh-token-xyz")
 
     @patch("suite_auth.is_auth_enabled", return_value=True)
+    @patch("suite_auth_browser.init_browser_auth_storage", return_value="ready")
     @patch("suite_auth_browser.load_browser_auth_tokens")
     @patch("suite_auth._auth_api")
     def test_restore_from_browser_cookie(
-        self, mock_auth_api: MagicMock, mock_browser: MagicMock, _enabled: MagicMock
+        self, mock_auth_api: MagicMock, mock_browser: MagicMock, _init: MagicMock, _enabled: MagicMock
     ) -> None:
         auth = MagicMock()
         auth.set_session.return_value = _FakeAuthResponse()

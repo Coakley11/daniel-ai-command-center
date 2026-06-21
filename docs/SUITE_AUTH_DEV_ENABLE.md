@@ -101,10 +101,13 @@ Expected when ready:
 
 ### C2b — refresh preserves login
 
+CookieManager needs **one bootstrap rerun** after page load before cookies are readable/writable. After login, expect **one extra rerun** while the auth cookie syncs.
+
 1. Log in on CC dev with `?dev=1` optional.
-2. Hard refresh (F5) — should **remain signed in** (no auth gate).
-3. Log out — refresh again — auth gate should return.
-4. Repeat on one sibling app (Music or AMI) for cross-app cookie behavior (same browser, per-origin cookie).
+2. Sidebar → **Auth persistence (dev)** — after login, `cookie_present` should become `true`.
+3. Hard refresh (F5) — should **remain signed in** (no auth gate).
+4. Log out — refresh again — auth gate should return.
+5. Repeat on one sibling app (Music or AMI) for per-origin cookie behavior.
 
 Then manual C1–C5 on CC dev:
 
