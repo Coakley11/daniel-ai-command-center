@@ -24,6 +24,9 @@ def main() -> int:
         print(f"  {url}")
     print("\nOptional secrets override (all dev apps, identical [suite_activity] block):")
     print('  suite_auth_redirect_url = "https://daniel-ai-command-center-ion4vh2cvo7bgdnkuktrb3.streamlit.app"')
+    print("\nRecovery email template (required for Streamlit):")
+    print("  docs/SUPABASE_RECOVERY_EMAIL_TEMPLATE.md")
+    print(f"  redirect_to sent by app includes landing hint: {site_url or '(not configured)'}")
     print("\nAfter dashboard changes: send a new reset email (old links keep old redirect).")
     return 0
 

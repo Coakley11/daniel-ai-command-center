@@ -42,12 +42,19 @@ After login the URL will include `suite_sid=...`. Refresh preserves that param �
 
 1. Run locally (or on deploy with secrets): `python scripts/print_supabase_auth_redirect_checklist.py`
 2. Supabase → **Authentication → URL configuration**
-   - **Site URL** = Command Center dev URL (same as `auth_password_reset_redirect_url()`)
+   - **Site URL** = Command Center dev URL (same as `auth_password_reset_redirect_url(with_landing_hint=False)`)
    - **Redirect URLs** = all suite dev `*.streamlit.app` URLs from the script output
-3. Code sends `redirect_to` on `reset_password_email` (defaults to CC dev URL).
-4. Reset link lands on CC → **Set new password** panel → update → signed in.
+3. Supabase → **Authentication → Email Templates → Reset password** — use the PKCE template in **`docs/SUPABASE_RECOVERY_EMAIL_TEMPLATE.md`** (default `{{ .ConfirmationURL }}` does **not** work on Streamlit).
+4. Code sends `redirect_to` on `reset_password_email` with `?suite_auth_landing=recovery` so the app can detect reset landings and log safe diagnostics.
+5. Send a **new** reset email after each deploy or template change (old links keep old behavior).
+6. Reset link lands on CC → **Set new password** panel → update → signed in.
 
 If Site URL is still `http://localhost:3000` (Supabase default), email links show **“This site can't be reached”**.
+
+If the link opens CC but **no Set new password panel**, check **Auth recovery (dev)** diagnostics:
+
+- `client_landing_snapshot` empty or all `0` → email template still wrong (no `token_hash` in query).
+- `email_template_action_required: true` → follow `docs/SUPABASE_RECOVERY_EMAIL_TEMPLATE.md`.
 
 Optional secrets override:
 
@@ -157,6 +164,6 @@ Each `*.streamlit.app` deployment has its own URL and `suite_sid`. Logging in on
 | `cloud_payload_present: false` | Row missing in `suite_saved_items` for `_auth_browser` / `browser_session` |
 | Auth gate after login | `ensure_user_row` / `auth_user_id` mismatch — see logs |
 | Reset link “can't be reached” | Supabase **Site URL** still localhost — run `python scripts/print_supabase_auth_redirect_checklist.py` |
-| Reset link loads app but no password form | Redeploy `suite_auth.py` recovery handler; hard refresh after link |
+| Reset link loads app but no password form | Recovery email template must use `token_hash` query params — see `docs/SUPABASE_RECOVERY_EMAIL_TEMPLATE.md`; send a **new** email after template change |
 
 Run: `python scripts/verify_auth_configuration.py`

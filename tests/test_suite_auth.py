@@ -137,6 +137,78 @@ class TestSuiteAuth(unittest.TestCase):
         url = auth_password_reset_redirect_url()
         self.assertIn("daniel-ai-command-center", url)
         self.assertIn("streamlit.app", url)
+        self.assertIn("suite_auth_landing=recovery", url)
+
+    def test_auth_password_reset_redirect_url_can_omit_landing_hint(self) -> None:
+        from suite_auth import auth_password_reset_redirect_url
+
+        url = auth_password_reset_redirect_url(with_landing_hint=False)
+        self.assertNotIn("suite_auth_landing", url)
+
+    def test_recovery_landing_failed_waits_for_client_snapshot(self) -> None:
+        from suite_auth import _recovery_landing_failed
+
+        class FakeState(dict):
+            pass
+
+        st = type(
+            "St",
+            (),
+            {"session_state": FakeState(), "query_params": {"suite_auth_landing": "recovery"}},
+        )()
+        self.assertFalse(_recovery_landing_failed(st))
+
+    def test_recovery_landing_failed_when_snapshot_has_no_tokens(self) -> None:
+        from suite_auth import _recovery_landing_failed
+
+        class FakeState(dict):
+            pass
+
+        ss = FakeState()
+        ss["_suite_auth_landing_snapshot"] = "hash:0,rec:0,code:0,th:0,at:0"
+        st = type(
+            "St",
+            (),
+            {
+                "session_state": ss,
+                "query_params": {
+                    "suite_auth_landing": "recovery",
+                    "suite_auth_hash_probe": "none",
+                },
+            },
+        )()
+        self.assertTrue(_recovery_landing_failed(st))
+
+    def test_consume_auth_recovery_token_hash_marks_pending(self) -> None:
+        from suite_auth import AUTH_RECOVERY_PENDING_KEY, _consume_auth_recovery_token_hash
+
+        class FakeState(dict):
+            pass
+
+        ss = FakeState()
+        auth = unittest.mock.MagicMock()
+        auth.verify_otp.return_value = unittest.mock.MagicMock(
+            user=unittest.mock.MagicMock(id="u1", email="user@example.com"),
+            session=unittest.mock.MagicMock(
+                access_token="access",
+                refresh_token="refresh",
+                expires_at=999,
+            ),
+        )
+        client = unittest.mock.MagicMock()
+        client.auth = auth
+        st = type(
+            "St",
+            (),
+            {
+                "session_state": ss,
+                "query_params": {"type": "recovery", "token_hash": "abc123"},
+            },
+        )()
+        with unittest.mock.patch("suite_auth._create_fresh_supabase_client", return_value=client):
+            self.assertTrue(_consume_auth_recovery_token_hash(st))
+        self.assertTrue(ss.get(AUTH_RECOVERY_PENDING_KEY))
+        auth.verify_otp.assert_called_once_with({"token_hash": "abc123", "type": "recovery"})
 
     def test_request_password_reset_passes_redirect_to(self) -> None:
         from suite_auth import request_password_reset
