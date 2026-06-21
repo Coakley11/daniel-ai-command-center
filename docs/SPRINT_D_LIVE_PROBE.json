@@ -1,0 +1,56 @@
+[
+  {
+    "app": "command_center",
+    "url": "https://daniel-ai-command-center-ion4vh2cvo7bgdnkuktrb3.streamlit.app",
+    "status": "INCONCLUSIVE",
+    "loads": true,
+    "auth_gate": false,
+    "fatal_error": false,
+    "notes": "Streamlit UI did not render in headless session"
+  },
+  {
+    "app": "music",
+    "url": "https://ai-music-practice-coach-6szqxqxqrqxdmryyewk8sq.streamlit.app",
+    "status": "INCONCLUSIVE",
+    "loads": true,
+    "auth_gate": false,
+    "fatal_error": false,
+    "notes": "Streamlit UI did not render in headless session"
+  },
+  {
+    "app": "investment",
+    "url": "https://investment-portfolio-analyzer-ty2sbzumvxsqwbqhkvf6rz.streamlit.app",
+    "status": "INCONCLUSIVE",
+    "loads": true,
+    "auth_gate": false,
+    "fatal_error": false,
+    "notes": "Streamlit UI did not render in headless session"
+  },
+  {
+    "app": "nba",
+    "url": "https://nba-playoff-companion-ai-gd4sx677quejdfkvappv6o.streamlit.app",
+    "status": "INCONCLUSIVE",
+    "loads": true,
+    "auth_gate": false,
+    "fatal_error": false,
+    "notes": "Streamlit UI did not render in headless session"
+  },
+  {
+    "app": "ami",
+    "url": "https://applied-mathematical-intelligence-8l8bqrzpp6fghaj7xuig53.streamlit.app",
+    "status": "INCONCLUSIVE",
+    "loads": true,
+    "auth_gate": false,
+    "fatal_error": false,
+    "notes": "Streamlit UI did not render in headless session"
+  },
+  {
+    "app": "future_lens",
+    "url": "https://future-lens-ai-transition-simulator-m6n4kaku28ztzlxfts2xt6.streamlit.app",
+    "status": "INCONCLUSIVE",
+    "loads": true,
+    "auth_gate": false,
+    "fatal_error": false,
+    "notes": "Streamlit UI did not render in headless session"
+  }
+]

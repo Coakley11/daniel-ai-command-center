@@ -1,10 +1,11 @@
 # Suite Account / Workspace Acceptance Matrix
 
-**Last updated:** 2026-06-21  
-**Phase:** Sprint D gate before AMI Importer Phase 0  
+**Last updated:** 2026-06-21 (post-auth enable + wiring fix audit)  
 **Full report:** [SPRINT_D_GATE_REPORT.md](./SPRINT_D_GATE_REPORT.md)
 
 ## Gate verdict: **NOT CLOSED**
+
+User enabled `suite_auth_enabled = true` on dev secrets (all apps). Auth-gate wiring audit **PASS** on all entry files. NBA/FutureLens SyntaxError fixes deployed (`9efece3`, `4139b52`).
 
 ---
 
@@ -12,12 +13,12 @@
 
 | # | Scenario | Result | Notes |
 |---|----------|--------|-------|
-| W1 | Switch profile in CC; open Music | **MANUAL PENDING** | Deploy wired (`a0979f1`); browser sign-off |
-| W2 | Switch profile; open AMI | **MANUAL PENDING** | Deploy wired (`6e3144c`) |
+| W1 | Switch profile in CC; open Music | **MANUAL PENDING** | Browser sign-off required |
+| W2 | Switch profile; open AMI | **MANUAL PENDING** | Browser sign-off required |
 | W3 | Switch profile; open Baseball | **N/A** | Entry shell not wired |
-| W4 | Switch profile; open Investment | **MANUAL PENDING** | Deploy wired (`60b122e`) |
-| W5 | Switch profile; open NBA | **MANUAL PENDING** | Deploy wired (`0f119df`) |
-| W6 | Switch profile; open FutureLens | **MANUAL PENDING** | Deploy wired (`07777a5`) |
+| W4 | Switch profile; open Investment | **MANUAL PENDING** | Browser sign-off required |
+| W5 | Switch profile; open NBA | **MANUAL PENDING** | Wiring fixed; confirm in browser |
+| W6 | Switch profile; open FutureLens | **MANUAL PENDING** | Wiring fixed; confirm in browser |
 | W7 | CC activity feed workspace isolation | **PASS** | `test_workspace_cc_activity.py` |
 | W8 | Continue cards include `?suite_workspace=` | **PASS** | Audit tests + `continue_dashboard` |
 
@@ -25,20 +26,20 @@
 
 | # | Scenario | Result | Notes |
 |---|----------|--------|-------|
-| A1 | Workspace badge in every app sidebar | **MANUAL PENDING** | Code deployed; verify in browser |
+| A1 | Workspace badge in every app sidebar | **MANUAL PENDING** | Verify in browser after auth reboot |
 | A2 | Account & workspace expander in sidebars | **MANUAL PENDING** | Same |
 | A3 | Command Center link preserves workspace param | **PASS** | Automated audit |
 | A4 | Namespace mismatch warning when URL ≠ profile | **PASS (logic)** | Unit test; live banner **MANUAL PENDING** |
 
-## Real Accounts (Sprint C — `SUITE_AUTH_ENABLED=true`)
+## Real Accounts (Sprint C — auth enabled on dev)
 
 | # | Scenario | Result | Notes |
 |---|----------|--------|-------|
-| C1 | Create account | **BLOCKED** | Enable `suite_auth_enabled=true` on dev secrets + reboot |
-| C2 | Log in | **BLOCKED** | Same |
-| C3 | Log out | **BLOCKED** | Same |
-| C4 | Password reset email | **BLOCKED** | Same + Supabase Auth email |
-| C5 | Ariel cannot access Daniel workspace | **PASS (unit)** | Ownership clamp test; live **BLOCKED** until auth on |
+| C1 | Create account (email/password) | **MANUAL PENDING** | Auth enabled; complete in browser on CC dev |
+| C2 | Log in | **MANUAL PENDING** | CC + one sibling app |
+| C3 | Log out | **MANUAL PENDING** | Session clears |
+| C4 | Password reset email | **MANUAL PENDING** | Supabase Auth email delivery |
+| C5 | Ariel account cannot access Daniel workspace | **PASS (unit)** | `test_enforce_workspace_ownership_clamps_profile`; live **MANUAL PENDING** |
 
 ## Persistence / cross-device
 
