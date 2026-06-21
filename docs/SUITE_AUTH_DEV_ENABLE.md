@@ -38,6 +38,23 @@ After login the URL will include `suite_sid=...`. Refresh preserves that param �
 - Optional for dev: disable “Confirm email” to speed up C1 testing
 - **Authentication → URL configuration**: add your dev `*.streamlit.app` URLs if redirect errors occur
 
+**C4 password reset (required for live gate):**
+
+1. Run locally (or on deploy with secrets): `python scripts/print_supabase_auth_redirect_checklist.py`
+2. Supabase → **Authentication → URL configuration**
+   - **Site URL** = Command Center dev URL (same as `auth_password_reset_redirect_url()`)
+   - **Redirect URLs** = all suite dev `*.streamlit.app` URLs from the script output
+3. Code sends `redirect_to` on `reset_password_email` (defaults to CC dev URL).
+4. Reset link lands on CC → **Set new password** panel → update → signed in.
+
+If Site URL is still `http://localhost:3000` (Supabase default), email links show **“This site can't be reached”**.
+
+Optional secrets override:
+
+```toml
+suite_auth_redirect_url = "https://daniel-ai-command-center-ion4vh2cvo7bgdnkuktrb3.streamlit.app"
+```
+
 **Settings → API**
 
 - Copy **Project URL** → `supabase_url`
@@ -68,6 +85,7 @@ suite_auth_enabled = true
 | `suite_user_id` | Yes | Legacy secrets identity fallback |
 | `suite_user_email` | Recommended | `suite_users` row creation |
 | `suite_auth_enabled` | Dev only | Enables auth UI + gate |
+| `suite_auth_redirect_url` | Recommended for C4 | Password-reset email landing URL (defaults to CC dev URL) |
 
 ### Environment variable fallback (local / CI)
 
@@ -138,5 +156,7 @@ Each `*.streamlit.app` deployment has its own URL and `suite_sid`. Logging in on
 | Logged out after F5 | URL missing `suite_sid` → login save failed (check Supabase write) |
 | `cloud_payload_present: false` | Row missing in `suite_saved_items` for `_auth_browser` / `browser_session` |
 | Auth gate after login | `ensure_user_row` / `auth_user_id` mismatch — see logs |
+| Reset link “can't be reached” | Supabase **Site URL** still localhost — run `python scripts/print_supabase_auth_redirect_checklist.py` |
+| Reset link loads app but no password form | Redeploy `suite_auth.py` recovery handler; hard refresh after link |
 
 Run: `python scripts/verify_auth_configuration.py`

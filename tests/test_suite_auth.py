@@ -131,6 +131,33 @@ class TestSuiteAuth(unittest.TestCase):
         self.assertTrue(status["auth_ui_enabled"])
         self.assertFalse(status["ready"])
 
+    def test_auth_password_reset_redirect_url_defaults_to_command_center_dev(self) -> None:
+        from suite_auth import auth_password_reset_redirect_url
+
+        url = auth_password_reset_redirect_url()
+        self.assertIn("daniel-ai-command-center", url)
+        self.assertIn("streamlit.app", url)
+
+    def test_request_password_reset_passes_redirect_to(self) -> None:
+        from suite_auth import request_password_reset
+
+        auth = unittest.mock.MagicMock()
+        client = unittest.mock.MagicMock()
+        client.auth = auth
+        with unittest.mock.patch("suite_auth.is_auth_enabled", return_value=True):
+            with unittest.mock.patch("suite_auth._create_fresh_supabase_client", return_value=client):
+                with unittest.mock.patch(
+                    "suite_auth.auth_password_reset_redirect_url",
+                    return_value="https://example.test/cc",
+                ):
+                    ok, msg = request_password_reset("user@example.com")
+        self.assertTrue(ok)
+        auth.reset_password_email.assert_called_once_with(
+            "user@example.com",
+            {"redirect_to": "https://example.test/cc"},
+        )
+        self.assertIn("example.test", msg)
+
 
 if __name__ == "__main__":
     unittest.main()
