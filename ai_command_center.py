@@ -97,6 +97,13 @@ except ImportError:
     def can_show_developer_tools(*, st: Any | None = None) -> bool:  # type: ignore[misc]
         return bool(st.session_state.get(CC_DEV_MODE_KEY)) if st is not None else False
 
+try:
+    from suite_app_shell import apply_suite_auth_gate
+
+    apply_suite_auth_gate(st)
+except Exception:
+    pass
+
 st.markdown(
     """
     <style>
@@ -724,19 +731,32 @@ def _render_deployment_admin_panel(snapshot: ActivitySnapshot, connections) -> N
 
 with st.sidebar:
     try:
-        from suite_account_settings import render_global_workspace_badge
+        from suite_app_shell import render_suite_sidebar_account_shell
         from suite_workspace import render_workspace_selector_sidebar
 
-        render_global_workspace_badge(st)
+        render_suite_sidebar_account_shell(
+            st,
+            show_command_center_link=False,
+            show_account_panel=False,
+            command_center_divider=False,
+        )
         render_workspace_selector_sidebar(st)
         st.caption("Account & workspace details are on the homepage below the welcome banner.")
     except ImportError:
         try:
+            from suite_account_settings import render_global_workspace_badge
             from suite_workspace import render_workspace_selector_sidebar
 
+            render_global_workspace_badge(st)
             render_workspace_selector_sidebar(st)
+            st.caption("Account & workspace details are on the homepage below the welcome banner.")
         except ImportError:
-            st.caption("Workspace profiles unavailable on this deploy.")
+            try:
+                from suite_workspace import render_workspace_selector_sidebar
+
+                render_workspace_selector_sidebar(st)
+            except ImportError:
+                st.caption("Workspace profiles unavailable on this deploy.")
     st.divider()
     if is_developer_workspace(st=st):
         with st.expander("Advanced", expanded=False):

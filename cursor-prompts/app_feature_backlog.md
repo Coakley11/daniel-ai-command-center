@@ -1,6 +1,6 @@
 # Feature Backlog — Daniel AI Command Center
 
-**Last updated:** 2026-06-19
+**Last updated:** 2026-06-21
 
 Ideas not yet scheduled. Active work: [app_tasks.md](./app_tasks.md).
 
@@ -14,46 +14,44 @@ Queued enhancements for the suite homepage and shared infrastructure — not sib
 
 # Current Priorities
 
-*Active: Account Settings UX → workspace polish → Real Problem Importer MVP. Close Workspace P0 (FutureLens + CC isolation) in parallel. See [plan](./plans/2026-06-19-account-settings-real-problem-importer-roadmap.md).*
+*Active: Finish Account / Workspace phase before AMI Importer. See [plan](./plans/2026-06-21-account-workspace-phase-completion.md).*
 
 ---
 
 # Next Features
 
-### Account Settings UX (P1 — **shipped Sprint A 2026-06-20**)
+### Account Settings Sprint B (P1b — **code shipped; deploy sign-off pending**)
 
-- [x] CC profile/settings panel: email, workspace, cloud ids, scoped key preview, isolation diagnostics
-- [x] Global workspace badge in CC sidebar
-- [x] `suite_account_settings.py` + tests (`test_account_settings_panel.py`)
-- [ ] Sync module to sibling app sidebars (Sprint B)
+- [x] Sync `suite_account_settings.py` + `suite_app_shell.py` to sibling repos
+- [x] Global workspace badge + account expander in app sidebars (AMI, Investment, NBA, Music, FutureLens, CC)
+- [x] Command Center link preserves `?suite_workspace=`
+- [ ] Baseball shell when entry file exists; manual A1–A4 acceptance
 
-### Workspace & account polish (P1b)
+### Real Accounts foundation (P1c — **scaffolding shipped; enable on prod pending**)
 
-- Global workspace badge; deep links with `?suite_workspace=`
-- Namespace mismatch warnings; activity sync audit all apps → CC
+- [x] `suite_auth.py` — signup, login, logout, reset (Supabase Auth)
+- [x] `SUITE_AUTH_ENABLED` feature flag (default off)
+- [x] Auth gate in app entrypoints via `apply_suite_auth_gate()`
+- [ ] Enable on deployment; C1–C5 manual acceptance
 
-### Real Problem Importer (P2 — AMI)
+### AMI Real Problem Importer (**blocked until Sprint D gate**)
 
-- Manual-field decision import + EV/break-even/edge math
-- Persist `dec_*` keys; educational disclaimer
+**V1:** Kalshi-style prediction-market import → classify as **Prediction Market / Betting EV** → route to **Betting / Expected Value** → prefill fields → user adjusts → AMI explains math (decision analysis, not gambling advice).
 
-### Kalshi / prediction-market coach (P3)
+**Import channels:** paste/CSV/manual (V1); screenshot + URL (architecture-ready, later).
 
-- First specialized template on importer foundation
+**Phase 0:** `decision_templates`, `decision_router`, `decision_math`, `decision_registry` — no OCR/URL UI.
 
-### More real-life templates (P4)
+**Long-term routing registry:** car/lease, consumer purchase, job offers, investments, business C/B, trade/risk-reward, prediction markets, treatment/risk-benefit.
 
-- Investing, sports, business, cost-benefit, portfolio, time management
+### Phase 2 — Real accounts (**moved to P1c active track** — before Importer, not after)
 
-### Phase 2 — Real accounts (**do not start yet** — after settings + importer stable)
+- Supabase Auth email/password (Google OAuth optional fast-follow)
+- User-specific cloud storage tied to auth user
+- Roles: Daniel admin/developer, Ariel standard user
+- Workspace profiles bound to authenticated users
 
-- Username, email, `user_id`, login/authentication (password and/or Google OAuth)
-- User-specific private cloud storage
-- Permissions — admin/developer roles (Daniel), standard user roles (Ariel)
-- Workspace profiles become real authenticated accounts
-- Invite links (later)
-
-### Phase 3 — Simple Live Draft Room v1 (**do not start yet** — after Phase 2)
+### Phase 3 — Simple Live Draft Room v1 (**do not start yet** — after Real Accounts stable)
 
 - Room code; users join a room
 - Shared draft board, picks, rosters, team names, **shared draft clock**

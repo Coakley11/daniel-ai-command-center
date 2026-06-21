@@ -1,6 +1,6 @@
 # Completed Features — Daniel AI Command Center
 
-**Last updated:** 2026-06-19
+**Last updated:** 2026-06-21
 
 ---
 
@@ -44,6 +44,23 @@ Historical record of shipped Command Center and shared-suite infrastructure capa
 - [x] Password reset stub (Real Accounts Phase 2)
 - [x] Tests: `test_account_settings_panel.py`; extended `test_workspace_cc_activity.py`, `test_suite_workspace.py`
 - [x] FutureLens workspace validation — 10 passed in sibling repo
+
+### Account / Workspace Sprint B (2026-06-21)
+
+- [x] `suite_app_shell.py` — consistent workspace badge, account expander, namespace notices, Command Center link
+- [x] `suite_workspace_deep_link_audit.py` + `suite_activity_audit.py` — automated audit helpers
+- [x] `continue_dashboard.recently_used_apps()` — workspace param on recently-used app URLs
+- [x] Wired shell into AMI, Investment, NBA, Music, FutureLens, Command Center sidebar
+- [x] Sync script extended for account/shell/auth modules
+- [x] Tests: `test_suite_sprint_b_audit.py`, `test_suite_app_shell.py`
+
+### Real Accounts foundation — Sprint C scaffolding (2026-06-21)
+
+- [x] `suite_auth.py` — email/password login, signup, logout, password reset (Supabase Auth)
+- [x] `SUITE_AUTH_ENABLED` feature flag — default off
+- [x] Workspace ownership v1 — clamp active profile to allowed presets per account
+- [x] `apply_suite_auth_gate()` in CC + sibling entry files
+- [x] Tests: `test_suite_auth.py`
 
 ### Workspace Profiles v1 — Phase 1 foundation (2026-06-19)
 

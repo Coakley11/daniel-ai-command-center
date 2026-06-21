@@ -54,6 +54,15 @@ def _qp_get(st: Any, name: str) -> str:
     return str(raw).strip()
 
 
+def _password_auth_available() -> bool:
+    try:
+        from suite_auth import password_auth_available
+
+        return password_auth_available()
+    except ImportError:
+        return False
+
+
 def build_scoped_cloud_key_preview(workspace_id: str | None = None) -> dict[str, str]:
     """Map logical app id → Supabase ``app`` row key for the given workspace."""
     ws = normalize_workspace_id(workspace_id or DEFAULT_WORKSPACE_ID)
@@ -99,7 +108,7 @@ def build_account_settings_context(*, st: Any | None = None) -> dict[str, Any]:
         "namespace_keys": namespace_keys,
         "scoped_cloud_keys": cloud_preview,
         "sample_app_url": sample_app_url,
-        "password_auth_available": False,
+        "password_auth_available": _password_auth_available(),
         "isolation_note": (
             "Daniel uses legacy unscoped cloud keys (e.g. applied_intelligence). "
             "Other profiles use scoped keys (e.g. applied_intelligence__ariel). "
@@ -288,10 +297,16 @@ def _render_account_settings_body(st: Any, ctx: dict[str, Any], issues: list[dic
 
     st.markdown("#### Sign-in & password")
     if ctx["password_auth_available"]:
-        st.button("Reset password", disabled=True, key="_acct_settings_reset_pw_stub")
+        try:
+            from suite_auth import render_auth_panel
+
+            render_auth_panel(st, expanded=False)
+        except ImportError:
+            st.button("Reset password", disabled=True, key="_acct_settings_reset_pw_stub")
     else:
         st.info(
-            "**Real Accounts (Phase 2)** will add sign-in, passwords, and per-user permissions. "
+            "**Real Accounts (Sprint C)** adds sign-in, passwords, and per-user permissions. "
+            "Enable `SUITE_AUTH_ENABLED` in secrets to activate Supabase Auth. "
             "This deployment uses shared suite secrets — there is no password to reset yet."
         )
 

@@ -123,6 +123,12 @@ def recently_used_apps(limit: int = 4) -> list[tuple[str, str, str]]:
             reverse=True,
         )
     out: list[tuple[str, str, str]] = []
+    try:
+        from suite_workspace import resolve_workspace_id
+
+        active_ws = resolve_workspace_id()
+    except ImportError:
+        active_ws = ""
     for app_key, _ in ordered[:limit]:
-        out.append((app_key, meta[app_key]["name"], get_app_url(app_key)))
+        out.append((app_key, meta[app_key]["name"], get_app_url(app_key, workspace_id=active_ws)))
     return out

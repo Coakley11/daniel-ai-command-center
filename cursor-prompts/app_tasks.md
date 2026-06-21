@@ -1,52 +1,97 @@
 # Current Tasks — Daniel AI Command Center
 
-**Last updated:** 2026-06-19
+**Last updated:** 2026-06-21
 
-**Master plan (revised):** [plans/2026-06-19-account-settings-real-problem-importer-roadmap.md](./plans/2026-06-19-account-settings-real-problem-importer-roadmap.md)
+**Master plan:** [plans/2026-06-21-account-workspace-phase-completion.md](./plans/2026-06-21-account-workspace-phase-completion.md)
 
-**Focus:** Account Settings → workspace polish → Real Problem Importer. Close Workspace P0 in parallel. Defer AMI Baseball draft P1 until after Importer MVP unless draft work blocks.
+**Focus:** Finish Account / Workspace phase (Sprint B → C → D) **before** AMI Real Problem Importer. Importer starts with architecture/scaffolding only after gate passes.
 
-### P0 — Workspace Profiles close-out (parallel, small)
+### P0 — Workspace Profiles close-out ✅
 
 - [x] FutureLens — Daniel/Ariel validation (10 tests pass in `future-lens-ai-transition-simulator`)
-- [x] Command Center — final activity isolation pass (Daniel-only FutureLens filter test + existing CC tests)
+- [x] Command Center — final activity isolation pass
 - [x] AMI — persistence, cloud sync, UI-state one-shot reapply (`87d2785`)
 
-### P1 — Account Settings UX (**Sprint A shipped 2026-06-20**)
+### P1 — Account Settings Sprint A ✅ (Command Center)
 
 - [x] Command Center Account Settings page — email, display name, `suite_user_id`, Supabase `user_id`, cloud mode
 - [x] Active workspace + scoped cloud key preview (Daniel vs Ariel)
 - [x] Read-only persistence/namespace diagnostics + mismatch warnings
-- [x] Password reset — stub “Real Accounts” unless Supabase Auth wired
-- [x] Shared `suite_account_settings.py` + sync script entry (sync to siblings on next port)
+- [x] Password reset — stub until Supabase Auth (Sprint C)
+- [x] Shared `suite_account_settings.py` + sync script entry
 - [x] Global workspace badge in CC sidebar
 
-### P1b — Workspace & account polish
+### P1b — Account Settings Sprint B + workspace polish (**mostly complete — manual sign-off pending**)
 
-- [ ] Global workspace badge in all app sidebars
-- [ ] Audit `init_suite_workspace` + `?suite_workspace=` on every app open URL
-- [ ] Namespace mismatch warning when write/read keys disagree
-- [ ] Activity sync audit (session_activity, analytical_question) all apps → CC
+- [x] `suite_app_shell.py` — shared sidebar badge + account panel + namespace notices + CC link
+- [x] `suite_workspace_deep_link_audit.py` + `suite_activity_audit.py` + tests (`test_suite_sprint_b_audit.py`)
+- [x] `continue_dashboard.recently_used_apps()` — `?suite_workspace=` on Open URLs
+- [x] Sync script includes account/shell/auth modules; wired in AMI, Investment, NBA, Music, FutureLens, Command Center
+- [x] `scripts/wire_suite_app_shell.py` + `scripts/wire_suite_auth_gate.py`
+- [ ] Run sync + commit sibling repos; reboot Streamlit Cloud deployments
+- [ ] Baseball — wire shell when `streamlit_app.py` entry exists locally
+- [ ] Manual A1–A4 + W1–W8 acceptance (`docs/SUITE_ACCOUNT_WORKSPACE_ACCEPTANCE.md`)
 
-### P2 — Real Problem Importer MVP (AMI)
+### P1c — Real Accounts foundation (**Sprint C — scaffolding shipped; enable on prod pending**)
 
-- [ ] Manual form: question, implied prob, cost, payout, horizon, user prob, notes
-- [ ] Pure EV / break-even / edge / capped position-size math (`decision_math.py`)
-- [ ] Persist `dec_*` keys; workspace-scoped activity
-- [ ] Educational disclaimer (not gambling advice)
+- [x] `suite_auth.py` — Supabase Auth signup, login, logout, reset, workspace ownership clamp
+- [x] `SUITE_AUTH_ENABLED` feature flag (default off — no behavior change)
+- [x] Account panel delegates to `render_auth_panel()` when flag enabled
+- [x] `apply_suite_auth_gate()` wired in CC + all sibling entry files (via sync + wire script)
+- [ ] Enable Supabase Auth + `SUITE_AUTH_ENABLED=true` on deployments
+- [ ] Manual C1–C5 acceptance (login isolation Daniel vs Ariel)
+- [ ] Map auth user → `suite_users` by auth UUID (not email heuristic only)
 
-### P3 — Kalshi / prediction-market coach
+### P1d — Persistence validation (**Sprint D — gate**)
 
-- [ ] Template + 6 sections on importer foundation
-- [ ] Optional paste parse (regex); scenario questions
+- [x] Acceptance matrix template — `docs/SUITE_ACCOUNT_WORKSPACE_ACCEPTANCE.md`
+- [ ] Cross-app workspace isolation matrix (manual + doc)
+- [ ] Cross-device cloud restore sign-off (Music, AMI, Baseball minimum)
+- [ ] Music CPL regression pass (v29k–v29l behaviors)
+- [ ] Document in `docs/SUITE_ACCOUNT_WORKSPACE_ACCEPTANCE.md`
 
-### P4 — More real-life templates
+### P2 — AMI Real Problem Importer (**blocked until P1b–P1d exit**)
 
-- [ ] Template registry: investing, sports, business, cost-benefit, …
+**Product direction (2026-06-21):** AMI becomes a **router for real-world decisions**, not just calculators.
 
-### Deferred — AMI Baseball Draft Intelligence (was P1)
+```
+Real-world problem → Import → Classify → Route → Prefill framework → Teach & solve
+```
 
-Resume after Importer v1 or when draft season requires narrow hydration fixes only.
+**V1 proof target:** Kalshi-style **prediction market / bet import** → **Betting / Expected Value** section.
+
+**Import channels (architecture supports all; V1 prioritizes paste/CSV/manual correction):**
+- Copy/paste, CSV, manual entry (V1)
+- Screenshot, URL (later)
+
+**Kalshi-style extract fields:** market question, YES/NO prices, contract side, cost, payout, expiration, metadata, source text.
+
+**EV outputs:** implied probability, break-even probability, expected value, edge, risk/reward, profit/loss, conservative position size.
+
+**Framing:** mathematical decision-analysis tool — not gambling advice. Disclaimer: results depend on user probability assumptions, fees, liquidity, jurisdiction, risk tolerance.
+
+**Future routing targets:**
+| Problem | Route target |
+|---------|--------------|
+| Car lease / purchase | Financial Decisions / Major Purchase Analysis |
+| Compare two cars | Financial Decisions / Major Purchase Comparison |
+| Cell phone purchase | Consumer Purchase Comparison |
+| Job offers | Career / Job Offer Decision Analysis |
+| Business deal | Cost-Benefit Analysis |
+| Single stock / short-term trade | Trade / Risk-Reward Decision |
+| Prediction market / bet | Betting / Expected Value |
+| Treatment decision | Risk-Benefit Analysis |
+
+**Phase 0 — scaffolding only (no OCR/URL/screenshot UI):**
+- [ ] `decision_templates.py`, `decision_router.py`, `decision_math.py`, `decision_registry.py`
+- [ ] AMI empty section + template registry (no Kalshi form yet)
+
+**Phase 1 — MVP:**
+- [ ] Paste/CSV/manual prediction-market import → prefill Betting/EV → user adjusts assumptions → AMI explains math
+
+### Deferred — AMI Baseball Draft Intelligence
+
+Resume after Importer v1 or narrow draft fixes when blocked.
 
 **Master plan (workspace/auth/LDR):** [plans/2026-06-19-workspace-profiles-real-accounts-live-draft-room.md](./plans/2026-06-19-workspace-profiles-real-accounts-live-draft-room.md)
 
@@ -60,7 +105,7 @@ Central hub repo (`daniel-ai-command-center`) for suite homepage, activity aggre
 
 # Current Priorities
 
-See task sections above (P0 close-out → P1 Account Settings → P1b polish → P2 Importer).
+See task sections above (Sprint B → C → D gate → Importer scaffolding).
 
 ### P2 (parallel) — AMI Enhancement Program (not blocked by Account Settings)
 
@@ -305,7 +350,8 @@ Recent task completions (see [app_completed_features.md](./app_completed_feature
 
 | Plan | Status |
 |------|--------|
-| [plans/2026-06-19-workspace-profiles-real-accounts-live-draft-room.md](./plans/2026-06-19-workspace-profiles-real-accounts-live-draft-room.md) | **Active P0** — finish profiles → accounts → Live Draft Room |
+| [plans/2026-06-21-account-workspace-phase-completion.md](./plans/2026-06-21-account-workspace-phase-completion.md) | **Active** — finish Account/Workspace before AMI Importer |
+| [plans/2026-06-19-account-settings-real-problem-importer-roadmap.md](./plans/2026-06-19-account-settings-real-problem-importer-roadmap.md) | Superseded order — Importer now after Real Accounts |
 | [plans/2026-06-11-ami-enhancement-roadmap.md](./plans/2026-06-11-ami-enhancement-roadmap.md) | **Active P1/P2** — AMI context + teaching; draft pool hydration blocked on Dev Mode confirm |
 | [plans/2026-06-08-baseball-phase-2-page-audit.md](./plans/2026-06-08-baseball-phase-2-page-audit.md) | Shipped — suite port reference |
 | [plans/2026-06-08-sprint-7-suite-port.md](./plans/2026-06-08-sprint-7-suite-port.md) | Active — Music Phase C slice 2+; NBA/Investment/AMI audits |

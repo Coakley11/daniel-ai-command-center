@@ -1,6 +1,6 @@
 # Daniel AI Command Center — Master Roadmap
 
-**Last updated:** 2026-06-19 · **Branch:** `dev` · **Entry app:** `ai_command_center.py` · **Build:** `2026-06-03-v30`
+**Last updated:** 2026-06-21 · **Branch:** `dev` · **Entry app:** `ai_command_center.py` · **Build:** `2026-06-03-v30`
 
 This is the master planning document. Related files:
 
@@ -24,35 +24,36 @@ This is the master planning document. Related files:
 
 # Current Priorities
 
-**Confirmed sequence (2026-06-19, revised):** Close Workspace P0 validation → **Account Settings UX** → **Workspace polish** → **Real Problem Importer MVP** → Kalshi coach → more templates → Real Accounts (auth).
+**Confirmed sequence (2026-06-21, revised):** Finish **Account / Workspace phase** (Settings in all apps → workspace polish → **Real Accounts foundation** → persistence validation) → **then** AMI Real Problem Importer (scaffolding first). Kalshi coach and template library follow Importer MVP. Live Draft Room remains after Real Accounts stable.
 
-**Plan:** [plans/2026-06-19-account-settings-real-problem-importer-roadmap.md](./plans/2026-06-19-account-settings-real-problem-importer-roadmap.md)
+**Plan:** [plans/2026-06-21-account-workspace-phase-completion.md](./plans/2026-06-21-account-workspace-phase-completion.md)
 
-1. **Workspace Profiles Phase 1 (P0 close-out)** — FutureLens validation + final CC isolation pass. AMI persistence/sync validated (`87d2785`).
-2. **Account Settings (new P1)** — Profile page: email, workspace, account/cloud ids, diagnostics; Daniel vs Ariel clarity. *Not full login/auth yet.*
-3. **Workspace & account polish (P1b)** — Global badge, deep links, namespace warnings, activity sync audit across apps.
-4. **Real Problem Importer MVP (P2)** — Manual-field decision import + EV math on AMI; educational framing.
-5. **Kalshi / prediction-market coach (P3)** — Template + sections on importer foundation.
-6. **More real-life templates (P4)** — Investing, sports, business, etc.
-7. **AMI Baseball Draft Intelligence** — **Deferred** (resume after Importer v1 or narrow fixes when blocked).
-8. **Real Accounts / auth (roadmap Phase 2)** — After settings + importer stable; replaces secrets-based identity.
+1. **Account Settings Sprint B** — ✅ code shipped; manual A1–A4 + deploy sync pending.
+2. **Workspace polish (P1b)** — ✅ audit helpers + deep-link fix; manual W1–W8 pending.
+3. **Real Accounts foundation (Sprint C)** — ✅ scaffolding shipped (`suite_auth.py`, auth gate); enable on prod + C1–C5 pending.
+4. **Persistence validation (Sprint D)** — acceptance doc ready; matrix execution pending.
+5. **AMI Real Problem Importer (Phase 0 scaffolding → MVP)** — **blocked** until steps 1–4 exit criteria pass.
+6. **Kalshi / prediction-market coach** — after Importer MVP.
+7. **More real-life templates** — universal routing registry (car purchase, job offers, …).
+8. **AMI Baseball Draft Intelligence** — deferred until Importer v1 or narrow draft fixes.
+9. **Live Draft Room** — Phase 3+ after Real Accounts stable (unchanged).
 
 ---
 
 # Next Features
 
-### Active (approved order)
+### Active (approved order — gate Importer until Account/Workspace complete)
 
-- **Account Settings UX** — CC profile page, workspace/account diagnostics ([plan](./plans/2026-06-19-account-settings-real-problem-importer-roadmap.md))
-- **Workspace polish** — global badge, namespace warnings, deep-link audit
-- **Real Problem Importer MVP** — AMI manual-field EV decision tool
-- **Kalshi decision coach** — specialized template (after MVP)
-- **Real-life template library** — investing, sports, business, …
+- **Account Settings Sprint B** — code complete; deploy sync + manual sign-off pending
+- **Real Accounts foundation** — scaffolding complete; enable `SUITE_AUTH_ENABLED` + manual C1–C5
+- **Persistence validation matrix** — execute `docs/SUITE_ACCOUNT_WORKSPACE_ACCEPTANCE.md`
+- **AMI Importer Phase 0** — architecture only (after Sprint D gate): `decision_templates`, `decision_router`, `decision_math`, `decision_registry`
+- **AMI Importer MVP** — Kalshi-style prediction-market import (paste/CSV/manual) → Betting/EV section with implied prob, break-even, EV, edge, risk/reward, position size; educational disclaimer
+- **Universal decision router** — car/lease, job offers, consumer purchase, business C/B, trade/risk-reward, treatment/risk-benefit (registry entries after MVP)
 
 ### Queued (do not start yet)
 
-- **Phase 2 — Real accounts** — username, email, `user_id`, login/auth, permissions, admin/developer + standard user roles, user-specific cloud storage. Daniel → admin; Ariel → normal user. Workspace profiles become authenticated accounts.
-- **Phase 3 — Simple Live Draft Room v1** — room code, join room, shared board/picks/rosters/**clock** (after Phase 2)
+- **Phase 3 — Simple Live Draft Room v1** — room code, join room, shared board/picks/rosters/**clock** (after Real Accounts stable)
 - **Phase 4 — Advanced Live Draft Room** — private queues/notes/AMI, permissions, reconnect, conflict prevention, team-specific intelligence. Shared vs private state split enforced.
 
 ### Near-term (parallel where safe)
@@ -154,7 +155,9 @@ Rendered top-to-bottom in `ai_command_center.py`:
 
 | Issue | Area | Notes |
 |-------|------|-------|
-| Workspace isolation incomplete | FutureLens (validation pending) | Daniel/Ariel state may overlap until acceptance pass; NBA validated 2026-06-19 |
+| Workspace isolation incomplete | FutureLens (edge cases) | Automated tests pass; re-verify in Sprint D matrix |
+| Real auth not wired | All apps | Secrets-based identity; Sprint C blocker before Importer |
+| Account Settings CC-only | Suite UX | Sprint B — siblings lack badge/panel |
 | AMI draft context too thin | Baseball AMI | Top-12 EV `available_players` often omits catchers and key targets; not a reasoning bug |
 | AMI restatement defaults to compare | AMI | Unknown Draft Assistant intents show generic compare framing |
 | README claims "placeholder data" | Docs | Misleading when Supabase is live |
