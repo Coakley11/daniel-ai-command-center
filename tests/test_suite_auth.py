@@ -229,6 +229,37 @@ class TestSuiteAuth(unittest.TestCase):
         self.assertTrue(ss.get(AUTH_RECOVERY_PENDING_KEY))
         auth.verify_otp.assert_called_once_with({"token_hash": "abc123", "type": "recovery"})
 
+    def test_recovery_query_promotion_needed_when_browser_has_token_only(self) -> None:
+        from suite_auth import _needs_recovery_query_promotion
+
+        class FakeState(dict):
+            pass
+
+        ss = FakeState()
+        ss["_suite_auth_landing_snapshot"] = "hash:0,rec:0,code:0,th:1,at:0"
+        st = type("St", (), {"session_state": ss, "query_params": {"suite_auth_landing": "recovery"}})()
+        self.assertTrue(_needs_recovery_query_promotion(st))
+
+    def test_recovery_query_promotion_skipped_when_token_hash_parsed(self) -> None:
+        from suite_auth import _needs_recovery_query_promotion
+
+        class FakeState(dict):
+            pass
+
+        st = type(
+            "St",
+            (),
+            {
+                "session_state": FakeState(),
+                "query_params": {
+                    "suite_auth_landing": "recovery",
+                    "type": "recovery",
+                    "token_hash": "abc123",
+                },
+            },
+        )()
+        self.assertFalse(_needs_recovery_query_promotion(st))
+
     def test_recovery_verify_failed_after_malformed_landing_consume_error(self) -> None:
         from suite_auth import (
             AUTH_RECOVERY_LAST_ERROR_KEY,

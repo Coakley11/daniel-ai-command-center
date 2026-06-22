@@ -67,7 +67,8 @@ On the recovery wait or failure screen, expand **Auth recovery (dev)** and check
 - `recovery_token_hash_parsed: true` — app extracted token_hash (including malformed-landing fallback).
 - `recovery_token_hash_malformed_landing: true` — old template used `?token_hash=` after a RedirectTo that already had `?`; update template and send a new email.
 - `recovery_token_hash_in_query: true` — Streamlit saw `token_hash` as its own query param (correct URL shape).
-- `last_recovery_error` — non-empty if `verify_otp` failed (expired/invalid token).
+- `recovery_query_promotion_needed: true` — browser URL has `token_hash` but Streamlit `query_params` did not; app rewrites URL client-side.
+- `recovery_verify_attempted: true` — `verify_otp` ran once for this link.
 
 ## Do not use
 
