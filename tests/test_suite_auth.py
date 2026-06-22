@@ -179,6 +179,25 @@ class TestSuiteAuth(unittest.TestCase):
         )()
         self.assertTrue(_recovery_landing_failed(st))
 
+    def test_recovery_token_hash_from_malformed_landing_query(self) -> None:
+        from suite_auth import _consume_auth_recovery_token_hash, _recovery_token_hash_from_query
+
+        class FakeState(dict):
+            pass
+
+        st = type(
+            "St",
+            (),
+            {
+                "session_state": FakeState(),
+                "query_params": {
+                    "suite_auth_landing": "recovery?token_hash=abc123",
+                    "type": "recovery",
+                },
+            },
+        )()
+        self.assertEqual(_recovery_token_hash_from_query(st), "abc123")
+
     def test_consume_auth_recovery_token_hash_marks_pending(self) -> None:
         from suite_auth import AUTH_RECOVERY_PENDING_KEY, _consume_auth_recovery_token_hash
 
@@ -209,6 +228,39 @@ class TestSuiteAuth(unittest.TestCase):
             self.assertTrue(_consume_auth_recovery_token_hash(st))
         self.assertTrue(ss.get(AUTH_RECOVERY_PENDING_KEY))
         auth.verify_otp.assert_called_once_with({"token_hash": "abc123", "type": "recovery"})
+
+    def test_recovery_verify_failed_after_malformed_landing_consume_error(self) -> None:
+        from suite_auth import (
+            AUTH_RECOVERY_LAST_ERROR_KEY,
+            AUTH_RECOVERY_VERIFY_ATTEMPTED_KEY,
+            _consume_auth_recovery_token_hash,
+            _recovery_verify_failed,
+        )
+
+        class FakeState(dict):
+            pass
+
+        ss = FakeState()
+        auth = unittest.mock.MagicMock()
+        auth.verify_otp.side_effect = RuntimeError("Token has expired or is invalid")
+        client = unittest.mock.MagicMock()
+        client.auth = auth
+        st = type(
+            "St",
+            (),
+            {
+                "session_state": ss,
+                "query_params": {
+                    "suite_auth_landing": "recovery?token_hash=abc123",
+                    "type": "recovery",
+                },
+            },
+        )()
+        with unittest.mock.patch("suite_auth._create_fresh_supabase_client", return_value=client):
+            self.assertFalse(_consume_auth_recovery_token_hash(st))
+        self.assertTrue(_recovery_verify_failed(st))
+        self.assertEqual(ss.get(AUTH_RECOVERY_VERIFY_ATTEMPTED_KEY), "abc123")
+        self.assertIn("expired", str(ss.get(AUTH_RECOVERY_LAST_ERROR_KEY)).lower())
 
     def test_request_password_reset_passes_redirect_to(self) -> None:
         from suite_auth import request_password_reset

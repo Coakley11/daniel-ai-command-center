@@ -22,15 +22,18 @@ Run locally:
 python scripts/print_supabase_auth_redirect_checklist.py
 ```
 
-- **Site URL** and **Redirect URLs** must include the Command Center dev URL.
-- `redirect_to` in code appends `?suite_auth_landing=recovery` so the app can detect a reset landing even before tokens arrive.
+- **Site URL** and **Redirect URLs** must include the Command Center dev URL (base URL, no query string).
+- `reset_password_email` sends `redirect_to` as the **base** CC URL (no query params).
+- The email template adds `suite_auth_landing`, `token_hash`, and `type` in one query string.
 
 ## Recovery email body (HTML)
+
+**Use `?` once** — do **not** append `?token_hash=` to `{{ .RedirectTo }}` if RedirectTo already contains query params.
 
 ```html
 <h2>Reset password</h2>
 <p>Follow this link to reset the password for your user:</p>
-<p><a href="{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=recovery">Reset password</a></p>
+<p><a href="{{ .RedirectTo }}?suite_auth_landing=recovery&token_hash={{ .TokenHash }}&type=recovery">Reset password</a></p>
 ```
 
 ## Plain-text alternative
@@ -39,15 +42,16 @@ python scripts/print_supabase_auth_redirect_checklist.py
 Reset password
 
 Follow this link to reset the password for your user:
-{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=recovery
+{{ .RedirectTo }}?suite_auth_landing=recovery&token_hash={{ .TokenHash }}&type=recovery
 ```
 
 ## What Supabase sends
 
 | Template | Typical link shape | Works on Streamlit? |
 |----------|-------------------|---------------------|
-| Default `{{ .ConfirmationURL }}` | `https://<project>.supabase.co/auth/v1/verify?token=...&type=recovery&redirect_to=<app>` → may redirect with hash or nothing | Often **no** |
-| PKCE `token_hash` (above) | `https://<app>?suite_auth_landing=recovery&token_hash=...&type=recovery` | **Yes** |
+| Default `{{ .ConfirmationURL }}` | verify endpoint → hash or empty redirect | **No** |
+| Wrong PKCE `{{ .RedirectTo }}?token_hash=...` when RedirectTo already has `?` | `...?suite_auth_landing=recovery?token_hash=...` (malformed) | **No** — stuck on “Processing…” |
+| Correct PKCE (above) | `https://<app>?suite_auth_landing=recovery&token_hash=...&type=recovery` | **Yes** |
 
 ## C4 PASS criteria
 
@@ -60,12 +64,13 @@ Follow this link to reset the password for your user:
 
 On the recovery wait or failure screen, expand **Auth recovery (dev)** and check:
 
-- `configured_reset_redirect_to` — must match Supabase redirect allow-list.
-- `client_landing_snapshot` — `th:1` means `token_hash` reached the browser query string.
-- `recovery_token_hash_in_query` — `true` when server sees `token_hash`.
-- `email_template_action_required` — `true` when landing hint is present but no token shape was detected.
+- `recovery_token_hash_parsed: true` — app extracted token_hash (including malformed-landing fallback).
+- `recovery_token_hash_malformed_landing: true` — old template used `?token_hash=` after a RedirectTo that already had `?`; update template and send a new email.
+- `recovery_token_hash_in_query: true` — Streamlit saw `token_hash` as its own query param (correct URL shape).
+- `last_recovery_error` — non-empty if `verify_otp` failed (expired/invalid token).
 
 ## Do not use
 
 - `{{ .ConfirmationURL }}` alone for Streamlit apps.
+- `{{ .RedirectTo }}?token_hash=...` when RedirectTo already contains `?suite_auth_landing=recovery`.
 - Links that only put tokens in `#access_token=...` (hash is lost before Python runs).
