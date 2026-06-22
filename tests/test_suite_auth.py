@@ -303,6 +303,21 @@ class TestSuiteAuth(unittest.TestCase):
         self.assertIn("token_hash=", prefix)
         self.assertTrue(prefix.startswith("https://example.test/cc?"))
 
+    def test_bare_homepage_does_not_trigger_hash_bridge(self) -> None:
+        from suite_auth import (
+            _needs_recovery_hash_bridge,
+            _recovery_landing_in_progress,
+            _recovery_landing_signal_present,
+        )
+
+        class FakeState(dict):
+            pass
+
+        st = type("St", (), {"session_state": FakeState(), "query_params": {}})()
+        self.assertFalse(_recovery_landing_signal_present(st))
+        self.assertFalse(_needs_recovery_hash_bridge(st))
+        self.assertFalse(_recovery_landing_in_progress(st))
+
     def test_recovery_bare_site_landing_when_browser_has_no_keys(self) -> None:
         from suite_auth import _recovery_bare_site_landing
 
@@ -311,8 +326,26 @@ class TestSuiteAuth(unittest.TestCase):
 
         ss = FakeState()
         ss["_suite_auth_landing_snapshot"] = "hash:0,rec:0,code:0,th:0,at:0,keys:none"
-        st = type("St", (), {"session_state": ss, "query_params": {}})()
+        st = type(
+            "St",
+            (),
+            {
+                "session_state": ss,
+                "query_params": {"suite_auth_landing": "recovery"},
+            },
+        )()
         self.assertTrue(_recovery_bare_site_landing(st))
+
+    def test_recovery_bare_site_landing_false_on_normal_homepage(self) -> None:
+        from suite_auth import _recovery_bare_site_landing
+
+        class FakeState(dict):
+            pass
+
+        ss = FakeState()
+        ss["_suite_auth_landing_snapshot"] = "hash:0,rec:0,code:0,th:0,at:0,keys:none"
+        st = type("St", (), {"session_state": ss, "query_params": {}})()
+        self.assertFalse(_recovery_bare_site_landing(st))
 
     def test_recovery_bare_site_landing_false_when_browser_has_token_hash(self) -> None:
         from suite_auth import _recovery_bare_site_landing
