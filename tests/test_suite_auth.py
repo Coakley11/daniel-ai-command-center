@@ -293,6 +293,38 @@ class TestSuiteAuth(unittest.TestCase):
         self.assertEqual(ss.get(AUTH_RECOVERY_VERIFY_ATTEMPTED_KEY), "abc123")
         self.assertIn("expired", str(ss.get(AUTH_RECOVERY_LAST_ERROR_KEY)).lower())
 
+    def test_expected_recovery_email_href_prefix(self) -> None:
+        from suite_auth import expected_recovery_email_href_prefix
+
+        prefix = expected_recovery_email_href_prefix(
+            site_url="https://example.test/cc"
+        )
+        self.assertIn("suite_auth_landing=recovery", prefix)
+        self.assertIn("token_hash=", prefix)
+        self.assertTrue(prefix.startswith("https://example.test/cc?"))
+
+    def test_recovery_bare_site_landing_when_browser_has_no_keys(self) -> None:
+        from suite_auth import _recovery_bare_site_landing
+
+        class FakeState(dict):
+            pass
+
+        ss = FakeState()
+        ss["_suite_auth_landing_snapshot"] = "hash:0,rec:0,code:0,th:0,at:0,keys:none"
+        st = type("St", (), {"session_state": ss, "query_params": {}})()
+        self.assertTrue(_recovery_bare_site_landing(st))
+
+    def test_recovery_bare_site_landing_false_when_browser_has_token_hash(self) -> None:
+        from suite_auth import _recovery_bare_site_landing
+
+        class FakeState(dict):
+            pass
+
+        ss = FakeState()
+        ss["_suite_auth_landing_snapshot"] = "hash:0,rec:0,code:0,th:1,at:0,keys:token_hash|type"
+        st = type("St", (), {"session_state": ss, "query_params": {}})()
+        self.assertFalse(_recovery_bare_site_landing(st))
+
     def test_request_password_reset_passes_redirect_to(self) -> None:
         from suite_auth import request_password_reset
 

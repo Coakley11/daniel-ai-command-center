@@ -45,7 +45,7 @@ After login the URL will include `suite_sid=...`. Refresh preserves that param �
    - **Site URL** = Command Center dev URL (same as `auth_password_reset_redirect_url(with_landing_hint=False)`)
    - **Redirect URLs** = all suite dev `*.streamlit.app` URLs from the script output
 3. Supabase → **Authentication → Email Templates → Reset password** — use the PKCE template in **`docs/SUPABASE_RECOVERY_EMAIL_TEMPLATE.md`** (default `{{ .ConfirmationURL }}` does **not** work on Streamlit).
-4. Code sends `redirect_to` on `reset_password_email` with `?suite_auth_landing=recovery` so the app can detect reset landings and log safe diagnostics.
+4. Code sends `redirect_to` as the **base** CC URL (no query). The Recovery email template must add `?suite_auth_landing=recovery&token_hash={{ .TokenHash }}&type=recovery` using **`{{ .SiteURL }}`** (see `docs/SUPABASE_RECOVERY_EMAIL_TEMPLATE.md`).
 5. Send a **new** reset email after each deploy or template change (old links keep old behavior).
 6. Reset link lands on CC → **Set new password** panel → update → signed in.
 

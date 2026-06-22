@@ -2,19 +2,19 @@
 
 **Last updated:** 2026-06-19
 
-Streamlit Cloud cannot read URL **hash fragments** (`#access_token=...`). The default Supabase **Reset password** template uses `{{ .ConfirmationURL }}`, which often lands users on Command Center **without** query or hash tokens the app can consume.
+Streamlit Cloud cannot read URL **hash fragments** (`#access_token=...`). The default Supabase **Reset password** template uses `{{ .ConfirmationURL }}`, which redirects to the **bare Site URL** with no query params — Command Center sees `/` only and C4 fails.
 
-Use a **PKCE-style** link that puts `token_hash` in the **query string** instead.
+Use a **PKCE-style** link that puts `token_hash` in the **query string** and points at **`{{ .SiteURL }}`** (not ConfirmationURL).
 
 ## Dashboard steps
 
 1. Open [Supabase Dashboard](https://supabase.com/dashboard) → your project → **Authentication** → **Email Templates**.
 2. Select **Reset password** (Recovery).
-3. Replace the link in the body with the template below.
-4. Save.
+3. Replace the **entire** email body with the template below (remove any `{{ .ConfirmationURL }}` link).
+4. **Save** — wait for “Saved successfully”.
 5. Send a **new** reset email (old emails keep the old link).
 
-## URL configuration (unchanged)
+## URL configuration (required)
 
 Run locally:
 
@@ -22,18 +22,21 @@ Run locally:
 python scripts/print_supabase_auth_redirect_checklist.py
 ```
 
-- **Site URL** and **Redirect URLs** must include the Command Center dev URL (base URL, no query string).
-- `reset_password_email` sends `redirect_to` as the **base** CC URL (no query params).
-- The email template adds `suite_auth_landing`, `token_hash`, and `type` in one query string.
+| Setting | Value |
+|---------|--------|
+| **Site URL** | `https://daniel-ai-command-center-ion4vh2cvo7bgdnkuktrb3.streamlit.app` (base only, no `?`) |
+| **Redirect URLs** | Same base URL + all suite dev URLs from script output |
 
-## Recovery email body (HTML)
+`reset_password_email` sends `redirect_to` as the **base** CC URL (no query). The email template adds `suite_auth_landing`, `token_hash`, and `type`.
 
-**Use `?` once** — do **not** append `?token_hash=` to `{{ .RedirectTo }}` if RedirectTo already contains query params.
+## Recovery email body (HTML) — use SiteURL
+
+**Prefer `{{ .SiteURL }}`** so the href works even if `{{ .RedirectTo }}` is empty in the template context.
 
 ```html
 <h2>Reset password</h2>
 <p>Follow this link to reset the password for your user:</p>
-<p><a href="{{ .RedirectTo }}?suite_auth_landing=recovery&token_hash={{ .TokenHash }}&type=recovery">Reset password</a></p>
+<p><a href="{{ .SiteURL }}?suite_auth_landing=recovery&token_hash={{ .TokenHash }}&type=recovery">Reset password</a></p>
 ```
 
 ## Plain-text alternative
@@ -42,36 +45,41 @@ python scripts/print_supabase_auth_redirect_checklist.py
 Reset password
 
 Follow this link to reset the password for your user:
-{{ .RedirectTo }}?suite_auth_landing=recovery&token_hash={{ .TokenHash }}&type=recovery
+{{ .SiteURL }}?suite_auth_landing=recovery&token_hash={{ .TokenHash }}&type=recovery
 ```
+
+## Verify the email href before clicking
+
+Right-click the reset link → **Copy link address**. The copied URL must visibly contain:
+
+- `suite_auth_landing=recovery`
+- `token_hash=` (long hash string)
+- `type=recovery`
+
+**Expected shape:**
+
+`https://daniel-ai-command-center-ion4vh2cvo7bgdnkuktrb3.streamlit.app?suite_auth_landing=recovery&token_hash=…&type=recovery`
+
+If the href is only the bare Site URL (no `?`) or a `supabase.co/auth/v1/verify?...` link, the template was **not** saved correctly.
 
 ## What Supabase sends
 
 | Template | Typical link shape | Works on Streamlit? |
 |----------|-------------------|---------------------|
-| Default `{{ .ConfirmationURL }}` | verify endpoint → hash or empty redirect | **No** |
-| Wrong PKCE `{{ .RedirectTo }}?token_hash=...` when RedirectTo already has `?` | `...?suite_auth_landing=recovery?token_hash=...` (malformed) | **No** — stuck on “Processing…” |
-| Correct PKCE (above) | `https://<app>?suite_auth_landing=recovery&token_hash=...&type=recovery` | **Yes** |
-
-## C4 PASS criteria
-
-1. Reset email received.
-2. Link opens Command Center (no “site can't be reached”).
-3. **Set new password** panel appears.
-4. New password saves; user is signed in.
+| Default `{{ .ConfirmationURL }}` | verify → redirect to bare Site URL `/` | **No** |
+| PKCE with `{{ .SiteURL }}` + token_hash (above) | CC URL with query params | **Yes** |
 
 ## Dev diagnostics
 
-On the recovery wait or failure screen, expand **Auth recovery (dev)** and check:
-
-- `recovery_token_hash_parsed: true` — app extracted token_hash (including malformed-landing fallback).
-- `recovery_token_hash_malformed_landing: true` — old template used `?token_hash=` after a RedirectTo that already had `?`; update template and send a new email.
-- `recovery_token_hash_in_query: true` — Streamlit saw `token_hash` as its own query param (correct URL shape).
-- `recovery_query_promotion_needed: true` — browser URL has `token_hash` but Streamlit `query_params` did not; app rewrites URL client-side.
-- `recovery_verify_attempted: true` — `verify_otp` ran once for this link.
+| Field | Meaning |
+|-------|---------|
+| `recovery_bare_site_landing: true` | Browser and server see no recovery query params — email href wrong |
+| `query_param_keys: []` | Streamlit server sees `/` only |
+| `browser_query_keys: []` | Browser URL also has no recovery params |
+| `expected_email_href_prefix` | What the reset email href should start with |
+| `reset_redirect_to_sent` | Base URL sent to Supabase API (no `?suite_auth_landing`) |
 
 ## Do not use
 
-- `{{ .ConfirmationURL }}` alone for Streamlit apps.
-- `{{ .RedirectTo }}?token_hash=...` when RedirectTo already contains `?suite_auth_landing=recovery`.
+- `{{ .ConfirmationURL }}` for Streamlit apps.
 - Links that only put tokens in `#access_token=...` (hash is lost before Python runs).

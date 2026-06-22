@@ -11,22 +11,32 @@ sys.path.insert(0, str(ROOT))
 
 
 def main() -> int:
-    from suite_auth import auth_password_reset_redirect_url, supabase_auth_redirect_url_checklist
+    from suite_auth import (
+        auth_password_reset_redirect_url,
+        expected_recovery_email_href_prefix,
+        supabase_auth_redirect_url_checklist,
+    )
 
-    site_url = auth_password_reset_redirect_url()
+    site_url = auth_password_reset_redirect_url(with_landing_hint=False)
+    href_prefix = expected_recovery_email_href_prefix()
     redirects = supabase_auth_redirect_url_checklist()
 
     print("Supabase Dashboard -> Authentication -> URL configuration\n")
-    print("Site URL (set exactly):")
+    print("Site URL (set exactly — base URL only, NO query string):")
     print(f"  {site_url or '(not configured — set HOMEPAGE_DEV_URL or suite_auth_redirect_url)'}\n")
     print("Redirect URLs (add each line; wildcards optional for *.streamlit.app if your project allows):")
     for url in redirects:
         print(f"  {url}")
-    print("\nOptional secrets override (all dev apps, identical [suite_activity] block):")
-    print('  suite_auth_redirect_url = "https://daniel-ai-command-center-ion4vh2cvo7bgdnkuktrb3.streamlit.app"')
     print("\nRecovery email template (required for Streamlit):")
     print("  docs/SUPABASE_RECOVERY_EMAIL_TEMPLATE.md")
-    print(f"  redirect_to sent by app includes landing hint: {site_url or '(not configured)'}")
+    print("\nExpected reset email href must contain:")
+    print("  suite_auth_landing=recovery")
+    print("  token_hash=")
+    print("  type=recovery")
+    print(f"\nExpected href prefix: {href_prefix}<TokenHash>&type=recovery")
+    print("\nUse {{ .SiteURL }} in the Recovery template (NOT {{ .ConfirmationURL }}).")
+    print("\nOptional secrets override (all dev apps, identical [suite_activity] block):")
+    print('  suite_auth_redirect_url = "https://daniel-ai-command-center-ion4vh2cvo7bgdnkuktrb3.streamlit.app"')
     print("\nAfter dashboard changes: send a new reset email (old links keep old redirect).")
     return 0
 
