@@ -269,6 +269,10 @@ _MEANINGFUL_WORKFLOW_EVENTS = frozenset(
         "trend_comparison_viewed",
         "trend_analysis",
         "draft_prep",
+        "completed_live_draft",
+        "draft_analysis_created",
+        "live_draft_created",
+        "live_draft_pick",
         "trade_eval",
         "trade_analysis",
         "breakout_analysis",
@@ -388,6 +392,31 @@ def _raw_event_workflow_candidate(event: dict[str, Any]) -> dict[str, Any] | Non
             resume_key = "bb:draft"
             priority = 56
             title = "Continue fantasy draft prep"
+        elif event_name == "completed_live_draft":
+            rid = str(m.get("draft_room_id") or "").strip()
+            resume_key = f"bb:live_draft:{rid}" if rid else "bb:live_draft"
+            priority = 62
+            title = "Review completed draft"
+        elif event_name == "draft_analysis_created":
+            rid = str(m.get("draft_room_id") or "").strip()
+            section = str(m.get("draft_section") or "").strip().lower()
+            if section == "team_analysis" and rid:
+                resume_key = f"bb:draft_lab:team:{rid}"
+                title = "Review Team Analysis"
+            else:
+                resume_key = f"bb:draft_lab:{rid}" if rid else "bb:draft_lab"
+                title = "Continue Draft Analysis"
+            priority = 63
+        elif event_name == "live_draft_created":
+            rid = str(m.get("draft_room_id") or "").strip()
+            resume_key = f"bb:live_draft:{rid}" if rid else "bb:live_draft"
+            priority = 55
+            title = "Open Live Draft Room"
+        elif event_name == "live_draft_pick":
+            rid = str(m.get("draft_room_id") or "").strip()
+            resume_key = f"bb:live_draft:{rid}" if rid else "bb:live_draft"
+            priority = 52
+            title = "Continue Live Draft Room"
         elif event_name in {"trade_eval", "trade_analysis"}:
             resume_key = "bb:trade"
             priority = 54
@@ -946,6 +975,59 @@ def _projects_from_events(
                     snapshot.last_baseball_report or "Rankings & sleepers",
                     "bb:draft",
                     "Draft Simulation",
+                    dict(m),
+                )
+                if latest_baseball_workflow is None or ts >= latest_baseball_workflow[0]:
+                    latest_baseball_workflow = cand
+            elif event_name == "completed_live_draft":
+                rid = str(m.get("draft_room_id") or "").strip()
+                matchup = str(m.get("team_matchup") or "").strip()
+                cand = (
+                    ts,
+                    62,
+                    "Review completed draft",
+                    matchup or "Live Draft Room",
+                    f"bb:live_draft:{rid}" if rid else "bb:live_draft",
+                    "Live Draft Room",
+                    dict(m),
+                )
+                if latest_baseball_workflow is None or ts >= latest_baseball_workflow[0]:
+                    latest_baseball_workflow = cand
+            elif event_name == "draft_analysis_created":
+                rid = str(m.get("draft_room_id") or "").strip()
+                matchup = str(m.get("team_matchup") or "").strip()
+                section = str(m.get("draft_section") or "").strip().lower()
+                if section == "team_analysis" and rid:
+                    rk = f"bb:draft_lab:team:{rid}"
+                    card_title = "Review Team Analysis"
+                else:
+                    rk = f"bb:draft_lab:{rid}" if rid else "bb:draft_lab"
+                    card_title = "Continue Draft Analysis"
+                cand = (
+                    ts,
+                    63,
+                    card_title,
+                    matchup or "Draft Simulation Test Mode",
+                    rk,
+                    "Draft Simulation Test Mode",
+                    dict(m),
+                )
+                if latest_baseball_workflow is None or ts >= latest_baseball_workflow[0]:
+                    latest_baseball_workflow = cand
+            elif event_name in {"live_draft_created", "live_draft_pick"}:
+                rid = str(m.get("draft_room_id") or "").strip()
+                matchup = str(m.get("team_matchup") or "").strip()
+                pri = 55 if event_name == "live_draft_created" else 52
+                card_title = (
+                    "Open Live Draft Room" if event_name == "live_draft_created" else "Continue Live Draft Room"
+                )
+                cand = (
+                    ts,
+                    pri,
+                    card_title,
+                    matchup or "Live Draft Room",
+                    f"bb:live_draft:{rid}" if rid else "bb:live_draft",
+                    "Live Draft Room",
                     dict(m),
                 )
                 if latest_baseball_workflow is None or ts >= latest_baseball_workflow[0]:

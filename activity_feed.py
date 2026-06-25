@@ -112,6 +112,9 @@ HIGHLIGHT_EVENTS: frozenset[tuple[str, str]] = frozenset(
         ("music", "audio_uploaded"),
         ("music", "recording_reviewed"),
         ("baseball", "draft_prep"),
+        ("baseball", "completed_live_draft"),
+        ("baseball", "draft_analysis_created"),
+        ("baseball", "live_draft_created"),
         ("baseball", "trade_analysis"),
         ("baseball", "trade_eval"),
         ("baseball", "projection_report"),
@@ -484,6 +487,26 @@ def format_activity_message(event: dict[str, Any], *, for_feed: bool = True) -> 
         league = str(m.get("league") or m.get("team") or "").strip()
         return f"Completed fantasy draft prep ({league})" if league else "Completed fantasy draft prep"
 
+    if app == "baseball" and event_type == "completed_live_draft":
+        matchup = str(m.get("team_matchup") or "").strip()
+        return f"Live Draft completed — {matchup}" if matchup else "Live Draft completed"
+
+    if app == "baseball" and event_type == "draft_analysis_created":
+        matchup = str(m.get("team_matchup") or "").strip()
+        return f"Draft analysis ready — {matchup}" if matchup else "Draft analysis ready"
+
+    if app == "baseball" and event_type == "live_draft_created":
+        matchup = str(m.get("team_matchup") or "").strip()
+        return f"Started live draft — {matchup}" if matchup else "Started live draft"
+
+    if app == "baseball" and event_type == "live_draft_pick":
+        matchup = str(m.get("team_matchup") or "").strip()
+        pick_no = m.get("pick_number")
+        if pick_no is not None:
+            base = f"Live draft pick {pick_no}"
+            return f"{base} — {matchup}" if matchup else base
+        return f"Live draft pick — {matchup}" if matchup else "Live draft pick"
+
     if app == "baseball" and event_type in {"sleeper_review", "sleeper_research"}:
         return "Reviewed sleeper candidates"
 
@@ -700,6 +723,10 @@ def _feed_priority(event: dict[str, Any]) -> int:
         return 3
     if app == "baseball" and event_type in {
         "draft_prep",
+        "completed_live_draft",
+        "draft_analysis_created",
+        "live_draft_created",
+        "live_draft_pick",
         "trade_eval",
         "trade_analysis",
         "projection_report",
@@ -712,6 +739,10 @@ def _feed_priority(event: dict[str, Any]) -> int:
         "trend_analysis",
         "breakout_analysis",
     }:
+        if event_type in {"draft_analysis_created", "completed_live_draft"}:
+            return 7
+        if event_type in {"live_draft_created", "live_draft_pick"}:
+            return 6
         return 6
     if app == "nba" and event_type in {
         "matchup_analysis",
@@ -769,6 +800,21 @@ def investment_directory_rank(event_type: str) -> int:
     if event_type in {"scenario_run"}:
         return 3
     if event_type == "portfolio_created":
+        return 2
+    return 0
+
+
+def baseball_directory_rank(event_type: str) -> int:
+    """Higher rank wins on Baseball App Directory card."""
+    if event_type == "draft_analysis_created":
+        return 6
+    if event_type == "completed_live_draft":
+        return 5
+    if event_type in {"live_draft_created", "live_draft_pick"}:
+        return 4
+    if event_type == "draft_prep":
+        return 3
+    if event_type in {"trade_eval", "trade_analysis", "projection_report"}:
         return 2
     return 0
 
@@ -1361,5 +1407,6 @@ __all__ = (
     "build_activity_feed",
     "format_activity_message",
     "investment_directory_rank",
+    "baseball_directory_rank",
     "music_directory_rank",
 )

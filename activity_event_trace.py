@@ -15,6 +15,10 @@ _EVENT_PRIORITY_HINT: dict[str, int] = {
     "trend_comparison_viewed": 59,
     "trend_analysis": 58,
     "draft_prep": 56,
+    "completed_live_draft": 62,
+    "draft_analysis_created": 63,
+    "live_draft_created": 55,
+    "live_draft_pick": 52,
     "trade_eval": 54,
     "trade_analysis": 54,
     "breakout_analysis": 35,
@@ -41,6 +45,18 @@ def infer_resume_key(event_type: str, metrics: dict[str, Any]) -> str:
         return f"compare:{pa}:{pb}"
     if event_type == "draft_prep":
         return "bb:draft"
+    if event_type == "completed_live_draft":
+        rid = str(metrics.get("draft_room_id") or "").strip()
+        return f"bb:live_draft:{rid}" if rid else "bb:live_draft"
+    if event_type == "draft_analysis_created":
+        rid = str(metrics.get("draft_room_id") or "").strip()
+        section = str(metrics.get("draft_section") or "").strip().lower()
+        if section == "team_analysis" and rid:
+            return f"bb:draft_lab:team:{rid}"
+        return f"bb:draft_lab:{rid}" if rid else "bb:draft_lab"
+    if event_type in {"live_draft_created", "live_draft_pick"}:
+        rid = str(metrics.get("draft_room_id") or "").strip()
+        return f"bb:live_draft:{rid}" if rid else "bb:live_draft"
     if event_type in {"trade_eval", "trade_analysis"}:
         return "bb:trade"
     if event_type == "breakout_analysis":

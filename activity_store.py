@@ -169,6 +169,7 @@ class ActivitySnapshot:
     baseball_last_trade_analysis_days_ago: int | None = None
     baseball_last_projection_report_days_ago: int | None = None
     baseball_active_page: str = ""
+    baseball_directory_primary: str = ""
     baseball_draft_workspace: str = ""
     is_sunday_lineup_day: bool = False
 
@@ -799,6 +800,10 @@ MEANINGFUL_WEEK_EVENTS = frozenset(
         "trade_eval",
         "trade_analysis",
         "draft_prep",
+        "completed_live_draft",
+        "draft_analysis_created",
+        "live_draft_created",
+        "live_draft_pick",
         "sleeper_review",
         "sleeper_research",
         "projection_report",
@@ -1036,6 +1041,9 @@ def _ingest_suite_events(snapshot: ActivitySnapshot) -> None:
     bb_draft_ts: datetime | None = None
     bb_trade_ts: datetime | None = None
     bb_projection_ts: datetime | None = None
+    bb_dir_rank = 0
+    bb_dir_ts = datetime.min
+    bb_dir_line = ""
     music_practice_week: set[str] = set()
     last_upload_ts: datetime | None = None
     last_review_ts: datetime | None = None
@@ -1102,6 +1110,20 @@ def _ingest_suite_events(snapshot: ActivitySnapshot) -> None:
             }:
                 if song_name:
                     snapshot.last_song = song_name
+
+        if app == "baseball":
+            from activity_feed import baseball_directory_rank
+
+            msg = format_activity_message(event)
+            rank = baseball_directory_rank(event_name)
+            if msg and rank and (rank > bb_dir_rank or (rank == bb_dir_rank and ts > bb_dir_ts)):
+                bb_dir_rank, bb_dir_ts, bb_dir_line = rank, ts, msg
+            matchup = str(metrics.get("team_matchup") or "").strip()
+            feature = str(metrics.get("feature") or event.get("page") or "").strip()
+            if matchup:
+                snapshot.baseball_draft_workspace = matchup
+            if feature:
+                snapshot.baseball_active_page = feature
 
         if app == "investment":
             msg = format_activity_message(event)
@@ -1242,6 +1264,10 @@ def _ingest_suite_events(snapshot: ActivitySnapshot) -> None:
                 "trade_eval",
                 "trade_analysis",
                 "draft_prep",
+                "completed_live_draft",
+                "draft_analysis_created",
+                "live_draft_created",
+                "live_draft_pick",
                 "sleeper_review",
                 "sleeper_research",
                 "projection_report",
@@ -1312,6 +1338,8 @@ def _ingest_suite_events(snapshot: ActivitySnapshot) -> None:
         snapshot.music_directory_primary = music_dir_line
     if inv_dir_line:
         snapshot.investment_directory_primary = inv_dir_line
+    if bb_dir_line:
+        snapshot.baseball_directory_primary = bb_dir_line
     if last_upload_ts:
         snapshot.last_music_upload_days_ago = _days_ago(last_upload_ts.date())
     if last_review_ts:
@@ -1527,7 +1555,9 @@ def get_app_directory_card(snapshot: ActivitySnapshot, app_key: str) -> AppDirec
         if snapshot.last_investment_risk_profile:
             lines.append(_labeled("Risk profile", snapshot.last_investment_risk_profile))
     elif app_key == "baseball":
-        if snapshot.baseball_draft_workspace:
+        if snapshot.baseball_directory_primary:
+            lines.append(snapshot.baseball_directory_primary)
+        elif snapshot.baseball_draft_workspace:
             lines.append(_labeled("Workspace", snapshot.baseball_draft_workspace))
         elif snapshot.baseball_active_page:
             lines.append(_labeled("Active page", snapshot.baseball_active_page))
