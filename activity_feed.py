@@ -495,6 +495,10 @@ def format_activity_message(event: dict[str, Any], *, for_feed: bool = True) -> 
         matchup = str(m.get("team_matchup") or "").strip()
         return f"Draft analysis ready — {matchup}" if matchup else "Draft analysis ready"
 
+    if app == "baseball" and event_type == "draft_analysis_attempted":
+        matchup = str(m.get("team_matchup") or "").strip()
+        return f"Draft analysis incomplete — {matchup}" if matchup else "Draft analysis incomplete"
+
     if app == "baseball" and event_type == "live_draft_created":
         matchup = str(m.get("team_matchup") or "").strip()
         return f"Started live draft — {matchup}" if matchup else "Started live draft"
@@ -741,6 +745,8 @@ def _feed_priority(event: dict[str, Any]) -> int:
     }:
         if event_type in {"draft_analysis_created", "completed_live_draft"}:
             return 7
+        if event_type == "draft_analysis_attempted":
+            return 6
         if event_type in {"live_draft_created", "live_draft_pick"}:
             return 6
         return 6

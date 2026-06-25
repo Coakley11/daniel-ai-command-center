@@ -54,6 +54,9 @@ def infer_resume_key(event_type: str, metrics: dict[str, Any]) -> str:
         if section == "team_analysis" and rid:
             return f"bb:draft_lab:team:{rid}"
         return f"bb:draft_lab:{rid}" if rid else "bb:draft_lab"
+    if event_type == "draft_analysis_attempted":
+        rid = str(metrics.get("draft_room_id") or "").strip()
+        return f"bb:live_draft:{rid}" if rid else "bb:live_draft"
     if event_type in {"live_draft_created", "live_draft_pick"}:
         rid = str(metrics.get("draft_room_id") or "").strip()
         return f"bb:live_draft:{rid}" if rid else "bb:live_draft"
