@@ -34,7 +34,7 @@ def _production_draft_analysis_event(*, app: str = "baseball-stat-app") -> dict:
             "page": "Draft Simulation Test Mode",
             "workspace_id": "daniel",
             "suite_external_id": "daniel@example.com",
-            "completed_at": "2026-06-22T19:00:00Z",
+            "draft_section": "team_analysis",
         },
     }
 
@@ -143,7 +143,7 @@ class TestBaseballDraftActivityFeed(unittest.TestCase):
         self.assertIsNotNone(candidate)
         assert candidate is not None
         self.assertEqual(candidate["title"], "Continue Draft Analysis")
-        self.assertEqual(candidate["resume_key"], "bb:draft_lab:ROOM-ABC123")
+        self.assertEqual(candidate["resume_key"], "bb:draft_lab:team:ROOM-ABC123")
 
     def test_production_payload_continue_and_directory(self) -> None:
         snap = ActivitySnapshot()
@@ -162,7 +162,23 @@ class TestBaseballDraftActivityFeed(unittest.TestCase):
         joined = " ".join(card.highlights)
         self.assertIn("Daniel vs Ariel", joined)
 
-    def test_app_name_variants_not_filtered_from_feed(self) -> None:
+    def test_command_center_continue_generates_draft_lab_url(self) -> None:
+        from project_intelligence import build_project_continue_cards
+
+        snap = ActivitySnapshot()
+        event = _normalize_loaded_event(_production_draft_analysis_event())
+        with patch("project_intelligence.load_all_events", return_value=[event]):
+            with patch("project_intelligence.load_active_resume_items", return_value=[]):
+                cards = build_project_continue_cards(snap, limit=6, meta={
+                    "baseball": {"name": "Baseball Analytics", "url": "https://example.test"},
+                })
+        baseball = [c for c in cards if c.app_key == "baseball"]
+        self.assertTrue(baseball)
+        url = baseball[0].action_url
+        self.assertIn("suite_page=Draft+Simulation+Test+Mode", url)
+        self.assertIn("suite_draft_room=ROOM-ABC123", url)
+        self.assertIn("bb%3Adraft_lab%3Ateam%3AROOM-ABC123", url)
+
         for app_name in ("baseball-stat-app", "Baseball Analytics", "baseball"):
             event = _normalize_loaded_event(_production_draft_analysis_event(app=app_name))
             msg = format_activity_message(event, for_feed=True)

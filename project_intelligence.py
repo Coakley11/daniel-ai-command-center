@@ -403,11 +403,10 @@ def _raw_event_workflow_candidate(event: dict[str, Any]) -> dict[str, Any] | Non
             section = str(m.get("draft_section") or "").strip().lower()
             if section == "team_analysis" and rid:
                 resume_key = f"bb:draft_lab:team:{rid}"
-                title = "Review Team Analysis"
             else:
                 resume_key = f"bb:draft_lab:{rid}" if rid else "bb:draft_lab"
-                title = "Continue Draft Analysis"
             priority = 63
+            title = "Continue Draft Analysis"
         elif event_name == "draft_analysis_attempted":
             rid = str(m.get("draft_room_id") or "").strip()
             resume_key = f"bb:live_draft:{rid}" if rid else "bb:live_draft"
@@ -1002,13 +1001,9 @@ def _projects_from_events(
             elif event_name == "draft_analysis_created":
                 rid = str(m.get("draft_room_id") or "").strip()
                 matchup = str(m.get("team_matchup") or "").strip()
-                section = str(m.get("draft_section") or "").strip().lower()
-                if section == "team_analysis" and rid:
-                    rk = f"bb:draft_lab:team:{rid}"
-                    card_title = "Review Team Analysis"
-                else:
-                    rk = f"bb:draft_lab:{rid}" if rid else "bb:draft_lab"
-                    card_title = "Continue Draft Analysis"
+                section = str(m.get("draft_section") or "team_analysis").strip().lower()
+                rk = f"bb:draft_lab:team:{rid}" if rid else "bb:draft_lab"
+                card_title = "Continue Draft Analysis"
                 cand = (
                     ts,
                     63,
