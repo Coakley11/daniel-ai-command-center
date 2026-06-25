@@ -1,16 +1,91 @@
-"""
-Runtime deploy marker — bump when shipping diagnostics or activity trace fixes.
-
-Streamlit Cloud may serve a stale mount after reboot; compare this string to GitHub dev HEAD.
-"""
+"""Deploy marker for Command Center — commit resolved at runtime, not hardcoded."""
 
 from __future__ import annotations
 
-# Bump on every deploy-critical release (shown in UI footer + developer banner).
-SUITE_BUILD_LABEL = "2026-06-06-event-trace-v1"
-GIT_COMMIT_SHORT = "ae57073"
-GIT_BRANCH = "dev"
+import os
+import subprocess
+from functools import lru_cache
+from pathlib import Path
+
+_ROOT = Path(__file__).resolve().parent
+_DEPLOY_COMMIT_FILE = _ROOT / "deploy_commit.txt"
+STREAMLIT_ENTRYPOINT = "ai_command_center.py"
 WORKFLOW_DIAGNOSTICS_LIVE = True
 
-# Commits that must be present for Lorenzo Cain trend E2E verification.
-DEPLOY_COMMITS_INCLUDED = ("5e172de", "09c26cc", "c902336", "ae57073")
+# Minimum commits required for baseball draft activity E2E (shown in deploy banner).
+DEPLOY_COMMITS_INCLUDED = ("f72abdd", "83eb9d7", "ae57073")
+
+_ENV_COMMIT_KEYS = (
+    "STREAMLIT_CLOUD_COMMIT",
+    "SOURCE_VERSION",
+    "COMMIT_SHA",
+    "GIT_COMMIT",
+    "VERCEL_GIT_COMMIT_SHA",
+    "GITHUB_SHA",
+)
+
+_ENV_BRANCH_KEYS = (
+    "STREAMLIT_CLOUD_BRANCH",
+    "GITHUB_REF_NAME",
+    "GIT_BRANCH",
+)
+
+
+@lru_cache(maxsize=1)
+def resolve_git_commit_short() -> str:
+    """Best-effort short SHA for the deployed revision."""
+    for key in _ENV_COMMIT_KEYS:
+        val = os.environ.get(key, "").strip()
+        if val:
+            return val[:7] if len(val) > 7 else val
+    if _DEPLOY_COMMIT_FILE.is_file():
+        for line in _DEPLOY_COMMIT_FILE.read_text(encoding="utf-8").splitlines():
+            token = line.strip().split("#", 1)[0].strip()
+            if token and token.lower() != "unknown":
+                return token[:7] if len(token) > 7 else token
+    try:
+        return subprocess.check_output(
+            ["git", "rev-parse", "--short", "HEAD"],
+            cwd=_ROOT,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            timeout=3,
+        ).strip()
+    except Exception:
+        pass
+    return "unknown"
+
+
+@lru_cache(maxsize=1)
+def resolve_git_branch() -> str:
+    for key in _ENV_BRANCH_KEYS:
+        val = os.environ.get(key, "").strip()
+        if val:
+            return val.replace("refs/heads/", "")
+    if _DEPLOY_COMMIT_FILE.is_file():
+        for line in _DEPLOY_COMMIT_FILE.read_text(encoding="utf-8").splitlines():
+            if line.strip().lower().startswith("branch:"):
+                token = line.split(":", 1)[1].strip()
+                if token:
+                    return token
+    try:
+        return subprocess.check_output(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            cwd=_ROOT,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            timeout=3,
+        ).strip()
+    except Exception:
+        pass
+    return "dev"
+
+
+def format_build_label() -> str:
+    return f"cc-dev-{resolve_git_commit_short()}"
+
+
+# Backward-compatible module-level aliases (resolved once at import).
+GIT_COMMIT_SHORT = resolve_git_commit_short()
+GIT_BRANCH = resolve_git_branch()
+SUITE_BUILD_LABEL = format_build_label()

@@ -44,6 +44,11 @@ PHASE_A_BASEBALL_EVENTS = (
     "player_trend_viewed",
     "trend_comparison_viewed",
     "breakout_analysis",
+    "live_draft_created",
+    "live_draft_pick",
+    "completed_live_draft",
+    "draft_analysis_created",
+    "draft_analysis_attempted",
 )
 
 PHASE_A_NBA_EVENTS = (
@@ -457,6 +462,66 @@ def run_live_activity_diagnostics() -> LiveActivityDiagnostics:
         sqlite_verified_count=len(verified_cc),
         workspace_namespace=workspace_ns,
     )
+
+
+def build_draft_activity_read_diagnostics(st: Any | None = None) -> dict[str, Any]:
+    """Read-side namespace + draft workflow event visibility for developer panel."""
+    from suite_activity_namespace import DRAFT_ACTIVITY_EVENT_TYPES, activity_namespace_diagnostics
+
+    out: dict[str, Any] = dict(activity_namespace_diagnostics(st=st))
+    out["events_table"] = out.get("events_table") or "suite_activity_events"
+    out["query_path"] = f"GET {out['events_table']} (workspace app keys + user scope)"
+
+    events = load_all_events(limit=500)
+    out["activity_event_count"] = len(events)
+
+    recent = sorted(events, key=lambda e: str(e.get("timestamp") or ""), reverse=True)[:10]
+    out["recent_10"] = [
+        {
+            "app": e.get("app"),
+            "event": e.get("event"),
+            "title": (
+                (e.get("metrics") or {}).get("activity_type")
+                if isinstance(e.get("metrics"), dict)
+                else None
+            ),
+            "timestamp": e.get("timestamp"),
+        }
+        for e in recent
+    ]
+
+    draft_present: dict[str, bool] = {}
+    draft_filter_reasons: dict[str, str] = {}
+    for etype in sorted(DRAFT_ACTIVITY_EVENT_TYPES):
+        matches = [
+            e
+            for e in events
+            if str(e.get("event") or "") == etype
+            and str(e.get("app") or "") in {"baseball", "baseball-stat-app", "Baseball Analytics"}
+        ]
+        draft_present[etype] = bool(matches)
+        if not matches:
+            draft_filter_reasons[etype] = "not in loaded store (namespace or write issue)"
+            continue
+        latest = max(matches, key=lambda e: str(e.get("timestamp") or ""))
+        raw_app = str(latest.get("app") or "")
+        if raw_app not in {"baseball"}:
+            draft_filter_reasons[etype] = f"app normalized from {raw_app!r} to baseball"
+        try:
+            from project_intelligence import _MEANINGFUL_WORKFLOW_EVENTS, _raw_event_workflow_candidate
+
+            if etype not in _MEANINGFUL_WORKFLOW_EVENTS:
+                draft_filter_reasons[etype] = "unknown event type (not in _MEANINGFUL_WORKFLOW_EVENTS)"
+            elif _raw_event_workflow_candidate(latest) is None:
+                draft_filter_reasons[etype] = "workflow candidate rejected (stale timestamp or missing metrics)"
+            else:
+                draft_filter_reasons[etype] = "eligible for Continue / App Directory"
+        except Exception as exc:
+            draft_filter_reasons[etype] = f"diagnostic error: {exc}"
+
+    out["draft_event_types_present"] = draft_present
+    out["draft_event_filter_reasons"] = draft_filter_reasons
+    return out
 
 
 def run_activity_diagnostics() -> LiveActivityDiagnostics:

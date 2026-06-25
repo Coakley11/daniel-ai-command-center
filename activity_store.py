@@ -35,6 +35,11 @@ ACTIVITY_FILE = DATA_DIR / "suite_activity.json"
 ACTIVITY_APP_ALIASES: dict[str, str] = {
     "math": "applied_intelligence",
     "applied_intelligence": "applied_intelligence",
+    "baseball-stat-app": "baseball",
+    "baseball_stat_app": "baseball",
+    "Baseball Analytics": "baseball",
+    "baseball analytics": "baseball",
+    "baseball analytics app": "baseball",
 }
 
 # Optional local paths to sibling-app logs (first match wins).
@@ -317,14 +322,29 @@ def _load_fallback_events() -> list[dict[str, Any]]:
     return merged
 
 
+def _normalize_loaded_event(event: dict[str, Any]) -> dict[str, Any]:
+    """Map storage / display app names to canonical suite ids for ingestion."""
+    row = dict(event)
+    raw_app = str(row.get("app") or "").strip()
+    if not raw_app:
+        return row
+    try:
+        from suite_activity_namespace import normalize_activity_app_key
+
+        row["app"] = normalize_activity_app_key(raw_app)
+    except ImportError:
+        row["app"] = ACTIVITY_APP_ALIASES.get(raw_app, raw_app)
+    return row
+
+
 def load_events() -> list[dict[str, Any]]:
-    return _load_db_events()
+    return [_normalize_loaded_event(e) for e in _load_db_events()]
 
 
 def load_all_events(limit: int = 500) -> list[dict[str, Any]]:
     """SQLite history plus per-app fallback files (deduped, chronological)."""
-    db_events = _load_db_events(limit=limit)
-    fallbacks = _load_fallback_events()
+    db_events = [_normalize_loaded_event(e) for e in _load_db_events(limit=limit)]
+    fallbacks = [_normalize_loaded_event(e) for e in _load_fallback_events()]
     if not fallbacks:
         return db_events
     seen: set[tuple[str, str, str]] = set()

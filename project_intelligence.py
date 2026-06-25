@@ -271,6 +271,7 @@ _MEANINGFUL_WORKFLOW_EVENTS = frozenset(
         "draft_prep",
         "completed_live_draft",
         "draft_analysis_created",
+        "draft_analysis_attempted",
         "live_draft_created",
         "live_draft_pick",
         "trade_eval",
@@ -407,6 +408,11 @@ def _raw_event_workflow_candidate(event: dict[str, Any]) -> dict[str, Any] | Non
                 resume_key = f"bb:draft_lab:{rid}" if rid else "bb:draft_lab"
                 title = "Continue Draft Analysis"
             priority = 63
+        elif event_name == "draft_analysis_attempted":
+            rid = str(m.get("draft_room_id") or "").strip()
+            resume_key = f"bb:live_draft:{rid}" if rid else "bb:live_draft"
+            priority = 61
+            title = "Review completed draft"
         elif event_name == "live_draft_created":
             rid = str(m.get("draft_room_id") or "").strip()
             resume_key = f"bb:live_draft:{rid}" if rid else "bb:live_draft"

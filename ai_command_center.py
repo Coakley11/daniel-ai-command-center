@@ -323,6 +323,22 @@ def _render_raw_baseball_events_table() -> None:
         st.caption("No baseball events in the loaded store yet.")
 
 
+def _render_draft_activity_read_debug(st: Any) -> None:
+    try:
+        from activity_diagnostics import build_draft_activity_read_diagnostics
+
+        diag = build_draft_activity_read_diagnostics(st)
+    except Exception as exc:
+        st.warning(f"Draft activity read diagnostics unavailable: {exc}")
+        return
+    with st.expander("Dev: Draft activity read (Command Center)", expanded=False):
+        st.caption(
+            f"Build `{SUITE_BUILD_LABEL}` · commit `{GIT_COMMIT_SHORT}` (need f72abdd+). "
+            "Compare namespace fields to Baseball write panel."
+        )
+        st.json(diag)
+
+
 def _render_workflow_diagnostics_table(snapshot: ActivitySnapshot) -> None:
     try:
         from project_intelligence import diagnose_continue_workflow_candidates
@@ -785,6 +801,7 @@ _render_continue_section(snapshot, continue_cards)
 _render_recent_ami_questions(recent_ami_questions)
 if can_show_developer_tools(st=st):
     _render_raw_baseball_events_table()
+    _render_draft_activity_read_debug(st)
     with st.expander("Continue workflow candidates (top 10)", expanded=False):
         _render_workflow_diagnostics_table(snapshot)
 _render_cross_app_section(snapshot)

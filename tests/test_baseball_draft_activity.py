@@ -7,8 +7,36 @@ from datetime import datetime, timedelta
 from unittest.mock import patch
 
 from activity_feed import _feed_priority, format_activity_message, baseball_directory_rank
-from activity_store import ActivitySnapshot, _ingest_suite_events, get_app_directory_card
-from project_intelligence import _projects_from_events
+from activity_store import (
+    ActivitySnapshot,
+    _ingest_suite_events,
+    _normalize_loaded_event,
+    get_app_directory_card,
+)
+from project_intelligence import _MEANINGFUL_WORKFLOW_EVENTS, _projects_from_events, _raw_event_workflow_candidate
+
+
+def _production_draft_analysis_event(*, app: str = "baseball-stat-app") -> dict:
+    """Payload shape Baseball emits after Analyze Completed Draft."""
+    return {
+        "app": app,
+        "event": "draft_analysis_created",
+        "page": "Draft Simulation Test Mode",
+        "timestamp": (datetime.now() - timedelta(hours=1)).isoformat(timespec="seconds"),
+        "metrics": {
+            "teams": ["Daniel", "Ariel"],
+            "team_matchup": "Daniel vs Ariel",
+            "draft_room_id": "ROOM-ABC123",
+            "room_code": "",
+            "picks_per_team": 15,
+            "feature": "Draft Simulation Test Mode",
+            "activity_type": "draft_analysis_created",
+            "page": "Draft Simulation Test Mode",
+            "workspace_id": "daniel",
+            "suite_external_id": "daniel@example.com",
+            "completed_at": "2026-06-22T19:00:00Z",
+        },
+    }
 
 
 def _draft_event(event: str, *, ts: str, matchup: str = "Daniel vs Ariel") -> dict:
@@ -99,6 +127,46 @@ class TestBaseballDraftActivityFeed(unittest.TestCase):
             baseball_directory_rank("draft_analysis_created"),
             baseball_directory_rank("draft_prep"),
         )
+
+    def test_normalize_baseball_stat_app_name(self) -> None:
+        raw = _production_draft_analysis_event(app="baseball-stat-app")
+        normalized = _normalize_loaded_event(raw)
+        self.assertEqual(normalized["app"], "baseball")
+
+    def test_draft_analysis_created_not_unknown_event(self) -> None:
+        self.assertIn("draft_analysis_created", _MEANINGFUL_WORKFLOW_EVENTS)
+        self.assertIn("draft_analysis_attempted", _MEANINGFUL_WORKFLOW_EVENTS)
+
+    def test_production_payload_workflow_candidate(self) -> None:
+        event = _normalize_loaded_event(_production_draft_analysis_event())
+        candidate = _raw_event_workflow_candidate(event)
+        self.assertIsNotNone(candidate)
+        assert candidate is not None
+        self.assertEqual(candidate["title"], "Continue Draft Analysis")
+        self.assertEqual(candidate["resume_key"], "bb:draft_lab:ROOM-ABC123")
+
+    def test_production_payload_continue_and_directory(self) -> None:
+        snap = ActivitySnapshot()
+        event = _normalize_loaded_event(_production_draft_analysis_event(app="Baseball Analytics"))
+
+        with patch("project_intelligence.load_all_events", return_value=[event]):
+            cards = _projects_from_events(snap)
+        baseball = [c for c in cards if c[1] == "baseball"]
+        self.assertEqual(len(baseball), 1)
+        self.assertIn("Draft Analysis", baseball[0][2])
+        self.assertIn("Daniel vs Ariel", baseball[0][3] or "")
+
+        with patch("activity_store.load_all_events", return_value=[event]):
+            _ingest_suite_events(snap)
+        card = get_app_directory_card(snap, "baseball")
+        joined = " ".join(card.highlights)
+        self.assertIn("Daniel vs Ariel", joined)
+
+    def test_app_name_variants_not_filtered_from_feed(self) -> None:
+        for app_name in ("baseball-stat-app", "Baseball Analytics", "baseball"):
+            event = _normalize_loaded_event(_production_draft_analysis_event(app=app_name))
+            msg = format_activity_message(event, for_feed=True)
+            self.assertIn("Daniel vs Ariel", msg or "", msg=f"filtered for app={app_name!r}")
 
 
 if __name__ == "__main__":
