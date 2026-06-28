@@ -425,12 +425,16 @@ def resume_metrics_from_item_key(app: str, item_key: str, *, subtitle: str = "")
         elif key.startswith("future:"):
             page = page or "skills"
     elif app_key == "applied_intelligence":
-        if key.startswith("ai:question:"):
+        if key.startswith("ai:question:") or key.startswith("ai:practice_log_analysis:"):
             page = "Solve a Problem"
             qid = key.split(":", 2)[-1].strip() if key.count(":") >= 2 else ""
             if qid:
                 metrics["question_id"] = qid
                 metrics["dedupe_fingerprint"] = qid
+            if key.startswith("ai:practice_log_analysis:"):
+                metrics.setdefault("source_app", "music")
+                metrics.setdefault("handoff_kind", "practice_log_analysis")
+                metrics.setdefault("display_category", "analysis_handoff")
             if subtitle:
                 if "__ctx_json__:" in subtitle:
                     q_part, _, ctx_part = subtitle.partition("\n__ctx_json__:")

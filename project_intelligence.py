@@ -246,6 +246,13 @@ def _polish_resume(item: ResumeItem) -> tuple[str, str, int]:
         return f"Continue {team} matchup analysis", subtitle, 54
 
     priority = 35
+    if item.app == "applied_intelligence" and key.startswith("ai:practice_log_analysis:"):
+        from suite_analytical_question import (
+            PRACTICE_LOG_ANALYSIS_CONTINUE_PRIORITY,
+            PRACTICE_LOG_ANALYSIS_TITLE,
+        )
+
+        return title or PRACTICE_LOG_ANALYSIS_TITLE, subtitle, PRACTICE_LOG_ANALYSIS_CONTINUE_PRIORITY
     if item.app == "applied_intelligence" and key.startswith("ai:question:"):
         return title, subtitle, 64
     if item.app == "applied_intelligence" and "applied math question" in blob:
@@ -301,8 +308,55 @@ _MEANINGFUL_WORKFLOW_EVENTS = frozenset(
         "problem_solved",
         "simulation_completed",
         "analytical_question",
+        "practice_log_analysis",
     }
 )
+
+
+def _is_applied_intelligence_resume_key(resume_key: str) -> bool:
+    rk = str(resume_key or "")
+    return rk.startswith("ai:question:") or rk.startswith("ai:practice_log_analysis:")
+
+
+def _practice_log_analysis_workflow(
+    app: str,
+    m: dict[str, Any],
+    ts: datetime,
+    ts_raw: str,
+) -> dict[str, Any] | None:
+    if app != "music":
+        return None
+    from suite_analytical_question import (
+        PRACTICE_LOG_ANALYSIS_CONTINUE_PRIORITY,
+        analytical_question_continue_copy,
+        is_practice_log_analysis_context,
+    )
+
+    ctx = m.get("context") if isinstance(m.get("context"), dict) else {}
+    if not is_practice_log_analysis_context(ctx) and str(m.get("handoff_kind") or "") != "practice_log_analysis":
+        if str(m.get("display_category") or "") != "analysis_handoff":
+            return None
+    qid = str(m.get("question_id") or "").strip()
+    resume_key = str(m.get("resume_key") or (f"ai:practice_log_analysis:{qid}" if qid else "")).strip()
+    if not resume_key:
+        return None
+    title, subtitle, _ = analytical_question_continue_copy(
+        {
+            "source_app": "music",
+            "question": m.get("question"),
+            "context": ctx,
+            "context_summary": m.get("context_summary"),
+        }
+    )
+    return {
+        "timestamp": ts_raw[:19],
+        "app": "applied_intelligence",
+        "event_type": "practice_log_analysis",
+        "resume_key": resume_key,
+        "priority": PRACTICE_LOG_ANALYSIS_CONTINUE_PRIORITY,
+        "title": title,
+        "stale": _stale(ts),
+    }
 
 
 def _analytical_question_workflow(
@@ -432,6 +486,8 @@ def _raw_event_workflow_candidate(event: dict[str, Any]) -> dict[str, Any] | Non
             title = "Continue breakout candidate research"
         elif event_name == "analytical_question":
             return _analytical_question_workflow(app, m, ts, ts_raw)
+        elif event_name == "practice_log_analysis":
+            return _practice_log_analysis_workflow(app, m, ts, ts_raw)
         else:
             return None
     elif app == "investment":
@@ -819,10 +875,46 @@ def _projects_from_events(
     for event in events:
         app = str(event.get("app") or "").strip()
         event_name = str(event.get("event") or "").strip()
-        ts = _parse_ts(str(event.get("timestamp") or ""))
+        ts_raw = str(event.get("timestamp") or "")
+        ts = _parse_ts(ts_raw)
         if ts is None:
             continue
         m = _metrics(event)
+
+        if event_name == "practice_log_analysis" and app == "music":
+            from suite_analytical_question import (
+                PRACTICE_LOG_ANALYSIS_CONTINUE_PRIORITY,
+                analytical_question_continue_copy,
+                is_practice_log_analysis_context,
+            )
+
+            ctx = m.get("context") if isinstance(m.get("context"), dict) else {}
+            if is_practice_log_analysis_context(ctx) or str(m.get("handoff_kind") or "") == "practice_log_analysis":
+                qid = str(m.get("question_id") or "").strip()
+                resume_key = str(m.get("resume_key") or (f"ai:practice_log_analysis:{qid}" if qid else "")).strip()
+                if resume_key:
+                    m_copy = dict(m)
+                    m_copy["_continue_ts"] = ts_raw
+                    title, subtitle, _ = analytical_question_continue_copy(
+                        {
+                            "source_app": "music",
+                            "question": m.get("question"),
+                            "context": ctx,
+                            "context_summary": m.get("context_summary"),
+                        }
+                    )
+                    cand = (
+                        ts,
+                        PRACTICE_LOG_ANALYSIS_CONTINUE_PRIORITY,
+                        title,
+                        subtitle,
+                        resume_key,
+                        "Solve a Problem",
+                        m_copy,
+                    )
+                    if latest_analytical is None or ts >= latest_analytical[0]:
+                        latest_analytical = cand
+            continue
 
         if event_name == "analytical_question" and app in {
             "baseball",
@@ -1325,13 +1417,15 @@ def _applied_math_continue_action_url(
 ) -> str:
     """Always route analytical-question resume keys to Applied Intelligence with qid in URL."""
     rk = str(resume_key or "").strip()
-    if not rk.startswith("ai:question:"):
+    if not _is_applied_intelligence_resume_key(rk):
         return ""
     cont = str(metrics.get("continue_action_url") or stored_action_url or "").strip()
     if cont and (
         "suite_ai_question_id=" in cont
         or "suite_resume=ai%3Aquestion" in cont
         or "suite_resume=ai:question" in cont
+        or "suite_resume=ai%3Apractice_log_analysis" in cont
+        or "suite_resume=ai:practice_log_analysis" in cont
     ):
         return cont
     target = "applied_intelligence"
@@ -1380,6 +1474,8 @@ def build_project_continue_cards(
 
     def _ami_question_merge_key(resume_key: str, metrics: dict[str, Any]) -> str:
         rk = str(resume_key or "").strip()
+        if rk.startswith("ai:practice_log_analysis:"):
+            return rk
         if rk.startswith("ai:question:"):
             return rk
         q = str(metrics.get("question") or "").strip()
@@ -1401,16 +1497,17 @@ def build_project_continue_cards(
             continue
         button_label = "Continue"
         card_title, card_subtitle = title, subtitle
-        if str(resume_key).startswith("ai:question:"):
+        if _is_applied_intelligence_resume_key(str(resume_key)):
             card_title, card_subtitle, button_label = analytical_question_continue_copy(
                 {
                     "source_app": metrics.get("source_app") or "",
                     "question": metrics.get("question") or card_subtitle,
                     "context": metrics.get("context") if isinstance(metrics.get("context"), dict) else {},
+                    "context_summary": metrics.get("context_summary"),
                 }
             )
         try:
-            if str(resume_key).startswith("ai:question:"):
+            if _is_applied_intelligence_resume_key(str(resume_key)):
                 deep = _applied_math_continue_action_url(
                     resume_key,
                     page,
@@ -1431,7 +1528,7 @@ def build_project_continue_cards(
                 card_app = app
         except Exception:
             deep = ""
-            card_app = app if not str(resume_key).startswith("ai:question:") else "applied_intelligence"
+            card_app = app if not _is_applied_intelligence_resume_key(str(resume_key)) else "applied_intelligence"
         card = ContinueCard(
             app_key=card_app,
             app_name=meta[card_app]["name"],
@@ -1441,7 +1538,7 @@ def build_project_continue_cards(
             emoji=themes.get(app, "▶"),
             button_label=button_label,
         )
-        if str(resume_key).startswith("ai:question:"):
+        if _is_applied_intelligence_resume_key(str(resume_key)):
             merge_key = _ami_question_merge_key(resume_key, metrics)
         elif app == "music":
             merge_key = _continue_merge_key(app, resume_key, metrics)
@@ -1461,7 +1558,7 @@ def build_project_continue_cards(
         item_ts = _parse_ts(item.updated_at) or datetime.min
         if _stale(item_ts):
             continue
-        button_label = ANALYTICAL_QUESTION_BUTTON_LABEL if item.item_key.startswith("ai:question:") else "Continue"
+        button_label = ANALYTICAL_QUESTION_BUTTON_LABEL if _is_applied_intelligence_resume_key(item.item_key) else "Continue"
         card_title, card_subtitle = title, subtitle
         try:
             from suite_deep_links import build_resume_action_url, resume_metrics_from_item_key
@@ -1473,7 +1570,7 @@ def build_project_continue_cards(
             )
             if item.app == "music" and item.title.lower().startswith("continue:"):
                 metrics.setdefault("song", item.title.split(":", 1)[-1].strip())
-            if item.item_key.startswith("ai:question:"):
+            if _is_applied_intelligence_resume_key(item.item_key):
                 from suite_analytical_question import analytical_question_continue_copy
 
                 card_title, card_subtitle, button_label = analytical_question_continue_copy(
@@ -1481,9 +1578,10 @@ def build_project_continue_cards(
                         "source_app": metrics.get("source_app") or "",
                         "question": metrics.get("question") or subtitle,
                         "context": metrics.get("context") if isinstance(metrics.get("context"), dict) else {},
+                        "context_summary": metrics.get("context_summary"),
                     }
                 )
-            if item.item_key.startswith("ai:question:"):
+            if _is_applied_intelligence_resume_key(item.item_key):
                 deep = _applied_math_continue_action_url(
                     item.item_key,
                     page_hint,
@@ -1507,7 +1605,7 @@ def build_project_continue_cards(
             deep = ""
             card_app = (
                 "applied_intelligence"
-                if str(item.item_key).startswith("ai:question:")
+                if _is_applied_intelligence_resume_key(str(item.item_key))
                 else item.app
             )
         url = deep or (item.action_url or "").strip() or meta[card_app]["url"]
@@ -1520,7 +1618,7 @@ def build_project_continue_cards(
             emoji=themes.get(item.app, "▶"),
             button_label=button_label,
         )
-        if item.item_key.startswith("ai:question:"):
+        if _is_applied_intelligence_resume_key(str(item.item_key)):
             merge_key = _ami_question_merge_key(item.item_key, metrics)
         elif item.app == "music":
             merge_key = _continue_merge_key(item.app, item.item_key, metrics)

@@ -27,7 +27,7 @@ def _app_meta() -> dict[str, dict[str, str]]:
 def load_recent_ami_questions(limit: int = 8) -> list[RecentAmiQuestion]:
     """Return recent analytical questions across suite apps (newest first)."""
     from project_intelligence import _applied_math_continue_action_url
-    from suite_analytical_question import source_app_label
+    from suite_analytical_question import is_practice_log_analysis_context, source_app_label
     from suite_deep_links import resume_metrics_from_item_key
     from suite_storage import load_active_resume_items
 
@@ -37,18 +37,29 @@ def load_recent_ami_questions(limit: int = 8) -> list[RecentAmiQuestion]:
     fetch_limit = max(limit * 3, 24)
 
     for item in load_active_resume_items(limit=fetch_limit):
-        if not str(item.item_key or "").startswith("ai:question:"):
+        item_key = str(item.item_key or "")
+        if item_key.startswith("ai:practice_log_analysis:"):
             continue
-        qid = str(item.item_key).rsplit(":", 1)[-1].strip()
+        if not item_key.startswith("ai:question:"):
+            continue
+        qid = item_key.rsplit(":", 1)[-1].strip()
         if not qid or qid in seen_qids:
             continue
-        seen_qids.add(qid)
 
         _, metrics = resume_metrics_from_item_key(
             "applied_intelligence",
             item.item_key,
             subtitle=item.subtitle,
         )
+        ctx = metrics.get("context") if isinstance(metrics.get("context"), dict) else {}
+        if is_practice_log_analysis_context(ctx):
+            continue
+        if str(metrics.get("handoff_kind") or "") == "practice_log_analysis":
+            continue
+        if str(metrics.get("display_category") or "") == "analysis_handoff":
+            continue
+
+        seen_qids.add(qid)
         source_app = str(metrics.get("source_app") or "").strip() or "applied_intelligence"
         question = str(metrics.get("question") or "").strip()
         if not question:
