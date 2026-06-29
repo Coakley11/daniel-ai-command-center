@@ -203,6 +203,18 @@ def render_global_workspace_badge(st: Any) -> None:
     ws = get_active_workspace_id(st)
     label = workspace_label(ws)
     accent = "#6366f1" if ws == DEFAULT_WORKSPACE_ID else "#0ea5e9"
+    show_id = False
+    try:
+        from suite_workspace import can_show_developer_tools
+
+        show_id = can_show_developer_tools(st=st)
+    except ImportError:
+        show_id = False
+    id_line = (
+        f'<div style="font-size:0.78rem;color:#64748b;margin-top:0.2rem;">id: <code>{ws}</code></div>'
+        if show_id
+        else ""
+    )
     st.markdown(
         f"""
         <div style="
@@ -218,13 +230,56 @@ def render_global_workspace_badge(st: Any) -> None:
             <div style="font-size:1.05rem;font-weight:800;color:#0f172a;margin-top:0.15rem;">
                 {label}
             </div>
-            <div style="font-size:0.78rem;color:#64748b;margin-top:0.2rem;">
-                id: <code>{ws}</code>
-            </div>
+            {id_line}
         </div>
         """,
         unsafe_allow_html=True,
     )
+
+
+def render_user_account_access(st: Any, *, for_homepage: bool = False) -> None:
+    """Normal-mode account access — sign-in prompt and optional settings, no technical diagnostics."""
+    init_suite_workspace(st)
+    ctx = build_account_settings_context(st=st)
+    for issue in detect_workspace_namespace_issues(st=st):
+        severity = str(issue.get("severity") or "warning").strip()
+        title = str(issue.get("title") or "Workspace notice").strip()
+        detail = str(issue.get("detail") or "").strip()
+        if not detail:
+            continue
+        text = f"**{title}** — {detail}"
+        if severity == "error":
+            st.error(text)
+        elif severity == "info":
+            st.info(text)
+        else:
+            st.warning(text)
+
+    try:
+        from suite_auth import is_auth_enabled, is_authenticated, render_auth_panel
+
+        auth_on = is_auth_enabled()
+        signed_in = is_authenticated(st.session_state)
+    except ImportError:
+        auth_on = False
+        signed_in = True
+
+    if auth_on and not signed_in:
+        st.info("Sign in to sync your suite data across devices.")
+        render_auth_panel(st, expanded=True)
+        return
+
+    if not for_homepage:
+        return
+
+    with st.expander("Account settings", expanded=False):
+        display = str(ctx.get("display_name") or ctx.get("email_display") or "").strip()
+        if display and display != "(not configured — set suite_user_email in secrets)":
+            st.markdown(f"Signed in as **{display}**")
+        if ctx.get("password_auth_available"):
+            render_auth_panel(st, expanded=True)
+        else:
+            st.caption("This deployment uses shared suite profile settings.")
 
 
 def render_account_settings_panel(st: Any, *, expanded: bool = False, show_title: bool = True) -> None:

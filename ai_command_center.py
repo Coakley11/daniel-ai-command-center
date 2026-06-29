@@ -455,7 +455,17 @@ def _render_practice_log_continue_debug(cards: list[ContinueCard]) -> None:
         st.text(f"displayed generated_at: {metrics.get('report_generated_at') or metrics.get('activity_sort_at') or ''}")
         st.text(f"source table/record id: {getattr(item, 'item_key', '') if item else 'continue_card_merge'}")
         st.text(f"action_url: {(card.action_url if card else item.action_url if item else '')}")
-        st.text(f"context blob id/path: {metrics.get('analysis_run_id') or metrics.get('question_id') or ''}")
+        ami_insight = metrics.get("ami_insight") or ""
+        if not ami_insight and (card or item):
+            url = (card.action_url if card else item.action_url if item else "")
+            try:
+                from urllib.parse import parse_qs, urlparse
+
+                qs = parse_qs(urlparse(str(url)).query)
+                ami_insight = str((qs.get("suite_ami_insight") or [""])[0] or "")
+            except Exception:
+                ami_insight = ""
+        st.text(f"context/insight id: {ami_insight or metrics.get('analysis_run_id') or ''}")
         st.text(f"updated_at: {getattr(item, 'updated_at', '') if item else ''}")
         st.text(f"created_at: n/a (resume items track updated_at only)")
         st.text(
@@ -797,7 +807,13 @@ with st.sidebar:
             command_center_divider=False,
         )
         render_workspace_selector_sidebar(st)
-        st.caption("Account & workspace details are on the homepage below the welcome banner.")
+        try:
+            from suite_workspace import can_show_developer_tools
+
+            if can_show_developer_tools(st=st):
+                st.caption("Account & workspace details are on the homepage below the welcome banner.")
+        except ImportError:
+            pass
     except ImportError:
         try:
             from suite_account_settings import render_global_workspace_badge
@@ -830,9 +846,13 @@ connections = _cached_connections()
 
 _render_hero(snapshot)
 try:
-    from suite_account_settings import render_account_settings_panel
+    from suite_account_settings import render_account_settings_panel, render_user_account_access
+    from suite_workspace import can_show_developer_tools
 
-    render_account_settings_panel(st, expanded=False, show_title=False)
+    if can_show_developer_tools(st=st):
+        render_account_settings_panel(st, expanded=False, show_title=False)
+    else:
+        render_user_account_access(st, for_homepage=True)
 except ImportError:
     pass
 if can_show_developer_tools(st=st):

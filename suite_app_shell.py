@@ -65,21 +65,32 @@ def render_suite_sidebar_account_shell(
     if top_divider:
         st.sidebar.divider()
 
-    render_suite_namespace_notices(st)
+    try:
+        from suite_workspace import can_show_developer_tools
+
+        if can_show_developer_tools(st=st):
+            render_suite_namespace_notices(st)
+    except ImportError:
+        render_suite_namespace_notices(st)
 
     try:
         from suite_account_settings import (
             render_account_settings_panel,
             render_global_workspace_badge,
+            render_user_account_access,
         )
+        from suite_workspace import can_show_developer_tools
 
         render_global_workspace_badge(st)
         if show_account_panel:
-            render_account_settings_panel(
-                st,
-                expanded=account_panel_expanded,
-                show_title=True,
-            )
+            if can_show_developer_tools(st=st):
+                render_account_settings_panel(
+                    st,
+                    expanded=account_panel_expanded,
+                    show_title=True,
+                )
+            else:
+                render_user_account_access(st)
     except ImportError:
         st.sidebar.caption("Account settings module unavailable on this deploy.")
 
