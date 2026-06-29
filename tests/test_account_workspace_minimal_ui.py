@@ -31,12 +31,12 @@ class TestAccountWorkspaceMinimalUi(unittest.TestCase):
         label = ui.expander.call_args[0][0]
         self.assertIn("Account & Workspace", label)
         self.assertIn("Daniel", label)
-        ui.markdown.assert_called()
-        markdown_text = " ".join(str(call.args[0]) for call in ui.markdown.call_args_list)
-        self.assertIn("Signed in:", markdown_text)
+        st.markdown.assert_called()
+        markdown_text = " ".join(str(call.args[0]) for call in st.markdown.call_args_list)
+        self.assertIn("Signed in as", markdown_text)
         self.assertIn("DanielCohen11@yahoo.com", markdown_text)
         self.assertNotIn("Active workspace", markdown_text)
-        ui.button.assert_called_once()
+        st.button.assert_called_once()
 
     def test_dev_mode_uses_full_settings_panel(self) -> None:
         st = MagicMock()
