@@ -46,6 +46,19 @@ def _parse_ts(raw: str) -> datetime | None:
         return None
 
 
+def _handoff_activity_sort_ts(metrics: dict[str, Any], event_ts_raw: str = "") -> datetime:
+    """Prefer report/run timestamps over stale event created_at for handoff cards."""
+    candidates: list[datetime] = []
+    for key in ("activity_sort_at", "report_generated_at"):
+        ts = _parse_ts(str(metrics.get(key) or ""))
+        if ts is not None:
+            candidates.append(ts)
+    event_ts = _parse_ts(event_ts_raw)
+    if event_ts is not None:
+        candidates.append(event_ts)
+    return max(candidates) if candidates else datetime.min
+
+
 def _song(metrics: dict[str, Any]) -> str:
     return str(metrics.get("song") or metrics.get("last_edited_song") or "").strip()
 
@@ -893,18 +906,20 @@ def _projects_from_events(
                 qid = str(m.get("question_id") or "").strip()
                 resume_key = str(m.get("resume_key") or (f"ai:practice_log_analysis:{qid}" if qid else "")).strip()
                 if resume_key:
+                    sort_ts = _handoff_activity_sort_ts(m, ts_raw)
                     m_copy = dict(m)
-                    m_copy["_continue_ts"] = ts_raw
+                    m_copy["_continue_ts"] = sort_ts.isoformat(timespec="seconds")
                     title, subtitle, _ = analytical_question_continue_copy(
                         {
                             "source_app": "music",
                             "question": m.get("question"),
                             "context": ctx,
                             "context_summary": m.get("context_summary"),
+                            "report_generated_at": m.get("report_generated_at") or m.get("activity_sort_at"),
                         }
                     )
                     cand = (
-                        ts,
+                        sort_ts,
                         PRACTICE_LOG_ANALYSIS_CONTINUE_PRIORITY,
                         title,
                         subtitle,
@@ -912,7 +927,7 @@ def _projects_from_events(
                         "Solve a Problem",
                         m_copy,
                     )
-                    if latest_analytical is None or ts >= latest_analytical[0]:
+                    if latest_analytical is None or sort_ts >= latest_analytical[0]:
                         latest_analytical = cand
             continue
 
@@ -1426,6 +1441,7 @@ def _applied_math_continue_action_url(
         or "suite_resume=ai:question" in cont
         or "suite_resume=ai%3Apractice_log_analysis" in cont
         or "suite_resume=ai:practice_log_analysis" in cont
+        or "suite_practice_analysis_run_id=" in cont
     ):
         return cont
     target = "applied_intelligence"
@@ -1555,19 +1571,24 @@ def build_project_continue_cards(
         title, subtitle, priority = _polish_resume(item)
         if _is_passive_music_resume_item(item, title, priority):
             continue
-        item_ts = _parse_ts(item.updated_at) or datetime.min
-        if _stale(item_ts):
-            continue
         button_label = ANALYTICAL_QUESTION_BUTTON_LABEL if _is_applied_intelligence_resume_key(item.item_key) else "Continue"
         card_title, card_subtitle = title, subtitle
+        item_ts = _parse_ts(item.updated_at) or datetime.min
         try:
-            from suite_deep_links import build_resume_action_url, resume_metrics_from_item_key
+            from suite_deep_links import (
+                build_resume_action_url,
+                merge_handoff_metrics_from_action_url,
+                resume_metrics_from_item_key,
+            )
 
             page_hint, metrics = resume_metrics_from_item_key(
                 item.app,
                 item.item_key,
                 subtitle=item.subtitle,
             )
+            metrics = merge_handoff_metrics_from_action_url(metrics, str(item.action_url or ""))
+            if str(item.item_key or "").startswith("ai:practice_log_analysis:"):
+                item_ts = _handoff_activity_sort_ts(metrics, str(item.updated_at or ""))
             if item.app == "music" and item.title.lower().startswith("continue:"):
                 metrics.setdefault("song", item.title.split(":", 1)[-1].strip())
             if _is_applied_intelligence_resume_key(item.item_key):
@@ -1579,8 +1600,11 @@ def build_project_continue_cards(
                         "question": metrics.get("question") or subtitle,
                         "context": metrics.get("context") if isinstance(metrics.get("context"), dict) else {},
                         "context_summary": metrics.get("context_summary"),
+                        "report_generated_at": metrics.get("report_generated_at") or metrics.get("activity_sort_at"),
                     }
                 )
+            if str(item.item_key or "").startswith("ai:practice_log_analysis:") and str(item.subtitle or "").startswith("Updated"):
+                card_subtitle = str(item.subtitle).strip()
             if _is_applied_intelligence_resume_key(item.item_key):
                 deep = _applied_math_continue_action_url(
                     item.item_key,
@@ -1608,6 +1632,8 @@ def build_project_continue_cards(
                 if _is_applied_intelligence_resume_key(str(item.item_key))
                 else item.app
             )
+        if _stale(item_ts):
+            continue
         url = deep or (item.action_url or "").strip() or meta[card_app]["url"]
         card = ContinueCard(
             app_key=card_app,

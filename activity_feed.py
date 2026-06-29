@@ -310,6 +310,13 @@ def format_activity_message(event: dict[str, Any], *, for_feed: bool = True) -> 
     if for_feed and (app, event_type) in FEED_SUPPRESSED:
         return None
 
+    if event_type == "practice_log_analysis" and app == "music":
+        title = str(m.get("handoff_title") or "Music Practice Log Analysis").strip()
+        generated = str(m.get("report_generated_at") or m.get("activity_sort_at") or "").strip()
+        if generated:
+            return f"{title} — updated {generated[:19].replace('T', ' ')}"
+        return title
+
     if event_type == "practice" and app == "music":
         song = str(m.get("song") or "").strip()
         mins = m.get("minutes")

@@ -16,7 +16,7 @@ Query params (read by suite_resume_launch in each app):
 from __future__ import annotations
 
 from typing import Any
-from urllib.parse import quote, urlencode
+from urllib.parse import parse_qs, quote, urlencode, urlparse
 
 from suite_workspace import append_suite_workspace_param, normalize_workspace_id, resolve_workspace_id
 
@@ -435,8 +435,18 @@ def resume_metrics_from_item_key(app: str, item_key: str, *, subtitle: str = "")
                 metrics.setdefault("source_app", "music")
                 metrics.setdefault("handoff_kind", "practice_log_analysis")
                 metrics.setdefault("display_category", "analysis_handoff")
+                metrics.setdefault(
+                    "context",
+                    {
+                        "user_request": "analyze_practice",
+                        "handoff_kind": "practice_log_analysis",
+                        "display_category": "analysis_handoff",
+                    },
+                )
             if subtitle:
-                if "__ctx_json__:" in subtitle:
+                if key.startswith("ai:practice_log_analysis:") and subtitle.startswith("Updated"):
+                    metrics["context_summary"] = subtitle
+                elif "__ctx_json__:" in subtitle:
                     q_part, _, ctx_part = subtitle.partition("\n__ctx_json__:")
                     metrics["question"] = q_part.strip()
                     try:
@@ -461,7 +471,7 @@ def resume_metrics_from_item_key(app: str, item_key: str, *, subtitle: str = "")
                     first_line, _, rest = subtitle.partition("\n")
                     metrics["question"] = first_line.replace("Question:", "", 1).strip()
                     metrics["context_summary"] = rest.strip() or subtitle
-                else:
+                elif not key.startswith("ai:practice_log_analysis:"):
                     metrics["question"] = subtitle.split("\n", 1)[0].strip()[:500]
                     if "\n" in subtitle:
                         metrics["context_summary"] = subtitle
@@ -491,3 +501,26 @@ def resume_metrics_from_item_key(app: str, item_key: str, *, subtitle: str = "")
                         pass
 
     return page, metrics
+
+
+def merge_handoff_metrics_from_action_url(metrics: dict[str, Any], action_url: str) -> dict[str, Any]:
+    """Pull latest handoff ids from stored Continue URLs (practice log analysis)."""
+    out = dict(metrics or {})
+    url = str(action_url or "").strip()
+    if not url:
+        return out
+    try:
+        qs = parse_qs(urlparse(url).query)
+        run_id = str((qs.get("suite_practice_analysis_run_id") or [""])[0] or "").strip()
+        insight = str((qs.get("suite_ami_insight") or [""])[0] or "").strip()
+        qid = str((qs.get("suite_ai_question_id") or [""])[0] or "").strip()
+        if run_id:
+            out["analysis_run_id"] = run_id
+        if insight:
+            out["ami_insight"] = insight
+        if qid:
+            out.setdefault("question_id", qid)
+        out.setdefault("continue_action_url", url)
+    except Exception:
+        pass
+    return out

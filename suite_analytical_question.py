@@ -581,18 +581,71 @@ def format_context_lines(context: dict[str, Any] | None) -> list[str]:
     return lines[:16]
 
 
+def format_practice_analysis_updated_label(generated_at: str) -> str:
+    """Human-readable updated timestamp for Command Center cards."""
+    raw = str(generated_at or "").strip()
+    if not raw:
+        return ""
+    dt = parse_activity_timestamp(raw)
+    if dt is None:
+        return raw[:19].replace("T", " ")
+    return dt.strftime("%Y-%m-%d %I:%M %p")
+
+
+def practice_log_analysis_instrument_song_line(payload: dict[str, Any]) -> str:
+    ctx = dict(payload.get("context") or {})
+    pl = ctx.get("practice_log_summary") if isinstance(ctx.get("practice_log_summary"), dict) else {}
+    top_instrument = str(next(iter(pl.get("practice_time_by_instrument") or {}), "") or "").strip()
+    top_song = str(next(iter(pl.get("practice_time_by_song") or {}), "") or "").strip()
+    inst_display = top_instrument.replace("_", " ").title() if top_instrument else ""
+    if inst_display and top_song:
+        return f"{inst_display} / {top_song}"
+    if inst_display:
+        return inst_display
+    if top_song:
+        return top_song
+    return ""
+
+
+def practice_log_analysis_card_subtitle(payload: dict[str, Any]) -> str:
+    generated = str(
+        payload.get("report_generated_at")
+        or (payload.get("context") or {}).get("report_generated_at")
+        or ""
+    ).strip()
+    updated = format_practice_analysis_updated_label(generated)
+    detail = practice_log_analysis_instrument_song_line(payload)
+    if updated and detail:
+        return f"Updated {updated} — {detail}"
+    if updated:
+        return f"Updated {updated}"
+    if detail:
+        return detail
+    ctx = dict(payload.get("context") or {})
+    pl = ctx.get("practice_log_summary") if isinstance(ctx.get("practice_log_summary"), dict) else {}
+    count = int(pl.get("session_count") or 0)
+    mins = int(pl.get("total_minutes") or 0)
+    if count > 0:
+        return f"{count} session(s), {mins} min logged — review patterns and next focus"
+    return "Practice history analysis from Music Practice Coach"
+
+
+def practice_log_analysis_resume_subtitle(payload: dict[str, Any]) -> str:
+    return practice_log_analysis_card_subtitle(payload)
+
+
 def analytical_question_continue_copy(payload: dict[str, Any]) -> tuple[str, str, str]:
     """Return (title, subtitle, button_label) for Command Center Continue cards."""
     ctx = payload.get("context") if isinstance(payload.get("context"), dict) else {}
     app = normalize_source_app_id(str(payload.get("source_app") or ""), ctx)
     question = str(payload.get("question") or "").strip()
     if is_practice_log_analysis_context(ctx):
-        summary = ctx.get("practice_log_summary") if isinstance(ctx.get("practice_log_summary"), dict) else {}
-        count = int(summary.get("session_count") or 0)
-        mins = int(summary.get("total_minutes") or 0)
-        subtitle = f"{count} session(s), {mins} min logged — review patterns and next focus"
-        if count <= 0:
-            subtitle = "Practice history analysis from Music Practice Coach"
+        card_payload = {
+            "source_app": payload.get("source_app") or app,
+            "context": ctx,
+            "report_generated_at": payload.get("report_generated_at") or ctx.get("report_generated_at"),
+        }
+        subtitle = practice_log_analysis_card_subtitle(card_payload)
         return (PRACTICE_LOG_ANALYSIS_TITLE, subtitle, "Continue Practice Log Analysis →")
     title = source_question_card_title(app, ctx)
     if app == "music":
@@ -602,8 +655,10 @@ def analytical_question_continue_copy(payload: dict[str, Any]) -> tuple[str, str
 
 def analytical_question_storage_subtitle(payload: dict[str, Any]) -> str:
     """Resume-item subtitle for storage/rebuild — question only on CC cards; context stays in metrics/URL."""
-    question = str(payload.get("question") or "").strip()
     ctx = dict(payload.get("context") or {})
+    if is_practice_log_analysis_context(ctx):
+        return practice_log_analysis_resume_subtitle(payload)
+    question = str(payload.get("question") or "").strip()
     ctx_json = json.dumps(ctx, ensure_ascii=False) if ctx else ""
     if ctx_json:
         return f"{question}\n__ctx_json__:{ctx_json[:_CTX_JSON_SUBTITLE_LIMIT]}"

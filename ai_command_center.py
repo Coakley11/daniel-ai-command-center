@@ -424,6 +424,46 @@ def _render_continue_section(snapshot: ActivitySnapshot, cards: list[ContinueCar
                 _render_go_button(btn_label, card.action_url, f"continue_{card.app_key}_{idx}_{group_start}")
 
 
+def _render_practice_log_continue_debug(cards: list[ContinueCard]) -> None:
+    from suite_deep_links import merge_handoff_metrics_from_action_url
+    from suite_storage import load_active_resume_items
+
+    practice_cards = [c for c in cards if c.title == "Music Practice Log Analysis"]
+    resume_items = [
+        item
+        for item in load_active_resume_items(limit=40)
+        if str(getattr(item, "item_key", "") or "").startswith("ai:practice_log_analysis:")
+    ]
+    with st.expander("Dev: Practice Log Analysis Continue card", expanded=False):
+        if not practice_cards and not resume_items:
+            st.caption("No Music Practice Log Analysis card in the current Continue set.")
+            return
+        card = practice_cards[0] if practice_cards else None
+        item = resume_items[0] if resume_items else None
+        metrics: dict[str, Any] = {}
+        if item is not None:
+            try:
+                from suite_deep_links import resume_metrics_from_item_key
+
+                _, metrics = resume_metrics_from_item_key(item.app, item.item_key, subtitle=item.subtitle)
+                metrics = merge_handoff_metrics_from_action_url(metrics, str(item.action_url or ""))
+            except Exception:
+                metrics = {}
+        st.text(f"displayed title: {(card.title if card else item.title if item else '')}")
+        st.text(f"displayed subtitle: {(card.subtitle if card else item.subtitle if item else '')}")
+        st.text(f"displayed analysis_run_id: {metrics.get('analysis_run_id') or ''}")
+        st.text(f"displayed generated_at: {metrics.get('report_generated_at') or metrics.get('activity_sort_at') or ''}")
+        st.text(f"source table/record id: {getattr(item, 'item_key', '') if item else 'continue_card_merge'}")
+        st.text(f"action_url: {(card.action_url if card else item.action_url if item else '')}")
+        st.text(f"context blob id/path: {metrics.get('analysis_run_id') or metrics.get('question_id') or ''}")
+        st.text(f"updated_at: {getattr(item, 'updated_at', '') if item else ''}")
+        st.text(f"created_at: n/a (resume items track updated_at only)")
+        st.text(
+            f"sort key: max(updated_at, report_generated_at, activity_sort_at) "
+            f"→ {metrics.get('activity_sort_at') or metrics.get('report_generated_at') or getattr(item, 'updated_at', '')}"
+        )
+
+
 def _render_recent_ami_questions(questions: list[RecentAmiQuestion]) -> None:
     st.markdown(
         f'<div class="cc-section-title">{SECTION_ICONS["ami"]} Recent AMI Questions</div>',
@@ -798,6 +838,8 @@ except ImportError:
 if can_show_developer_tools(st=st):
     _render_deploy_banner()
 _render_continue_section(snapshot, continue_cards)
+if can_show_developer_tools(st=st):
+    _render_practice_log_continue_debug(continue_cards)
 _render_recent_ami_questions(recent_ami_questions)
 if can_show_developer_tools(st=st):
     _render_raw_baseball_events_table()
