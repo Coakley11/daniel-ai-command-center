@@ -846,13 +846,10 @@ connections = _cached_connections()
 
 _render_hero(snapshot)
 try:
-    from suite_account_settings import render_account_settings_panel, render_user_account_access
+    from suite_account_settings import render_account_workspace_access
     from suite_workspace import can_show_developer_tools
 
-    if can_show_developer_tools(st=st):
-        render_account_settings_panel(st, expanded=False, show_title=False)
-    else:
-        render_user_account_access(st, for_homepage=True)
+    render_account_workspace_access(st, for_homepage=True, sidebar=False)
 except ImportError:
     pass
 if can_show_developer_tools(st=st):

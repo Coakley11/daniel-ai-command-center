@@ -197,8 +197,17 @@ def detect_workspace_namespace_issues(*, st: Any | None = None) -> list[dict[str
     return issues
 
 
-def render_global_workspace_badge(st: Any) -> None:
-    """Prominent sidebar badge — active workspace profile."""
+def _account_ui(st: Any, *, sidebar: bool = False) -> Any:
+    return st.sidebar if sidebar else st
+
+
+def account_workspace_expander_label(ctx: dict[str, Any]) -> str:
+    label = str(ctx.get("active_workspace_label") or "Workspace").strip()
+    return f"Account & Workspace · {label}"
+
+
+def render_global_workspace_badge(st: Any, *, sidebar: bool = True) -> None:
+    """Prominent workspace badge — use inside Account & Workspace tab in normal mode."""
     init_suite_workspace(st)
     ws = get_active_workspace_id(st)
     label = workspace_label(ws)
@@ -215,7 +224,8 @@ def render_global_workspace_badge(st: Any) -> None:
         if show_id
         else ""
     )
-    st.markdown(
+    ui = _account_ui(st, sidebar=sidebar)
+    ui.markdown(
         f"""
         <div style="
             background: linear-gradient(135deg, {accent}22, {accent}11);
@@ -237,23 +247,29 @@ def render_global_workspace_badge(st: Any) -> None:
     )
 
 
-def render_user_account_access(st: Any, *, for_homepage: bool = False) -> None:
-    """Normal-mode account access — sign-in prompt and optional settings, no technical diagnostics."""
+def render_user_account_access(st: Any, *, for_homepage: bool = False, sidebar: bool = False) -> None:
+    """Deprecated alias — use render_account_workspace_access."""
+    render_account_workspace_access(st, for_homepage=for_homepage, sidebar=sidebar)
+
+
+def render_account_workspace_access(
+    st: Any,
+    *,
+    for_homepage: bool = False,
+    sidebar: bool = False,
+    account_panel_expanded: bool = False,
+) -> None:
+    """Collapsed Account & Workspace tab in normal mode; full diagnostics in dev mode."""
     init_suite_workspace(st)
     ctx = build_account_settings_context(st=st)
-    for issue in detect_workspace_namespace_issues(st=st):
-        severity = str(issue.get("severity") or "warning").strip()
-        title = str(issue.get("title") or "Workspace notice").strip()
-        detail = str(issue.get("detail") or "").strip()
-        if not detail:
-            continue
-        text = f"**{title}** — {detail}"
-        if severity == "error":
-            st.error(text)
-        elif severity == "info":
-            st.info(text)
-        else:
-            st.warning(text)
+    ui = _account_ui(st, sidebar=sidebar)
+    dev_mode = False
+    try:
+        from suite_workspace import can_show_developer_tools
+
+        dev_mode = can_show_developer_tools(st=st)
+    except ImportError:
+        pass
 
     try:
         from suite_auth import is_auth_enabled, is_authenticated, render_auth_panel
@@ -265,35 +281,60 @@ def render_user_account_access(st: Any, *, for_homepage: bool = False) -> None:
         signed_in = True
 
     if auth_on and not signed_in:
-        st.info("Sign in to sync your suite data across devices.")
+        ui.info("Sign in to sync your suite data across devices.")
         render_auth_panel(st, expanded=True)
         return
 
-    if not for_homepage:
+    if dev_mode:
+        render_account_settings_panel(
+            st,
+            expanded=account_panel_expanded or dev_mode,
+            show_title=True,
+            sidebar=sidebar,
+        )
         return
 
-    with st.expander("Account settings", expanded=False):
+    header = account_workspace_expander_label(ctx)
+    with ui.expander(header, expanded=False):
+        render_global_workspace_badge(st, sidebar=sidebar)
         display = str(ctx.get("display_name") or ctx.get("email_display") or "").strip()
         if display and display != "(not configured — set suite_user_email in secrets)":
-            st.markdown(f"Signed in as **{display}**")
-        if ctx.get("password_auth_available"):
-            render_auth_panel(st, expanded=True)
-        else:
-            st.caption("This deployment uses shared suite profile settings.")
+            ui.markdown(f"Signed in as **{display}**")
+        elif ctx.get("email_display"):
+            ui.caption(str(ctx.get("email_display")))
+        for issue in detect_workspace_namespace_issues(st=st):
+            if str(issue.get("severity") or "") != "error":
+                continue
+            title = str(issue.get("title") or "Workspace notice").strip()
+            detail = str(issue.get("detail") or "").strip()
+            if detail:
+                ui.error(f"**{title}** — {detail}")
+        if for_homepage or ctx.get("password_auth_available"):
+            if ctx.get("password_auth_available"):
+                render_auth_panel(st, expanded=False)
+            else:
+                ui.caption("This deployment uses shared suite profile settings.")
 
 
-def render_account_settings_panel(st: Any, *, expanded: bool = False, show_title: bool = True) -> None:
+def render_account_settings_panel(
+    st: Any,
+    *,
+    expanded: bool = False,
+    show_title: bool = True,
+    sidebar: bool = False,
+) -> None:
     """User-facing Account Settings — identity, workspace, namespace diagnostics."""
     init_suite_workspace(st)
     ctx = build_account_settings_context(st=st)
     issues = detect_workspace_namespace_issues(st=st)
+    ui = _account_ui(st, sidebar=sidebar)
 
     title = "Account & workspace"
     if show_title:
-        with st.expander(title, expanded=expanded):
+        with ui.expander(title, expanded=expanded):
             _render_account_settings_body(st, ctx, issues)
     else:
-        st.markdown(f"### {title}")
+        ui.markdown(f"### {title}")
         _render_account_settings_body(st, ctx, issues)
 
 
