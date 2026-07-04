@@ -527,9 +527,13 @@ def _sqlite_load_current_states() -> dict[str, dict[str, Any]]:
     return out
 
 
-def _sqlite_load_active_resume_items(limit: int = 8) -> list[ResumeItem]:
+def _sqlite_load_active_resume_items(limit: int = 8, *, app: str | None = None) -> list[ResumeItem]:
     uid = _sqlite_user_id()
-    allowed = sorted(_workspace_storage_keys())
+    if app:
+        scoped = _scoped_storage_app(app)
+        allowed = [scoped] if scoped else []
+    else:
+        allowed = sorted(_workspace_storage_keys())
     if not allowed:
         return []
     ensure_storage()
@@ -742,12 +746,12 @@ def load_current_state_meta_for_app(app: str) -> dict[str, Any]:
     }
 
 
-def load_active_resume_items(limit: int = 8) -> list[ResumeItem]:
+def load_active_resume_items(limit: int = 8, *, app: str | None = None) -> list[ResumeItem]:
     if _use_cloud():
         import suite_storage_supabase as cloud
 
         try:
-            rows = cloud.load_active_resume_items(limit=limit)
+            rows = cloud.load_active_resume_items(limit=limit, app=app)
             return [
                 ResumeItem(
                     app=str(r["app"]),
@@ -760,8 +764,8 @@ def load_active_resume_items(limit: int = 8) -> list[ResumeItem]:
                 for r in rows
             ]
         except Exception:
-            return _sqlite_load_active_resume_items(limit=limit)
-    return _sqlite_load_active_resume_items(limit=limit)
+            return _sqlite_load_active_resume_items(limit=limit, app=app)
+    return _sqlite_load_active_resume_items(limit=limit, app=app)
 
 
 def record_activity(
