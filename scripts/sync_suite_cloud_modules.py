@@ -29,6 +29,7 @@ MODULE_FILES = (
     "suite_egress_trace.py",
     "suite_user_persistence.py",
     "suite_workspace.py",
+    "suite_workspace_registry.py",
     "suite_analytical_question.py",
     "applied_math_return_insight.py",
 )

@@ -73,14 +73,14 @@ st.set_page_config(
 try:
     from suite_workspace import (
         can_show_developer_tools,
+        bootstrap_suite_workspace,
         get_active_workspace_id,
-        init_suite_workspace,
         is_developer_workspace,
         workspace_badge_html,
         workspace_label,
     )
 
-    init_suite_workspace(st)
+    bootstrap_suite_workspace(st)
 except ImportError:
     def workspace_badge_html(_workspace_id: str | None = None) -> str:  # type: ignore[misc]
         return "Profile: Daniel"
