@@ -824,6 +824,13 @@ with st.sidebar:
         )
         render_workspace_selector_sidebar(st)
         try:
+            from suite_workspace import can_show_developer_tools, render_workspace_ownership_diagnostics
+
+            if can_show_developer_tools(st=st):
+                render_workspace_ownership_diagnostics(st, sidebar=True)
+        except ImportError:
+            pass
+        try:
             from suite_workspace import can_show_developer_tools
 
             if can_show_developer_tools(st=st):
