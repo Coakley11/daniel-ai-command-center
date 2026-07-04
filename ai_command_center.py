@@ -698,7 +698,16 @@ def _build_app_card_html(app_key: str, snapshot: ActivitySnapshot) -> str:
 
 def _render_app_card(app_key: str, snapshot: ActivitySnapshot) -> None:
     app = next(a for a in APP_DEFINITIONS if a.key == app_key)
-    url = get_app_url(app.key, workspace_id=get_active_workspace_id(st))
+    if app_key == "music":
+        try:
+            from music_command_center_dashboard import active_workspace_id
+            from suite_deep_links import build_music_workstream_url
+
+            url = build_music_workstream_url("practice", workspace_id=active_workspace_id())
+        except ImportError:
+            url = get_app_url(app.key, workspace_id=get_active_workspace_id(st))
+    else:
+        url = get_app_url(app.key, workspace_id=get_active_workspace_id(st))
     _render_unsafe_html(_build_app_card_html(app_key, snapshot))
     _render_go_button("Open", url, f"app_{app.key}")
 
@@ -719,6 +728,13 @@ def _render_app_directory(snapshot: ActivitySnapshot) -> None:
         for col, key in zip(cols, row_keys):
             with col:
                 _render_app_card(key, snapshot)
+
+    try:
+        from music_command_center_dashboard import render_music_workstreams_section
+
+        render_music_workstreams_section(st, snapshot)
+    except ImportError:
+        pass
 
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -841,6 +857,12 @@ with st.sidebar:
 snapshot = load_activity_snapshot()
 insights = generate_coach_insights(snapshot)
 continue_cards = continue_cards_for_snapshot(snapshot, limit=6)
+try:
+    from music_command_center_dashboard import merge_music_continue_cards
+
+    continue_cards = merge_music_continue_cards(continue_cards, limit=6)
+except ImportError:
+    pass
 recent_ami_questions = load_recent_ami_questions(limit=8)
 connections = _cached_connections()
 

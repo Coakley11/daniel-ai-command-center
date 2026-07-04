@@ -192,6 +192,10 @@ def _is_passive_music_resume_item(item: ResumeItem, title: str, priority: int) -
     """Skip generic song-picker resume rows — Directory owns current song identity."""
     if item.app != "music":
         return False
+    if str(item.item_key or "").startswith("music:"):
+        return False
+    if str(item.action_url or "").find("suite_resume_payload=") >= 0:
+        return False
     blob = f"{item.item_key} {title} {item.subtitle}".lower()
     if any(w in blob for w in ("chord", "chart", "lyrics", "verified", "backing", "upload", "record", "practice")):
         return False
@@ -887,6 +891,14 @@ def _projects_from_events(
 
     for event in events:
         app = str(event.get("app") or "").strip()
+        if app == "music":
+            try:
+                from music_command_center_dashboard import event_matches_active_workspace
+
+                if not event_matches_active_workspace(event):
+                    continue
+            except ImportError:
+                pass
         event_name = str(event.get("event") or "").strip()
         ts_raw = str(event.get("timestamp") or "")
         ts = _parse_ts(ts_raw)
@@ -1532,15 +1544,23 @@ def build_project_continue_cards(
                 )
                 card_app = "applied_intelligence"
             else:
-                from suite_deep_links import build_resume_action_url
+                if app == "music":
+                    from music_command_center_dashboard import resolve_music_continue_action_url
 
-                deep = build_resume_action_url(
-                    app,
-                    resume_key=resume_key,
-                    page=page,
-                    metrics=metrics,
-                    base_url=meta[app]["url"],
-                )
+                    deep = resolve_music_continue_action_url(
+                        metrics,
+                        base_url=meta[app]["url"],
+                    )
+                else:
+                    from suite_deep_links import build_resume_action_url
+
+                    deep = build_resume_action_url(
+                        app,
+                        resume_key=resume_key,
+                        page=page,
+                        metrics=metrics,
+                        base_url=meta[app]["url"],
+                    )
                 card_app = app
         except Exception:
             deep = ""
@@ -1615,15 +1635,24 @@ def build_project_continue_cards(
                 )
                 card_app = "applied_intelligence"
             else:
-                from suite_deep_links import build_resume_action_url
+                if item.app == "music":
+                    from music_command_center_dashboard import resolve_music_continue_action_url
 
-                deep = build_resume_action_url(
-                    item.app,
-                    resume_key=item.item_key,
-                    page=page_hint,
-                    metrics=metrics,
-                    base_url=meta[item.app]["url"],
-                )
+                    deep = resolve_music_continue_action_url(
+                        metrics,
+                        base_url=meta[item.app]["url"],
+                        stored_action_url=str(item.action_url or ""),
+                    )
+                else:
+                    from suite_deep_links import build_resume_action_url
+
+                    deep = build_resume_action_url(
+                        item.app,
+                        resume_key=item.item_key,
+                        page=page_hint,
+                        metrics=metrics,
+                        base_url=meta[item.app]["url"],
+                    )
                 card_app = item.app
         except Exception:
             deep = ""

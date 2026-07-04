@@ -892,7 +892,7 @@ def _apply_music_edit_metrics(snapshot: ActivitySnapshot, metrics: dict[str, Any
     snapshot.has_real_data = True
 
 
-_WORKSPACE_SCOPED_FALLBACK_APPS = frozenset({"nba", "future_lens", "applied_intelligence"})
+_WORKSPACE_SCOPED_FALLBACK_APPS = frozenset({"music", "nba", "future_lens", "applied_intelligence"})
 
 
 def _import_sibling_fallback_events() -> None:
