@@ -28,6 +28,30 @@ DRAFT_ACTIVITY_EVENT_TYPES: frozenset[str] = frozenset(
     }
 )
 
+FANTASY_LIFECYCLE_EVENT_TYPES: frozenset[str] = frozenset(
+    {
+        "trade_offer_sent",
+        "trade_offer_received",
+        "trade_accepted",
+        "trade_declined",
+        "trade_canceled",
+        "trade_expired",
+        "waiver_transaction",
+        "waiver_add",
+        "waiver_drop",
+        "shared_league_created",
+        "shared_league_invite",
+        "team_claimed",
+        "active_draft_changed",
+        "draft_saved",
+        "saved_draft_archived",
+        "saved_draft_activated",
+        "lineup_saved",
+        "lineup_locked",
+        "lineup_review",
+    }
+)
+
 _TABLE_EVENTS = "suite_activity_events"
 _TABLE_RESUME = "suite_resume_items"
 _TABLE_STATE = "suite_app_state"

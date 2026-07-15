@@ -117,6 +117,12 @@ HIGHLIGHT_EVENTS: frozenset[tuple[str, str]] = frozenset(
         ("baseball", "live_draft_created"),
         ("baseball", "trade_analysis"),
         ("baseball", "trade_eval"),
+        ("baseball", "trade_accepted"),
+        ("baseball", "trade_offer_received"),
+        ("baseball", "waiver_transaction"),
+        ("baseball", "lineup_locked"),
+        ("baseball", "shared_league_invite"),
+        ("baseball", "shared_league_created"),
         ("baseball", "projection_report"),
         ("baseball", "roster_built"),
         ("baseball", "roster_build"),
@@ -481,10 +487,42 @@ def format_activity_message(event: dict[str, Any], *, for_feed: bool = True) -> 
         return f"Completed player comparison{f' — {player}' if player else ''}"
 
     if event_type == "lineup_review" and app == "baseball":
-        team = str(m.get("team") or m.get("league") or "").strip()
-        if team:
-            return f"Reviewed fantasy lineup ({team})"
-        return "Reviewed fantasy lineup"
+        from fantasy_workflow_activity import fantasy_activity_message
+
+        return fantasy_activity_message(event_type, m, summary=summary) or (
+            f"Reviewed fantasy lineup ({str(m.get('team') or m.get('league') or '').strip()})"
+            if str(m.get("team") or m.get("league") or "").strip()
+            else "Reviewed fantasy lineup"
+        )
+
+    if app == "baseball" and event_type in {
+        "trade_offer_sent",
+        "trade_offer_received",
+        "trade_accepted",
+        "trade_declined",
+        "trade_canceled",
+        "trade_expired",
+        "waiver_transaction",
+        "waiver_add",
+        "waiver_drop",
+        "waiver_recommendation",
+        "shared_league_created",
+        "shared_league_invite",
+        "shared_league_invite_declined",
+        "team_claimed",
+        "active_draft_changed",
+        "draft_saved",
+        "saved_draft_archived",
+        "saved_draft_activated",
+        "lineup_saved",
+        "lineup_locked",
+        "lineup_reminder",
+    }:
+        from fantasy_workflow_activity import fantasy_activity_message
+
+        line = fantasy_activity_message(event_type, m, summary=summary)
+        if line:
+            return line
 
     if app == "baseball" and event_type in {"trade_eval", "trade_analysis"}:
         trade = str(m.get("trade") or summary or "").strip()
@@ -740,6 +778,21 @@ def _feed_priority(event: dict[str, Any]) -> int:
         "live_draft_pick",
         "trade_eval",
         "trade_analysis",
+        "trade_offer_sent",
+        "trade_offer_received",
+        "trade_accepted",
+        "trade_declined",
+        "trade_canceled",
+        "trade_expired",
+        "waiver_transaction",
+        "waiver_add",
+        "waiver_drop",
+        "shared_league_created",
+        "shared_league_invite",
+        "team_claimed",
+        "active_draft_changed",
+        "lineup_saved",
+        "lineup_locked",
         "projection_report",
         "roster_built",
         "roster_build",
@@ -750,7 +803,9 @@ def _feed_priority(event: dict[str, Any]) -> int:
         "trend_analysis",
         "breakout_analysis",
     }:
-        if event_type in {"draft_analysis_created", "completed_live_draft"}:
+        if event_type in {"draft_analysis_created", "completed_live_draft", "trade_accepted", "lineup_locked"}:
+            return 7
+        if event_type in {"trade_offer_received", "shared_league_invite", "waiver_transaction"}:
             return 7
         if event_type == "draft_analysis_attempted":
             return 6
@@ -825,12 +880,38 @@ def baseball_directory_rank(event_type: str) -> int:
         return 5
     if event_type in {"live_draft_created", "live_draft_pick"}:
         return 4
+    if event_type in {
+        "trade_accepted",
+        "trade_offer_received",
+        "trade_offer_sent",
+        "waiver_transaction",
+        "waiver_recommendation",
+        "lineup_locked",
+        "lineup_saved",
+        "shared_league_created",
+        "shared_league_invite",
+        "team_claimed",
+    }:
+        return 4
     if event_type == "draft_prep":
         return 3
-    if event_type in {"trade_eval", "trade_analysis", "projection_report"}:
+    if event_type in {
+        "trade_eval",
+        "trade_analysis",
+        "projection_report",
+        "lineup_saved",
+        "active_draft_changed",
+        "saved_draft_activated",
+    }:
         return 2
     return 0
 
+
+def baseball_directory_chip_line(event_type: str, metrics: dict[str, Any] | None = None) -> str:
+    """Prefer short identity chips for App Directory over full activity sentences."""
+    from fantasy_workflow_activity import baseball_directory_chip
+
+    return baseball_directory_chip(event_type, metrics)
 
 def music_directory_rank(event_type: str) -> int:
     """Higher rank wins on App Directory card (passive opens are lowest)."""

@@ -1,6 +1,6 @@
 # Completed Features — Daniel AI Command Center
 
-**Last updated:** 2026-06-21
+**Last updated:** 2026-07-14
 
 ---
 
@@ -29,6 +29,42 @@ Historical record of shipped Command Center and shared-suite infrastructure capa
 ---
 
 # Completed Features
+
+### Command Center fantasy workflow hub (2026-07-14)
+
+- [x] Continue / Activity / App Directory separation for fantasy lifecycle events
+- [x] Deep links: Trade Center, Waiver Wire, Lineup week, Shared League invite/library
+- [x] Baseball emitters: trades, waivers, lineup save/lock, shared league create/invite/claim
+- [x] Trade offer Continue superseded by Trade Accepted for same proposal_id
+
+### Baseball in-season polish before CC pivot (2026-07-14, `baseball-stat-app`)
+
+- [x] Shared-league Trade Center ownership (`my_team` from firm claims)
+- [x] Current Live Draft session bind (no stale AASEN5 auto-restore)
+- [x] Waiver Wire true free agents only + league position filtering
+- [x] Lineup add targets from FA pool / personalized needs
+
+### Baseball Draft Assistant performance slice 1 (2026-07-06)
+
+- [x] Deferred Draft Assistant settings persist (`draft_assistant_setup_persist.py`) — dirty flag; flush on page leave / 3s debounce
+- [x] Scoring cache key extended with pool revision, board revision, window, style, format
+- [x] Why-this-pick session cache (`enrich_draft_assistant_recs_with_why`)
+- [x] Baseline profile: settings on_change 978ms→16ms; why-text cached 501ms→0.2ms (`9c6da75`)
+
+### Baseball Saved Draft Library persistence stabilization (2026-07-05)
+
+- [x] Saved Draft Library crash fix (`page_label_fn` scope) deployed to `baseball-stat-app` `dev`.
+- [x] Save Active Draft workflow verified from user perspective: saved drafts appear in library, survive refresh/reboot, and Active Draft can restore.
+- [x] Demo/local restore priority adjusted so disk can win over stale cloud; persistence is no longer P0 unless drafts disappear.
+- [x] Saved Draft Library UX reorganized into Active Draft, Fantasy Context Sync, and Saved Drafts sections with simplified cards/actions.
+- [x] Remaining save/restore inconsistencies classified as diagnostic/reporting cleanup, not active persistence blocker.
+
+### Baseball Fantasy League Context v1 design + implementation plan (2026-07-04)
+
+- [x] Captured design plan for converting Saved Draft Library into a league-context foundation (`baseball-stat-app/docs/FANTASY_LEAGUE_CONTEXT_V1.md`).
+- [x] Documented data model, `league_rosters`, ownership map, active league selection, saved draft migration, standings integration, per-context trade/acquire targets, future add/drop target storage, and Waiver Wire dependency.
+- [x] Full phased implementation plan with PR slices FLC-1 through FLC-5 (`baseball-stat-app/docs/FANTASY_LEAGUE_CONTEXT_V1_IMPLEMENTATION_PLAN.md`).
+- [x] Sprint started; Phase 1 (model + migration) active in `baseball-stat-app` `dev`.
 
 ### AMI persistence & workspace sync (2026-06-19)
 

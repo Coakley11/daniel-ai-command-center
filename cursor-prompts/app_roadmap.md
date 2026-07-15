@@ -1,6 +1,6 @@
 # Daniel AI Command Center — Master Roadmap
 
-**Last updated:** 2026-06-21 · **Branch:** `dev` · **Entry app:** `ai_command_center.py` · **Build:** `2026-06-03-v30`
+**Last updated:** 2026-07-14 · **Branch:** `dev` · **Entry app:** `ai_command_center.py` · **Build:** `2026-06-03-v30`
 
 This is the master planning document. Related files:
 
@@ -24,37 +24,31 @@ This is the master planning document. Related files:
 
 # Current Priorities
 
-**Confirmed sequence (2026-06-21, revised):** Finish **Account / Workspace phase** (Settings in all apps → workspace polish → **Real Accounts foundation** → persistence validation) → **then** AMI Real Problem Importer (scaffolding first). Kalshi coach and template library follow Importer MVP. Live Draft Room remains after Real Accounts stable.
+**Confirmed sequence (2026-07-14):** **Command Center fantasy workflow hub** is active — wire Continue / Activity / App Directory to shared leagues, trades, waivers, lineups, and Live Draft while Baseball feature work is paused. Account/Workspace gate and AMI Importer remain queued behind that hub work only where they block persistence isolation.
 
-**Plan:** [plans/2026-06-21-account-workspace-phase-completion.md](./plans/2026-06-21-account-workspace-phase-completion.md)
+**Plan:** [plans/2026-07-14-command-center-fantasy-workflow.md](./plans/2026-07-14-command-center-fantasy-workflow.md)
 
-1. **Account Settings Sprint B** — ✅ code shipped; manual A1–A4 + deploy sync pending.
-2. **Workspace polish (P1b)** — ✅ audit helpers + deep-link fix; manual W1–W8 pending.
-3. **Real Accounts foundation (Sprint C)** — ✅ scaffolding shipped (`suite_auth.py`, auth gate); enable on prod + C1–C5 pending.
-4. **Persistence validation (Sprint D)** — acceptance doc ready; matrix execution pending.
-5. **AMI Real Problem Importer (Phase 0 scaffolding → MVP)** — **blocked** until steps 1–4 exit criteria pass.
-6. **Kalshi / prediction-market coach** — after Importer MVP.
-7. **More real-life templates** — universal routing registry (car purchase, job offers, …).
-8. **AMI Baseball Draft Intelligence** — deferred until Importer v1 or narrow draft fixes.
-9. **Live Draft Room** — Phase 3+ after Real Accounts stable (unchanged).
+1. **CC Fantasy Continue / Activity / Directory** — taxonomy, deep links, emitters, tests (**active**).
+2. **Account Settings Sprint B** — code shipped; manual A1–A4 + deploy sync pending.
+3. **Real Accounts / Persistence validation** — scaffolding shipped; matrix execution pending.
+4. **AMI Real Problem Importer** — blocked until Account/Workspace exit criteria pass.
+5. **Baseball polish** — paused (timer, chat, tutorial); in-season FA/waiver ownership shipped mid-July.
 
 ---
 
 # Next Features
 
-### Active (approved order — gate Importer until Account/Workspace complete)
+### Active (Command Center — Fantasy Workflow Hub)
 
-- **Account Settings Sprint B** — code complete; deploy sync + manual sign-off pending
-- **Real Accounts foundation** — scaffolding complete; enable `SUITE_AUTH_ENABLED` + manual C1–C5
-- **Persistence validation matrix** — execute `docs/SUITE_ACCOUNT_WORKSPACE_ACCEPTANCE.md`
-- **AMI Importer Phase 0** — architecture only (after Sprint D gate): `decision_templates`, `decision_router`, `decision_math`, `decision_registry`
-- **AMI Importer MVP** — Kalshi-style prediction-market import (paste/CSV/manual) → Betting/EV section with implied prob, break-even, EV, edge, risk/reward, position size; educational disclaimer
-- **Universal decision router** — car/lease, job offers, consumer purchase, business C/B, trade/risk-reward, treatment/risk-benefit (registry entries after MVP)
+- [x] Continue / Activity / Directory taxonomy + deep links + Baseball emitters (2026-07-14)
+- Manual verify: trade offer → accept supersede; waiver/invite/lineup Continue cards across Daniel vs coakley11
+- Plan: [plans/2026-07-14-command-center-fantasy-workflow.md](./plans/2026-07-14-command-center-fantasy-workflow.md)
 
-### Queued (do not start yet)
+### Paused (Baseball — return later)
 
-- **Phase 3 — Simple Live Draft Room v1** — room code, join room, shared board/picks/rosters/**clock** (after Real Accounts stable)
-- **Phase 4 — Advanced Live Draft Room** — private queues/notes/AMI, permissions, reconnect, conflict prevention, team-specific intelligence. Shared vs private state split enforced.
+- Live Draft timer/chat/tutorial polish
+- Remaining Draft Reliability checklist items
+- Plans remain under `plans/2026-07-06-*` and `plans/2026-07-08-*`
 
 ### Near-term (parallel where safe)
 
@@ -167,6 +161,7 @@ Rendered top-to-bottom in `ai_command_center.py`:
 | Connection probe timeouts | App registry | `verify_connections()` HTTP GET can false-negative |
 | Sibling apps out of sync | Shared modules | Must run `sync_suite_cloud_modules.py` manually |
 | Baseball pages without canonical state | Baseball | Only Trend + Comparison have full ownership modules; 12 pages on generic `page_state` |
+| Baseball diagnostics can over-report save/restore issues | Baseball | Persistence appears stable; diagnostic cleanup is P2 unless drafts disappear |
 | Reset button hidden if import fails | Sibling apps | `try/except: pass` in app entrypoints |
 
 ---

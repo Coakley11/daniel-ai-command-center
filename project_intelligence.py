@@ -300,6 +300,25 @@ _MEANINGFUL_WORKFLOW_EVENTS = frozenset(
         "live_draft_pick",
         "trade_eval",
         "trade_analysis",
+        "trade_offer_sent",
+        "trade_offer_received",
+        "trade_accepted",
+        "trade_declined",
+        "trade_canceled",
+        "trade_expired",
+        "waiver_recommendation",
+        "shared_league_created",
+        "shared_league_invite",
+        "shared_league_invite_declined",
+        "team_claimed",
+        "active_draft_changed",
+        "draft_saved",
+        "saved_draft_archived",
+        "saved_draft_activated",
+        "lineup_reminder",
+        "lineup_saved",
+        "lineup_locked",
+        "lineup_review",
         "breakout_analysis",
         "portfolio_health_checked",
         "portfolio_check",
@@ -497,6 +516,39 @@ def _raw_event_workflow_candidate(event: dict[str, Any]) -> dict[str, Any] | Non
             resume_key = "bb:trade"
             priority = 54
             title = "Review trade analysis"
+        elif event_name in {
+            "trade_offer_sent",
+            "trade_offer_received",
+            "trade_accepted",
+            "trade_declined",
+            "trade_canceled",
+            "trade_expired",
+            "waiver_recommendation",
+            "shared_league_created",
+            "shared_league_invite",
+            "team_claimed",
+            "active_draft_changed",
+            "draft_saved",
+            "saved_draft_archived",
+            "saved_draft_activated",
+            "lineup_reminder",
+            "lineup_saved",
+            "lineup_locked",
+            "lineup_review",
+        }:
+            from fantasy_workflow_activity import (
+                fantasy_continue_copy,
+                fantasy_resume_key,
+                is_fantasy_continue_eligible,
+            )
+
+            # Candidate path has no full lifecycle scan; still block Activity-only types.
+            if not is_fantasy_continue_eligible(event_name, m):
+                return None
+            title, _subtitle, priority = fantasy_continue_copy(event_name, m)
+            resume_key = fantasy_resume_key(event_name, m) or resume_key
+            if not resume_key:
+                return None
         elif event_name == "breakout_analysis":
             resume_key = "baseball:breakouts"
             priority = 35
@@ -860,6 +912,19 @@ def _projects_from_events(
     out: list[tuple[int, str, str, str, str, str, dict[str, Any]]] = []
     events = sorted(load_all_events(), key=lambda e: str(e.get("timestamp") or ""), reverse=True)
 
+    from fantasy_workflow_activity import (
+        TRADE_TERMINAL_EVENTS,
+        collect_fantasy_lifecycle_sets,
+        proposal_id_from_event,
+    )
+
+    lifecycle = collect_fantasy_lifecycle_sets(events)
+    terminal_trade_ids = lifecycle["terminal_trades"]
+    resolved_invite_ids = lifecycle["resolved_invites"]
+    completed_waiver_leagues = lifecycle["completed_waivers"]
+    completed_lineup_weeks = lifecycle["completed_lineups"]
+    del TRADE_TERMINAL_EVENTS, proposal_id_from_event  # used only via collect_*
+
     song_state: dict[str, dict[str, datetime | None]] = {}
     song_metrics: dict[str, dict[str, Any]] = {}
     inv_health: datetime | None = None
@@ -1164,6 +1229,53 @@ def _projects_from_events(
                 )
                 if latest_baseball_workflow is None or ts >= latest_baseball_workflow[0]:
                     latest_baseball_workflow = cand
+            elif event_name in {
+                "trade_offer_sent",
+                "trade_offer_received",
+                "trade_accepted",
+                "trade_declined",
+                "trade_canceled",
+                "trade_expired",
+                "waiver_recommendation",
+                "shared_league_created",
+                "shared_league_invite",
+                "team_claimed",
+                "active_draft_changed",
+                "draft_saved",
+                "saved_draft_archived",
+                "saved_draft_activated",
+                "lineup_reminder",
+                "lineup_saved",
+                "lineup_locked",
+                "lineup_review",
+            }:
+                from fantasy_workflow_activity import (
+                    fantasy_continue_copy,
+                    fantasy_resume_key,
+                    fantasy_resume_page,
+                    is_fantasy_continue_eligible,
+                )
+
+                if not is_fantasy_continue_eligible(
+                    event_name,
+                    m,
+                    terminal_trades=terminal_trade_ids,
+                    resolved_invites=resolved_invite_ids,
+                    completed_waivers=completed_waiver_leagues,
+                    completed_lineups=completed_lineup_weeks,
+                ):
+                    pass
+                else:
+                    title, subtitle, pri = fantasy_continue_copy(event_name, m)
+                    rk = fantasy_resume_key(event_name, m)
+                    page = fantasy_resume_page(event_name)
+                    if rk:
+                        payload = dict(m)
+                        payload["event"] = event_name
+                        payload["activity_type"] = event_name
+                        cand = (ts, pri, title, subtitle, rk, page, payload)
+                        if latest_baseball_workflow is None or ts >= latest_baseball_workflow[0]:
+                            latest_baseball_workflow = cand
             elif event_name in {
                 "projection_report",
                 "comparison",
@@ -1578,6 +1690,15 @@ def build_project_continue_cards(
             merge_key = _ami_question_merge_key(resume_key, metrics)
         elif app == "music":
             merge_key = _continue_merge_key(app, resume_key, metrics)
+        elif app == "baseball":
+            from fantasy_workflow_activity import fantasy_continue_merge_key
+
+            event_hint = str(metrics.get("activity_type") or metrics.get("event") or "").strip()
+            merge_key = fantasy_continue_merge_key(event_hint, metrics) if event_hint else (
+                str(resume_key or "").strip() or f"{app}:unknown"
+            )
+            if not merge_key:
+                merge_key = str(resume_key or "").strip() or f"{app}:unknown"
         else:
             merge_key = str(resume_key or "").strip() or f"{app}:unknown"
         prev = merged.get(merge_key)

@@ -22,6 +22,13 @@ MILESTONE_EVENTS: frozenset[tuple[str, str]] = frozenset(
         ("baseball", "live_draft_created"),
         ("baseball", "trade_eval"),
         ("baseball", "trade_analysis"),
+        ("baseball", "trade_accepted"),
+        ("baseball", "trade_offer_received"),
+        ("baseball", "waiver_transaction"),
+        ("baseball", "lineup_locked"),
+        ("baseball", "shared_league_created"),
+        ("baseball", "shared_league_invite"),
+        ("baseball", "team_claimed"),
         ("baseball", "sleeper_review"),
         ("baseball", "sleeper_research"),
         ("baseball", "roster_built"),
@@ -74,8 +81,31 @@ def activity_action_id(event: dict[str, Any]) -> str | None:
     if app == "baseball":
         if et in ("comparison", "player_comparison"):
             return "player_comparison"
-        if et in ("trade_eval", "trade_analysis"):
-            return "trade_analysis"
+        if et in (
+            "trade_eval",
+            "trade_analysis",
+            "trade_offer_sent",
+            "trade_offer_received",
+            "trade_accepted",
+            "trade_declined",
+            "trade_canceled",
+            "trade_expired",
+        ):
+            return "trade_lifecycle"
+        if et in ("waiver_transaction", "waiver_add", "waiver_drop"):
+            return "waiver_transaction"
+        if et in ("lineup_saved", "lineup_locked", "lineup_review"):
+            return "lineup_management"
+        if et in (
+            "shared_league_created",
+            "shared_league_invite",
+            "team_claimed",
+            "active_draft_changed",
+            "draft_saved",
+            "saved_draft_archived",
+            "saved_draft_activated",
+        ):
+            return "shared_league"
         if et == "draft_prep":
             return "draft_prep"
         if et == "analytical_question" and "draft" in page:
@@ -126,6 +156,10 @@ ACTION_LABELS: dict[tuple[str, str], str] = {
     ("investment", "goal_selected"): "Investment goal selected",
     ("baseball", "player_comparison"): "Player Comparison",
     ("baseball", "trade_analysis"): "Trade Analysis",
+    ("baseball", "trade_lifecycle"): "Fantasy Trade Management",
+    ("baseball", "waiver_transaction"): "Waiver Wire",
+    ("baseball", "lineup_management"): "Fantasy Lineup",
+    ("baseball", "shared_league"): "Shared Leagues",
     ("baseball", "draft_prep"): "Draft prep",
     ("baseball", "draft_question"): "Draft Recommendations Viewed",
     ("baseball", "sleeper_analysis"): "Sleeper Analysis",

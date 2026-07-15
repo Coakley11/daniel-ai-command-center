@@ -1,10 +1,63 @@
 # Current Tasks — Daniel AI Command Center
 
-**Last updated:** 2026-06-21
+**Last updated:** 2026-07-14 (Command Center fantasy workflow integration; Baseball in-season polish paused)
 
 **Master plan:** [plans/2026-06-21-account-workspace-phase-completion.md](./plans/2026-06-21-account-workspace-phase-completion.md)
 
-**Focus:** Finish Account / Workspace phase (Sprint B → C → D) **before** AMI Real Problem Importer. Importer starts with architecture/scaffolding only after gate passes.
+**Focus:** **Command Center fantasy workflow hub** — Continue / Activity / App Directory for shared leagues, trades, waivers, lineups, Live Draft. Baseball feature work paused after FA/waiver polish.
+
+### P0 — Command Center Fantasy Workflow Integration (**ACTIVE**, 2026-07-14)
+
+**Plan:** [plans/2026-07-14-command-center-fantasy-workflow.md](./plans/2026-07-14-command-center-fantasy-workflow.md)
+
+**Philosophy (keep separated):**
+- **Continue** — recent actionable resume (trade offer → Trade Center, invite → Library, waiver tx → Waiver Wire, …)
+- **App Directory** — short identity reminders of meaningful Baseball work (not navigation)
+- **Activity** — detailed history of what the user did
+
+**Implementation order:**
+1. [x] **CC-1** Taxonomy — map fantasy event types → Continue / Activity / Directory; supersede rules (offer → accepted)
+2. [x] **CC-2** Deep links — proposal / invite / league / week / waiver tx resume params
+3. [x] **CC-3** Continue cards for trade lifecycle, waiver, shared league, lineup lock/save, Live Draft complete, Active League change
+4. [x] **CC-4** Activity formatters + grouping for the same events
+5. [x] **CC-5** App Directory chips (Live Draft / Trades / Lineup / Waiver / Shared League) — high-level only
+6. [x] **CC-6** Baseball emitters (if missing) for suite activity + continue-eligible payloads
+7. [x] **CC-7** Tests — classification, supersede, deep links
+
+**Shipped (2026-07-14):** `fantasy_workflow_activity.py` + Continue/Activity/Directory wiring; Baseball `baseball_fantasy_activity.py` emitters on trade/waiver/lineup/invite/claim/shared-league paths.
+### Baseball pause notes (2026-07-14)
+
+Shipped before pause (`baseball-stat-app` `dev`): shared-league ownership/Trade Center, Live Draft current-session bind, Waiver free-agent-only + league position awareness. Deferred polish: timer tuning, live chat, tutorial.
+
+### P0 — Baseball Draft Reliability (`baseball-stat-app` `dev`, 2026-07-06) **PAUSED**
+
+**Plan:** [plans/2026-07-06-draft-reliability-intelligence-ui.md](./plans/2026-07-06-draft-reliability-intelligence-ui.md) · Tracker: `baseball-stat-app/docs/DRAFT_RELIABILITY_SPRINT.md`
+
+Much of shared-league / trade / waiver work landed in subsequent baseball sessions; remaining reliability items stay deferred while CC is primary.
+
+
+### P1 — Uploaded Drafts → Shared Leagues (`baseball-stat-app` `dev`, 2026-07-08) **PLANNED**
+
+**Plan:** [plans/2026-07-08-uploaded-drafts-shared-leagues-team-claims-trades.md](./plans/2026-07-08-uploaded-drafts-shared-leagues-team-claims-trades.md) · `baseball-stat-app/docs/UPLOADED_DRAFTS_SHARED_LEAGUES_PLAN.md`
+
+**Prerequisite:** FLC v1 foundation + draft import validation (shipped); Real Accounts (Sprint C) soft dependency for prod multi-user trades.
+
+**Implementation order:**
+1. [ ] **UDSL-1** Unified import pipeline + strict validation mode (no skip for shared league)
+2. [ ] **UDSL-2** Entry UI from Draft Room + Standings → common wizard
+3. [ ] **UDSL-3** `save_imported_league_context` + `real_league` context type
+4. [ ] **UDSL-4** Shared store publish + fingerprint dedupe
+5. [ ] **UDSL-5** Team claim UI + library / Active League integration
+6. [ ] **UDSL-6** Trade gating hardening + imported-league trade smoke
+
+**Start after:** Draft Reliability P0 green + active fantasy source UI validation complete.
+
+### P0 — Draft Assistant performance slice 1 ✅ (`9c6da75`, 2026-07-06)
+
+- [x] Deferred settings persist (dirty flag + page-leave / debounced flush)
+- [x] Scoring cache key — pool/board revision + window/style/format
+- [x] Why-this-pick session cache
+- [x] Profile: settings 978ms→16ms; why-text cached 501ms→0.2ms
 
 ### P0 — Workspace Profiles close-out ✅
 
@@ -88,6 +141,116 @@ Real-world problem → Import → Classify → Route → Prefill framework → T
 
 **Phase 1 — MVP:**
 - [ ] Paste/CSV/manual prediction-market import → prefill Betting/EV → user adjusts assumptions → AMI explains math
+
+### P2 — Baseball Fantasy League Context v1 (**active — `baseball-stat-app` `dev`**)
+
+**Plan:** [plans/2026-07-04-fantasy-league-context-v1.md](./plans/2026-07-04-fantasy-league-context-v1.md)  
+**Full plan:** `baseball-stat-app/docs/FANTASY_LEAGUE_CONTEXT_V1_IMPLEMENTATION_PLAN.md`  
+**Status:** Sprint started 2026-07-04. Phase 1 in progress.
+
+**Phase 1 (FLC-1) — Model + migration ✅ (`14d7898`)**
+- [x] `fantasy_league_context.py` — schema, CRUD, builders, ownership map
+- [x] `fantasy_league_context_state` in `_WORKFLOW_KEYS` + disk hook
+- [x] Lazy migration for legacy `draft_archive_teams` (single-team)
+- [x] `tests/test_fantasy_league_context.py`
+
+**FLC-2 — Save flows + library activation ✅ (`0367e02`)**
+- [x] `league_rosters` capture on live draft + simulator save
+- [x] Save League Context / Save Mock League Context + legacy "my team only"
+- [x] Saved Draft Library badges (Full League / My Team Only / Legacy / Mock / Live)
+- [x] Set Active League Context button; Clear active clears archive + context
+
+**FLC-3 — Standings + Lineup multi-team ✅ (`5219ce5`)**
+- [x] `build_roster_stats_from_league_context()` — all teams
+- [x] Standings Tracker reads full league from active context
+- [x] Lineup Assistant reads active context; Trade Analyzer sees 2+ teams
+- [x] Cache keyed by `league_context_id`
+
+**FLC-5 — Trade/Acquire persistence + Lineup handoff (planning)**
+- [ ] Workflow CRUD (`trade_candidates`, `acquire_targets`) in `fantasy_league_context.py`
+- [ ] Replace global `pending_trade_*` in `player_trade_context.py`
+- [ ] Handoff: auto-nav to Lineup Assistant + `_fantasy_trade_handoff` payload
+- [ ] Lineup Trade Plan chips (visible, removable)
+- [ ] Per-context isolation + migration tests
+- Plan: [plans/2026-07-04-fantasy-league-context-flc5.md](./plans/2026-07-04-fantasy-league-context-flc5.md)
+
+**Phase 3 — Trade persistence + handoff**
+- [ ] Per-context `trade_candidates` / `acquire_targets` (replace global `pending_trade_*`)
+- [ ] Lineup Assistant Trade Plan chips
+- [ ] Trade/Acquire → Lineup Assistant handoff
+
+**Blocked (Phase 4):** Waiver Wire / Add-Drop Center until `league_rosters` + ownership map ship
+
+**P0 — Baseball performance sprint (`baseball-stat-app` `dev`, 2026-07-05)**
+
+**Plan:** [plans/2026-07-05-performance-transaction-workflows.md](./plans/2026-07-05-performance-transaction-workflows.md)
+
+1. **Profiling pass (start here)** — Developer Mode → Page performance panel; record top slow phases per page.
+   - [ ] Live Draft Room — pick, queue add/remove, recommendation refresh
+   - [ ] Draft Assistant Simulator — scoring, settings change
+   - [ ] Draft Room Simulator — board interactions
+   - [ ] Draft Lab / Simulation — simulation runs
+   - [ ] Waiver Wire — pool build, filters, recommendations
+   - [ ] Fantasy Lineup Assistant — diagnosis bundle load
+   - [ ] Saved Draft Library + page navigation — hydration, reruns
+
+2. **Speed targets**
+   - [ ] Live Draft pick + queue near-instant
+   - [ ] Recommendation refresh much faster (cache + incremental invalidation)
+   - [ ] Settings changes avoid full recomputes
+   - [ ] Reduce repeated pool/projection/scoring builds, dataframe transforms, cloud/disk reads, full-session saves
+   - [ ] Fill instrumentation gaps (`live_draft_state.py`, waiver pool, draft sim board)
+
+2. **Persistence status (no longer P0 unless drafts disappear)** — Save Active Draft works, drafts appear in Saved Draft Library, survive refresh/reboot, Active Draft restores, Library shows expected counts, Persist OK=true.
+   - [x] Explicit simulator save creates new library entry (`reuse_session_draft_id=False`)
+   - [x] Cloud merge preserves richer workflow keys (`PROTECTED_WORKFLOW_PERSIST_KEYS`)
+   - [x] Force-save reasons for simulator/live/archive writes
+   - [x] Save/restore trace module + Developer Mode checklist (`draft_library_save_trace.py`)
+   - [x] Local E2E script (`scripts/verify_saved_draft_library_e2e.py`) + runbook (`docs/SAVED_DRAFT_LIBRARY_E2E_RUNBOOK.md`)
+   - [ ] Manual production sign-off on deployed `dev` (simulator + live paths)
+
+3. **Existing performance instrumentation**
+   - [x] Lineup diagnosis bundle cache (`lineup_diagnosis_bundle` — needs + waiver pool + outlook)
+   - [x] Saved Draft Library load phase timing (`saved_draft_library_load`)
+   - [x] Developer Mode sidebar shows last save trace + page perf breakdown
+
+**P1 — Baseball execution workflows (`baseball-stat-app` `dev`, 2026-07-05)**
+
+**Plan:** [plans/2026-07-05-performance-transaction-workflows.md](./plans/2026-07-05-performance-transaction-workflows.md)
+
+**Waiver Wire execution (max 2 adds / 2 drops per transaction)**
+- [ ] Select adds (≤2) + drops (≤2) with UI rule: "You can plan up to 2 adds and 2 drops at a time."
+- [ ] Preview roster/category impact → Confirm → update Active Draft roster
+- [ ] Persist to Saved Draft Library; reflect in Lineup, Standings, Waiver, Library
+- [ ] Allowed: Add 1/Drop 1, Add 2/Drop 2 — not unlimited queue yet
+
+**Trade Analyzer execution**
+- [ ] Team A/B player selection → analyze → category/roster/standings impact
+- [ ] Recommend accept/reject/counter; save/accept/reject/counter/complete flow
+- [ ] On accept: move players, persist league state, update all fantasy pages
+- [ ] Start simple: 1-for-1, 2-for-1, 2-for-2 (extend later)
+- [ ] Leverage existing `fantasy_trade_proposals.py` accept/roster swap path
+
+**P1 polish (parallel after P0 hot paths)**
+- [ ] Fantasy Assistant / Waiver Wire UX — compact cards, team-needs summary, confidence/impact estimates
+
+**Later — Command Center transaction integration**
+- [ ] Activity: waiver move, add/drop, trade proposed/accepted/rejected/completed
+- [ ] Continue cards: waiver plan, trade proposal, trade analysis, active league
+
+**P2 — Baseball diagnostics cleanup (`baseball-stat-app` `dev`, 2026-07-05)**
+
+- [ ] Separate Last Save Trace vs Last Activation Trace
+- [ ] Soften cloud/disk wording in local/demo mode
+- [ ] Refresh restore-source labels after disk-first/demo decisions
+- [ ] Clean up misleading checklist failures when persistence is already confirmed
+
+**P1 — Fantasy Lineup Assistant polish (2026-07-05, in progress on `dev`)**
+- [x] Team Outlook “why” bullets (strengths + concerns below rating)
+- [x] Clearer partial-roster slot message (“Lineup analysis is from a partial roster…”)
+- [x] Waiver targets filtered to actual waiver pool / active league rosters (empty-state copy when none)
+- [x] Action buttons use canonical page icons (`page_option_label`)
+- [ ] Manual verify on deployed `dev` after next push
 
 ### Deferred — AMI Baseball Draft Intelligence
 
@@ -350,7 +513,8 @@ Recent task completions (see [app_completed_features.md](./app_completed_feature
 
 | Plan | Status |
 |------|--------|
-| [plans/2026-06-21-account-workspace-phase-completion.md](./plans/2026-06-21-account-workspace-phase-completion.md) | **Active** — finish Account/Workspace before AMI Importer |
+| [plans/2026-07-05-performance-transaction-workflows.md](./plans/2026-07-05-performance-transaction-workflows.md) | **Active P0** — Baseball perf + waiver/trade execution |
+| [plans/2026-07-04-fantasy-league-context-v1.md](./plans/2026-07-04-fantasy-league-context-v1.md) | FLC v1 — persistence stable; execution sprint active |
 | [plans/2026-06-19-account-settings-real-problem-importer-roadmap.md](./plans/2026-06-19-account-settings-real-problem-importer-roadmap.md) | Superseded order — Importer now after Real Accounts |
 | [plans/2026-06-11-ami-enhancement-roadmap.md](./plans/2026-06-11-ami-enhancement-roadmap.md) | **Active P1/P2** — AMI context + teaching; draft pool hydration blocked on Dev Mode confirm |
 | [plans/2026-06-08-baseball-phase-2-page-audit.md](./plans/2026-06-08-baseball-phase-2-page-audit.md) | Shipped — suite port reference |

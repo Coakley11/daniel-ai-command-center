@@ -1,6 +1,6 @@
 # Feature Backlog — Daniel AI Command Center
 
-**Last updated:** 2026-06-21
+**Last updated:** 2026-07-14
 
 Ideas not yet scheduled. Active work: [app_tasks.md](./app_tasks.md).
 
@@ -14,11 +14,23 @@ Queued enhancements for the suite homepage and shared infrastructure — not sib
 
 # Current Priorities
 
-*Active: Finish Account / Workspace phase before AMI Importer. See [plan](./plans/2026-06-21-account-workspace-phase-completion.md).*
+*Active: Command Center Fantasy Workflow Hub. See [plan](./plans/2026-07-14-command-center-fantasy-workflow.md).*
 
 ---
 
 # Next Features
+
+### Command Center Fantasy Hub (active — do not duplicate here)
+
+- Continue / Activity / App Directory taxonomy for fantasy lifecycle events
+- Baseball emitters + deep links
+- Plan: [plans/2026-07-14-command-center-fantasy-workflow.md](./plans/2026-07-14-command-center-fantasy-workflow.md)
+
+### Baseball polish (paused)
+
+- Timer tuning, live chat, tutorial improvements
+- Residual Draft Reliability checklist items
+- Waiver capacity / roster-cap transactions (deferred again until CC hub lands)
 
 ### Account Settings Sprint B (P1b — **code shipped; deploy sign-off pending**)
 
@@ -69,6 +81,42 @@ Queued enhancements for the suite homepage and shared infrastructure — not sib
 
 - Dev Mode confirm → verify hydration → fix top-12 EV representative pool → remaining packaging fixes
 - Restatement layer — stop defaulting unknown Draft Assistant intent to compare
+
+### Uploaded Drafts → Shared Leagues → Team Claims → Trades (**planned — `baseball-stat-app`**)
+
+- Plan: [plans/2026-07-08-uploaded-drafts-shared-leagues-team-claims-trades.md](./plans/2026-07-08-uploaded-drafts-shared-leagues-team-claims-trades.md)
+- Import CSV/Excel → validate all players → populate draft board → create fingerprint-based `real_league`
+- Team claim workflow (one account / one team); library + Active League integration
+- Trades enabled only when league validated, saved, and ≥2 accounts claim teams
+- Reuses: `draft_import_validation`, FLC, `fantasy_shared_league_store`, `assign_my_team`, trade Phase 1
+- PR slices: UDSL-1 (pipeline) → UDSL-6 (trade smoke)
+
+### Baseball Fantasy League Context v1 (**active sprint — `baseball-stat-app`**)
+
+- Plan: [plans/2026-07-04-fantasy-league-context-v1.md](./plans/2026-07-04-fantasy-league-context-v1.md)
+- Full implementation plan: `baseball-stat-app/docs/FANTASY_LEAGUE_CONTEXT_V1_IMPLEMENTATION_PLAN.md`
+- Convert Saved Draft Library from my-roster snapshots into league contexts without breaking legacy saved drafts.
+- Persistence and Saved Draft Library UX are stable enough to stop blocking new work unless drafts disappear again.
+- Current order: P0 performance optimization → P1 Waiver/Trade execution workflows + Fantasy Assistant/Waiver polish → P2 diagnostic cleanup.
+- PR slices shipped/active: FLC-1 (model) → FLC-2 (save UI) → FLC-3 (standings) → FLC-4 (lineup/trade) → performance + execution follow-ups.
+
+### Baseball performance + transaction workflows (**active P0 — `baseball-stat-app`**)
+
+- Plan: [plans/2026-07-05-performance-transaction-workflows.md](./plans/2026-07-05-performance-transaction-workflows.md)
+- P0: profiling pass → Live Draft Room → Draft Assistant/Simulator/Lab → Waiver/Lineup/nav speed
+- P1: Waiver execution (≤2 adds, ≤2 drops), Trade execution (1-for-1, 2-for-1, 2-for-2)
+- Later: Command Center activity + Continue cards for transactions
+
+### Baseball performance + execution follow-ups
+
+- Live Draft Room speed — reduce rerun cost, table reloads, and pick/queue latency.
+- Draft Assistant speed — cache scoring/recommendation paths that run on every interaction.
+- Waiver Wire speed — optimize player pool build, ownership filtering, and recommendations.
+- Page navigation speed — reduce workspace restore/page-load overhead.
+- Waiver Wire execution workflow — actual add/drop execution flow after recommendations.
+- Trade Analyzer execution workflow — actionable proposal/apply flow.
+- Fantasy Assistant / Waiver Wire polish — compact cards, team-needs summary, confidence scores, standings impact.
+- Diagnostic cleanup — split Last Save Trace vs Last Activation Trace, soften local/demo cloud wording, refresh restore labels.
 
 ### Suite port (Sprint 7 remainder)
 

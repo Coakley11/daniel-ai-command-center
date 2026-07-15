@@ -815,10 +815,28 @@ MEANINGFUL_WEEK_EVENTS = frozenset(
         "scenario_run",
         "rebalance_reviewed",
         "lineup_review",
+        "lineup_saved",
+        "lineup_locked",
         "comparison",
         "player_comparison",
         "trade_eval",
         "trade_analysis",
+        "trade_offer_sent",
+        "trade_offer_received",
+        "trade_accepted",
+        "trade_declined",
+        "trade_canceled",
+        "trade_expired",
+        "waiver_transaction",
+        "waiver_add",
+        "waiver_drop",
+        "shared_league_created",
+        "shared_league_invite",
+        "team_claimed",
+        "active_draft_changed",
+        "draft_saved",
+        "saved_draft_archived",
+        "saved_draft_activated",
         "draft_prep",
         "completed_live_draft",
         "draft_analysis_created",
@@ -1132,12 +1150,13 @@ def _ingest_suite_events(snapshot: ActivitySnapshot) -> None:
                     snapshot.last_song = song_name
 
         if app == "baseball":
-            from activity_feed import baseball_directory_rank
+            from activity_feed import baseball_directory_chip_line, baseball_directory_rank
 
-            msg = format_activity_message(event)
             rank = baseball_directory_rank(event_name)
-            if msg and rank and (rank > bb_dir_rank or (rank == bb_dir_rank and ts > bb_dir_ts)):
-                bb_dir_rank, bb_dir_ts, bb_dir_line = rank, ts, msg
+            # App Directory = identity chips only — never Activity status sentences.
+            chip = baseball_directory_chip_line(event_name, metrics)
+            if chip and rank and (rank > bb_dir_rank or (rank == bb_dir_rank and ts > bb_dir_ts)):
+                bb_dir_rank, bb_dir_ts, bb_dir_line = rank, ts, chip
             matchup = str(metrics.get("team_matchup") or "").strip()
             feature = str(metrics.get("feature") or event.get("page") or "").strip()
             if matchup:
