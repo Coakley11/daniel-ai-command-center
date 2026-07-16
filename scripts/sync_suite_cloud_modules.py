@@ -9,6 +9,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 GITHUB = ROOT.parent
 
+# Explicitly shared modules only. App-owned SAQ implementations are never synced
+# (Music / Baseball / AMI / Investment keep local suite_analytical_question.py).
 MODULE_FILES = (
     "activity_time.py",
     "suite_storage_config.py",
@@ -30,8 +32,14 @@ MODULE_FILES = (
     "suite_user_persistence.py",
     "suite_workspace.py",
     "suite_workspace_registry.py",
-    "suite_analytical_question.py",
     "applied_math_return_insight.py",
+)
+
+# Never overwrite these filenames in any sibling repo.
+NEVER_OVERWRITE = frozenset(
+    {
+        "suite_analytical_question.py",
+    }
 )
 
 TARGET_REPOS = (
@@ -45,18 +53,27 @@ TARGET_REPOS = (
 
 SECRETS_EXAMPLE = ROOT / ".streamlit" / "secrets.toml.example"
 
+# App-owned suite_auth markers (forms / flat sidebar) — do not clobber.
+_APP_OWNED_AUTH_MARKERS = (
+    "flat_sidebar",
+    "AUTH_PENDING_LOGIN_KEY",
+    "suite_auth_login_form",
+)
+
 
 def _should_skip_overwrite(repo: str, name: str, dest: Path) -> str:
-    """Avoid wiping app-owned extensions that diverge from Command Center."""
-    if name != "suite_analytical_question.py" or not dest.is_file():
-        return ""
-    try:
-        text = dest.read_text(encoding="utf-8")
-    except OSError:
-        return ""
-    # Baseball keeps HOF / Baseball Insight helpers in its local SAQ copy.
-    if repo == "baseball-stat-app" and "BASEBALL_INSIGHT_BUTTON_LABEL" in text:
-        return "baseball-owned suite_analytical_question.py"
+    """Avoid wiping app-owned modules that diverge from Command Center."""
+    if name in NEVER_OVERWRITE:
+        return f"never-overwrite {name}"
+    if name == "suite_analytical_question.py":
+        return "app-owned suite_analytical_question.py"
+    if name == "suite_auth.py" and dest.is_file():
+        try:
+            text = dest.read_text(encoding="utf-8")
+        except OSError:
+            return ""
+        if any(marker in text for marker in _APP_OWNED_AUTH_MARKERS):
+            return f"{repo}-owned suite_auth.py"
     return ""
 
 
@@ -73,6 +90,9 @@ def main() -> None:
             if skip_reason:
                 print(f"skip ({skip_reason}): {repo}/{name}")
                 continue
+            if not src.is_file():
+                print(f"skip (missing source): {name}")
+                continue
             shutil.copy2(src, dest)
             print(f"copied {name} -> {repo}/")
         if SECRETS_EXAMPLE.is_file():
@@ -81,7 +101,8 @@ def main() -> None:
             shutil.copy2(SECRETS_EXAMPLE, secrets_dest / "secrets.toml.example")
             print(f"copied secrets.toml.example -> {repo}/.streamlit/")
     print()
-    print("Done. Paste identical [suite_activity] secrets into every Streamlit Cloud app,")
+    print("Done. App-owned suite_analytical_question.py is never overwritten.")
+    print("Paste identical [suite_activity] secrets into every Streamlit Cloud app,")
     print("then reboot each deployment (Settings -> Reboot app).")
 
 

@@ -1611,8 +1611,17 @@ def request_password_reset(email: str, *, redirect_to: str | None = None) -> tup
         return False, str(exc)
 
 
-def render_auth_panel(st: Any, *, expanded: bool = False) -> None:
-    """Login / sign-up panel when Real Accounts are enabled."""
+def render_auth_panel(
+    st: Any,
+    *,
+    expanded: bool = False,
+    show_signed_in_status: bool = True,
+    flat_sidebar: bool = False,
+) -> None:
+    """Login / sign-up panel when Real Accounts are enabled.
+
+    ``flat_sidebar=True`` renders tabs directly (for embedding inside an Account expander).
+    """
     if not is_auth_enabled():
         return
     session = st.session_state
@@ -1620,13 +1629,14 @@ def render_auth_panel(st: Any, *, expanded: bool = False) -> None:
     if notice:
         st.info(str(notice))
     if is_authenticated(session):
-        st.success(f"Signed in as **{current_auth_email(session) or 'account'}**")
+        if show_signed_in_status:
+            st.success(f"Signed in as **{current_auth_email(session) or 'account'}**")
         if st.button("Log out", key="suite_auth_logout_btn", use_container_width=True):
             logout(session, st=st)
             st.rerun()
         return
-    title = "Sign in"
-    with st.expander(title, expanded=expanded):
+
+    def _render_login_tabs() -> None:
         tab_login, tab_signup, tab_reset = st.tabs(["Log in", "Create account", "Reset password"])
         with tab_login:
             email = st.text_input("Email", key="suite_auth_login_email")
@@ -1654,6 +1664,12 @@ def render_auth_panel(st: Any, *, expanded: bool = False) -> None:
                     st.success(msg)
                 else:
                     st.error(msg)
+
+    if flat_sidebar:
+        _render_login_tabs()
+        return
+    with st.expander("Sign in", expanded=expanded):
+        _render_login_tabs()
 
 
 def render_auth_gate(st: Any) -> bool:
