@@ -46,6 +46,20 @@ TARGET_REPOS = (
 SECRETS_EXAMPLE = ROOT / ".streamlit" / "secrets.toml.example"
 
 
+def _should_skip_overwrite(repo: str, name: str, dest: Path) -> str:
+    """Avoid wiping app-owned extensions that diverge from Command Center."""
+    if name != "suite_analytical_question.py" or not dest.is_file():
+        return ""
+    try:
+        text = dest.read_text(encoding="utf-8")
+    except OSError:
+        return ""
+    # Baseball keeps HOF / Baseball Insight helpers in its local SAQ copy.
+    if repo == "baseball-stat-app" and "BASEBALL_INSIGHT_BUTTON_LABEL" in text:
+        return "baseball-owned suite_analytical_question.py"
+    return ""
+
+
 def main() -> None:
     for repo in TARGET_REPOS:
         dest_dir = GITHUB / repo
@@ -55,6 +69,10 @@ def main() -> None:
         for name in MODULE_FILES:
             src = ROOT / name
             dest = dest_dir / name
+            skip_reason = _should_skip_overwrite(repo, name, dest)
+            if skip_reason:
+                print(f"skip ({skip_reason}): {repo}/{name}")
+                continue
             shutil.copy2(src, dest)
             print(f"copied {name} -> {repo}/")
         if SECRETS_EXAMPLE.is_file():
