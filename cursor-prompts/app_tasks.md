@@ -1,10 +1,35 @@
 # Current Tasks — Daniel AI Command Center
 
-**Last updated:** 2026-07-14 (Command Center fantasy workflow integration; Baseball in-season polish paused)
+**Last updated:** 2026-07-16 (Admin-only access restriction shipped in shared suite modules)
 
 **Master plan:** [plans/2026-06-21-account-workspace-phase-completion.md](./plans/2026-06-21-account-workspace-phase-completion.md)
 
-**Focus:** **Command Center fantasy workflow hub** — Continue / Activity / App Directory for shared leagues, trades, waivers, lineups, Live Draft. Baseball feature work paused after FA/waiver polish.
+**Focus:** **Live Draft Room real-time UX** (`baseball-stat-app`) — queue/pick/board under 30–60s clock. Phase 6 promoted after Phases 1–2 did not feel faster.
+
+### P0 — Security: Admin-only access ✅ (2026-07-16)
+
+**Plan:** [plans/2026-07-16-admin-only-access-restriction.md](./plans/2026-07-16-admin-only-access-restriction.md)
+
+- [x] `ADMIN_ACCOUNTS` + `is_admin_user()` (coakley11, daniel.cohen11 / daniel) — fail-safe non-admin
+- [x] `can_show_developer_tools()` requires admin + Developer Mode (not workspace alone)
+- [x] Gate diagnostics / deploy markers / auth recovery / shell panels; hide internal IDs for non-admins
+- [ ] Sync shared modules to sibling apps + reboot Cloud deploys
+- [ ] Manual verify: non-admin sees production UX only; both admin accounts can enable Developer Mode
+
+### P0 — Live Draft Real-Time UX (`baseball-stat-app` `dev`, 2026-07-15) **ACTIVE**
+
+**Plan:** [plans/2026-07-15-live-draft-realtime-ux.md](./plans/2026-07-15-live-draft-realtime-ux.md)
+
+**Budgets:** queue add/remove/reorder &lt;1s (max 3s); manual pick / board &lt;1s; rec refresh &lt;2s; timer→autopick immediate.
+
+1. [x] **LDR-RT-1** Phase 1 — Stop force-save + expensive recompute on queue actions; deferred persist
+2. [x] **LDR-RT-2** Phase 2 — Optimistic manual pick; eliminate double rerun
+3. [ ] **LDR-RT-6A** Phase 6A — Queue fragment isolation (**active deploy feel-test**)
+4. [ ] **LDR-RT-6B–D** Board / recs / roster fragment isolation (after 6A feels faster)
+5. [ ] **LDR-RT-3** Phase 3 — Timer-owned auto-pick (**deferred until after Phase 6**)
+6. [ ] **LDR-RT-4** Phase 4 — Recommendation fast path (patch cache + deferred rescore)
+7. [ ] **LDR-RT-5** Phase 5 — Persistence / shared sync off critical path
+8. [ ] **LDR-RT-7** Phase 7 — Action timings + Streamlit-path acceptance probes
 
 ### P0 — Command Center Fantasy Workflow Integration (**ACTIVE**, 2026-07-14)
 

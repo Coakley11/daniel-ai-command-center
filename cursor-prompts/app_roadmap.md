@@ -1,6 +1,6 @@
 # Daniel AI Command Center — Master Roadmap
 
-**Last updated:** 2026-07-14 · **Branch:** `dev` · **Entry app:** `ai_command_center.py` · **Build:** `2026-06-03-v30`
+**Last updated:** 2026-07-16 · **Branch:** `dev` · **Entry app:** `ai_command_center.py` · **Build:** `2026-06-03-v30`
 
 This is the master planning document. Related files:
 
@@ -24,15 +24,16 @@ This is the master planning document. Related files:
 
 # Current Priorities
 
-**Confirmed sequence (2026-07-14):** **Command Center fantasy workflow hub** is active — wire Continue / Activity / App Directory to shared leagues, trades, waivers, lineups, and Live Draft while Baseball feature work is paused. Account/Workspace gate and AMI Importer remain queued behind that hub work only where they block persistence isolation.
+**Confirmed sequence (2026-07-16):** **Admin-only access restriction** shipped in Command Center shared modules (sync + Cloud reboot remaining). **Live Draft Room real-time UX** remains active in `baseball-stat-app`.
 
-**Plan:** [plans/2026-07-14-command-center-fantasy-workflow.md](./plans/2026-07-14-command-center-fantasy-workflow.md)
+**Plans:** [plans/2026-07-16-admin-only-access-restriction.md](./plans/2026-07-16-admin-only-access-restriction.md) · [plans/2026-07-15-live-draft-realtime-ux.md](./plans/2026-07-15-live-draft-realtime-ux.md)
 
-1. **CC Fantasy Continue / Activity / Directory** — taxonomy, deep links, emitters, tests (**active**).
-2. **Account Settings Sprint B** — code shipped; manual A1–A4 + deploy sync pending.
-3. **Real Accounts / Persistence validation** — scaffolding shipped; matrix execution pending.
-4. **AMI Real Problem Importer** — blocked until Account/Workspace exit criteria pass.
-5. **Baseball polish** — paused (timer, chat, tutorial); in-season FA/waiver ownership shipped mid-July.
+1. **Admin-only access** — code shipped; sync modules to siblings + manual verify both admin accounts vs standard users.
+2. **Live Draft real-time UX** — Phase 6A queue isolation (**active feel-test**); Phase 3 deferred until isolation feels real.
+3. **CC Fantasy Continue / Activity / Directory** — taxonomy shipped; manual cross-account verify remaining.
+4. **Account Settings Sprint B** — code shipped; manual A1–A4 + deploy sync pending.
+5. **Real Accounts / Persistence validation** — scaffolding shipped; matrix execution pending.
+6. **AMI Real Problem Importer** — blocked until Account/Workspace exit criteria pass.
 
 ---
 
@@ -44,11 +45,22 @@ This is the master planning document. Related files:
 - Manual verify: trade offer → accept supersede; waiver/invite/lineup Continue cards across Daniel vs coakley11
 - Plan: [plans/2026-07-14-command-center-fantasy-workflow.md](./plans/2026-07-14-command-center-fantasy-workflow.md)
 
-### Paused (Baseball — return later)
+### Active (Baseball — Live Draft real-time)
 
-- Live Draft timer/chat/tutorial polish
-- Remaining Draft Reliability checklist items
-- Plans remain under `plans/2026-07-06-*` and `plans/2026-07-08-*`
+- [x] Phase 1 — Queue: no force-save / no rec rebuild on critical path
+- [x] Phase 2 — Optimistic manual pick (single paint before persist)
+- [ ] Phase 6A — Queue fragment isolation (**in deploy / feel-test**)
+- [ ] Phase 6B–D — Board / recs / roster isolation
+- [ ] Phase 3 — Timer-owned auto-pick (after Phase 6 feels real)
+- [ ] Phase 4 — Recommendation fast path
+- [ ] Phase 5 — Persistence / shared sync off critical path
+- [ ] Phase 7 — Instrumentation + clock acceptance probes
+- Plan: [plans/2026-07-15-live-draft-realtime-ux.md](./plans/2026-07-15-live-draft-realtime-ux.md)
+
+### Deferred (Baseball)
+
+- Remaining Draft Reliability checklist / tutorial polish
+- Plans under `plans/2026-07-06-*` and `plans/2026-07-08-*`
 
 ### Near-term (parallel where safe)
 

@@ -136,29 +136,50 @@ class TestWorkspacePaths(unittest.TestCase):
 
 
 class TestDeveloperWorkspace(unittest.TestCase):
-    def test_non_daniel_never_gets_developer_tools(self) -> None:
+    def test_non_admin_never_gets_developer_tools(self) -> None:
         class FakeState(dict):
             pass
 
         st = type("St", (), {"session_state": FakeState(), "query_params": {"dev": "1"}})()
         set_active_workspace_id(st, "ariel")
-        self.assertFalse(can_show_developer_tools(st=st))
+        with patch("suite_workspace.is_admin_session", return_value=False):
+            self.assertFalse(can_show_developer_tools(st=st))
 
-    def test_daniel_needs_explicit_dev_mode(self) -> None:
+    def test_admin_needs_explicit_dev_mode(self) -> None:
         class FakeState(dict):
             pass
 
         st = type("St", (), {"session_state": FakeState(), "query_params": {}})()
         set_active_workspace_id(st, "daniel")
-        self.assertFalse(can_show_developer_tools(st=st))
+        with patch("suite_workspace.is_admin_session", return_value=True):
+            self.assertFalse(can_show_developer_tools(st=st))
 
-    def test_daniel_with_dev_query_shows_tools(self) -> None:
+    def test_admin_with_dev_query_shows_tools(self) -> None:
         class FakeState(dict):
             pass
 
         st = type("St", (), {"session_state": FakeState(), "query_params": {"dev": "1"}})()
         set_active_workspace_id(st, "daniel")
-        self.assertTrue(can_show_developer_tools(st=st))
+        with patch("suite_workspace.is_admin_session", return_value=True):
+            self.assertTrue(can_show_developer_tools(st=st))
+
+    def test_dev_query_alone_does_not_grant_tools(self) -> None:
+        class FakeState(dict):
+            pass
+
+        st = type("St", (), {"session_state": FakeState(), "query_params": {"dev": "1"}})()
+        set_active_workspace_id(st, "daniel")
+        with patch("suite_workspace.is_admin_session", return_value=False):
+            self.assertFalse(can_show_developer_tools(st=st))
+
+    def test_admin_on_non_daniel_workspace_can_show_tools(self) -> None:
+        class FakeState(dict):
+            pass
+
+        st = type("St", (), {"session_state": FakeState(), "query_params": {"dev": "1"}})()
+        set_active_workspace_id(st, "coakley11")
+        with patch("suite_workspace.is_admin_session", return_value=True):
+            self.assertTrue(can_show_developer_tools(st=st))
 
 
 class TestWorkspaceSession(unittest.TestCase):

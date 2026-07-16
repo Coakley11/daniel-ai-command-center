@@ -1,6 +1,6 @@
 # Completed Features — Daniel AI Command Center
 
-**Last updated:** 2026-07-14
+**Last updated:** 2026-07-16
 
 ---
 
@@ -29,6 +29,25 @@ Historical record of shipped Command Center and shared-suite infrastructure capa
 ---
 
 # Completed Features
+
+### Notes
+
+- Admin-only access restriction (2026-07-16): only `coakley11` / `daniel.cohen11` (and resolved `daniel`) get developer/diagnostics tools — [plan](./plans/2026-07-16-admin-only-access-restriction.md). Sync to sibling apps still pending.
+- Live Draft real-time Phases 1–2 shipped (`baseball-stat-app`); Phase 6A queue isolation next for feel-test — [plan](./plans/2026-07-15-live-draft-realtime-ux.md).
+
+### Admin-only production access (2026-07-16)
+
+- [x] `ADMIN_ACCOUNTS` + server-side `is_admin_user()` with fail-safe non-admin default
+- [x] `can_show_developer_tools()` / Developer Mode toggle / shell diagnostics require admin identity
+- [x] Auth recovery diagnostics no longer bypass the admin gate via `force=`
+- [x] Non-admins no longer see workspace internal ids in sidebar captions
+- [x] Unit tests: `tests/test_admin_access.py` + updated developer-tool / ownership tests
+
+### Live Draft real-time UX Phase 1–2 (2026-07-15, `baseball-stat-app`)
+
+- [x] Phase 1 — Deferred queue persist; no force-save / no expensive rec rebuild on queue ops
+- [x] Phase 2 — Optimistic manual pick before durable persist; single paint path
+- User feel-test: no material difference → Phase 6A prioritized ahead of Phase 3
 
 ### Command Center fantasy workflow hub (2026-07-14)
 

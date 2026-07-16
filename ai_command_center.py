@@ -75,7 +75,7 @@ try:
         can_show_developer_tools,
         bootstrap_suite_workspace,
         get_active_workspace_id,
-        is_developer_workspace,
+        is_admin_session,
         workspace_badge_html,
         workspace_label,
     )
@@ -91,11 +91,11 @@ except ImportError:
     def get_active_workspace_id(_st: Any | None = None) -> str:  # type: ignore[misc]
         return "daniel"
 
-    def is_developer_workspace(*, st: Any | None = None, workspace_id: str | None = None) -> bool:  # type: ignore[misc]
-        return True
+    def is_admin_session(*, st: Any | None = None) -> bool:  # type: ignore[misc]
+        return False
 
     def can_show_developer_tools(*, st: Any | None = None) -> bool:  # type: ignore[misc]
-        return bool(st.session_state.get(CC_DEV_MODE_KEY)) if st is not None else False
+        return False
 
 try:
     from suite_app_shell import apply_suite_auth_gate
@@ -853,7 +853,7 @@ with st.sidebar:
             except ImportError:
                 st.caption("Workspace profiles unavailable on this deploy.")
     st.divider()
-    if is_developer_workspace(st=st):
+    if is_admin_session(st=st):
         with st.expander("Advanced", expanded=False):
             st.toggle(
                 "Developer Mode",

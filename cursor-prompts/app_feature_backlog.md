@@ -1,6 +1,6 @@
 # Feature Backlog — Daniel AI Command Center
 
-**Last updated:** 2026-07-14
+**Last updated:** 2026-07-16
 
 Ideas not yet scheduled. Active work: [app_tasks.md](./app_tasks.md).
 
@@ -14,23 +14,26 @@ Queued enhancements for the suite homepage and shared infrastructure — not sib
 
 # Current Priorities
 
-*Active: Command Center Fantasy Workflow Hub. See [plan](./plans/2026-07-14-command-center-fantasy-workflow.md).*
+*Active: Admin-only access sync/verify + Live Draft Phase 6A feel-test — [admin plan](./plans/2026-07-16-admin-only-access-restriction.md) · [live draft](./plans/2026-07-15-live-draft-realtime-ux.md).*
 
 ---
 
 # Next Features
 
-### Command Center Fantasy Hub (active — do not duplicate here)
+### Live Draft real-time (active in baseball-stat-app — do not duplicate here)
+
+- Order: Phases 1–2 ✅ → **6A–D isolation** → 3 timer → 4 recs → 5 sync → 7 acceptance
+- Plan: [plans/2026-07-15-live-draft-realtime-ux.md](./plans/2026-07-15-live-draft-realtime-ux.md)
+
+### Command Center Fantasy Hub (shipped core — manual verify remaining)
 
 - Continue / Activity / App Directory taxonomy for fantasy lifecycle events
-- Baseball emitters + deep links
 - Plan: [plans/2026-07-14-command-center-fantasy-workflow.md](./plans/2026-07-14-command-center-fantasy-workflow.md)
 
-### Baseball polish (paused)
+### Baseball polish (after real-time phases)
 
-- Timer tuning, live chat, tutorial improvements
-- Residual Draft Reliability checklist items
-- Waiver capacity / roster-cap transactions (deferred again until CC hub lands)
+- Tutorial improvements; residual Draft Reliability checklist
+- Waiver capacity / roster-cap transactions
 
 ### Account Settings Sprint B (P1b — **code shipped; deploy sign-off pending**)
 

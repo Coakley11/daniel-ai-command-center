@@ -60,10 +60,17 @@ class TestWorkspaceAccountOwnership(unittest.TestCase):
         self.assertNotIn("guest", allowed)
 
     def test_new_account_gets_single_owned_workspace(self) -> None:
-        allowed = allowed_workspaces_for_user("coakley11")
-        self.assertEqual(allowed, ("coakley11",))
+        allowed = allowed_workspaces_for_user("jordan99")
+        self.assertEqual(allowed, ("jordan99",))
         self.assertNotIn("guest", allowed)
         self.assertNotIn("test_user", allowed)
+
+    def test_coakley11_admin_gets_demo_workspaces(self) -> None:
+        allowed = allowed_workspaces_for_user("coakley11")
+        self.assertIn("coakley11", allowed)
+        self.assertIn("daniel", allowed)
+        self.assertIn("ariel", allowed)
+        self.assertIn("guest", allowed)
 
     def test_auto_provision_owned_workspace_on_login(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -160,12 +167,12 @@ class TestWorkspaceAccountOwnership(unittest.TestCase):
             self.assertEqual(ws, "ariel")
             self.assertGreaterEqual(enforce_mock.call_count, 1)
 
-    def test_bootstrap_auth_before_workspace_coakley11(self) -> None:
-        """Startup smoke: stale daniel session + foreign URL → coakley11 after bootstrap."""
+    def test_bootstrap_auth_before_workspace_non_admin(self) -> None:
+        """Startup smoke: stale daniel session + foreign URL → owned workspace after bootstrap."""
         session = _auth_session(
-            user_id="uuid-coakley",
-            email="coakley11@aol.com",
-            external_id="coakley11",
+            user_id="uuid-jordan",
+            email="jordan99@example.com",
+            external_id="jordan99",
         )
         session["_suite_active_workspace_id"] = "daniel"
         st = _FakeSt(session, query={"suite_workspace": "daniel"})
@@ -188,16 +195,16 @@ class TestWorkspaceAccountOwnership(unittest.TestCase):
                 "suite_workspace._PERSISTED_FILE", global_persist
             ):
                 ws = bootstrap_suite_workspace(st)
-                self.assertEqual(ws, "coakley11")
-                self.assertEqual(get_active_workspace_id(st), "coakley11")
+                self.assertEqual(ws, "jordan99")
+                self.assertEqual(get_active_workspace_id(st), "jordan99")
                 self.assertNotEqual(get_active_workspace_id(st), "daniel")
 
     def test_no_recursion_resolving_owned_workspace(self) -> None:
         """Regression: account-aware and legacy paths must not call each other."""
         session = _auth_session(
-            user_id="uuid-coakley",
-            email="coakley11@aol.com",
-            external_id="coakley11",
+            user_id="uuid-jordan",
+            email="jordan99@example.com",
+            external_id="jordan99",
         )
         st = _FakeSt(session, query={"suite_workspace": "daniel"})
         with tempfile.TemporaryDirectory() as tmp:
@@ -219,11 +226,11 @@ class TestWorkspaceAccountOwnership(unittest.TestCase):
                 ):
                     # Direct resolution (this used to RecursionError).
                     resolved = load_persisted_workspace_id(session_state=session)
-                    self.assertEqual(resolved, "coakley11")
+                    self.assertEqual(resolved, "jordan99")
                     # Full startup path, incl. ownership enforcement + foreign URL reject.
                     ws = bootstrap_suite_workspace(st)
-                    self.assertEqual(ws, "coakley11")
-                    self.assertEqual(get_active_workspace_id(st), "coakley11")
+                    self.assertEqual(ws, "jordan99")
+                    self.assertEqual(get_active_workspace_id(st), "jordan99")
             except RecursionError as exc:  # pragma: no cover - explicit failure
                 self.fail(f"Workspace resolution recursed: {exc}")
             finally:
@@ -241,7 +248,7 @@ class TestWorkspaceAccountOwnership(unittest.TestCase):
                 self.assertEqual(load_persisted_workspace_id(session_state=None), "guest")
                 self.assertEqual(load_persisted_workspace_id(session_state={}), "guest")
 
-    def test_coakley11_presets_not_all_presets(self) -> None:
+    def test_coakley11_admin_presets_include_owned_and_demo(self) -> None:
         st = _FakeSt(
             _auth_session(
                 user_id="uuid-coakley",
@@ -251,32 +258,32 @@ class TestWorkspaceAccountOwnership(unittest.TestCase):
         )
         with patch("suite_auth.is_auth_enabled", return_value=True), patch(
             "suite_auth.is_authenticated", return_value=True
-        ), patch("suite_workspace_registry.can_switch_workspaces", return_value=False):
+        ):
             from suite_workspace import _workspace_presets_for_session
 
             presets = _workspace_presets_for_session(st)
-            self.assertEqual(len(presets), 1)
-            self.assertEqual(presets[0]["id"], "coakley11")
+            ids = {p["id"] for p in presets}
+            self.assertIn("coakley11", ids)
+            self.assertIn("daniel", ids)
+            self.assertIn("ariel", ids)
 
-    def test_coakley11_workspace_picker_hidden(self) -> None:
+    def test_non_admin_workspace_picker_hidden(self) -> None:
         session = _auth_session(
-            user_id="uuid-coakley",
-            email="coakley11@aol.com",
-            external_id="coakley11",
+            user_id="uuid-jordan",
+            email="jordan99@example.com",
+            external_id="jordan99",
         )
-        session[SESSION_KEY] = "coakley11"
+        session[SESSION_KEY] = "jordan99"
         st = _FakeSt(session)
         with patch("suite_auth.is_auth_enabled", return_value=True), patch(
             "suite_auth.is_authenticated", return_value=True
-        ), patch("suite_workspace_registry.can_switch_workspaces", return_value=False), patch(
-            "suite_workspace.bootstrap_suite_workspace", return_value="coakley11"
-        ), patch("suite_auth.enforce_workspace_ownership"), patch(
-            "streamlit.selectbox"
-        ) as select_mock:
+        ), patch("suite_workspace.bootstrap_suite_workspace", return_value="jordan99"), patch(
+            "suite_auth.enforce_workspace_ownership"
+        ), patch("streamlit.selectbox") as select_mock:
             from suite_workspace import render_workspace_selector_sidebar
 
             ws = render_workspace_selector_sidebar(st)
-            self.assertEqual(ws, "coakley11")
+            self.assertEqual(ws, "jordan99")
             select_mock.assert_not_called()
 
     def test_bootstrap_refresh_stays_coakley11(self) -> None:
