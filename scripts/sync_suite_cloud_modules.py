@@ -25,6 +25,8 @@ MODULE_FILES = (
     "suite_auth.py",
     "suite_auth_browser.py",
     "suite_command_center_link.py",
+    # Canonical for every app, Baseball included: these copies own Baseball's Continue contract (Historical stat,
+    # Hall of Fame target, Draft Lab route) and the lazy music_resume_payload import. Fix them here, never in an app.
     "suite_deep_links.py",
     "suite_resume_launch.py",
     "suite_cloud_state.py",
