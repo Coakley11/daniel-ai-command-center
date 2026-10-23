@@ -2,7 +2,15 @@
 
 from __future__ import annotations
 
+import os
+
 BUILD_VERSION = "2026-06-03-v31"
+
+
+def _deployment_url(app_key: str, default: str) -> str:
+    """A staging deployment points the suite at its own app: SUITE_APP_URL_<APP> (environment, or a root-level
+    Streamlit secret) replaces the default. Unset in production, so these stay the verified URLs below."""
+    return os.environ.get(f"SUITE_APP_URL_{app_key.upper()}", "").strip().rstrip("/") or default
 
 # GitHub deploy paths (lowercase owner) for Streamlit disambiguate API.
 DEPLOY_PATHS: dict[str, str] = {
@@ -17,14 +25,20 @@ DEPLOY_PATHS: dict[str, str] = {
 }
 
 # Public viewer URLs — verified via share.streamlit.io disambiguate API.
-MUSIC_APP_URL = "https://ai-music-practice-coach-6szqxqxqrqxdmryyewk8sq.streamlit.app"
-INVESTMENT_APP_URL = "https://investment-portfolio-analyzer-ty2sbzumvxsqwbqhkvf6rz.streamlit.app"
+MUSIC_APP_URL = _deployment_url("music", "https://ai-music-practice-coach-6szqxqxqrqxdmryyewk8sq.streamlit.app")
+INVESTMENT_APP_URL = _deployment_url(
+    "investment", "https://investment-portfolio-analyzer-ty2sbzumvxsqwbqhkvf6rz.streamlit.app"
+)
 BASEBALL_PRODUCTION_URL = "https://baseball-stat-app-bwx4bawvayxbsbxqbqmfws.streamlit.app"
 BASEBALL_DEV_URL = "https://baseball-stat-app-d4jlymjc4iptaadc3kquwx.streamlit.app"
-BASEBALL_APP_URL = BASEBALL_DEV_URL or BASEBALL_PRODUCTION_URL
-NBA_APP_URL = "https://nba-playoff-companion-ai-gd4sx677quejdfkvappv6o.streamlit.app"
-APPLIED_INTELLIGENCE_URL = "https://applied-mathematical-intelligence-8l8bqrzpp6fghaj7xuig53.streamlit.app"
-FUTURE_LENS_URL = "https://future-lens-ai-transition-simulator-m6n4kaku28ztzlxfts2xt6.streamlit.app"
+BASEBALL_APP_URL = _deployment_url("baseball", BASEBALL_DEV_URL or BASEBALL_PRODUCTION_URL)
+NBA_APP_URL = _deployment_url("nba", "https://nba-playoff-companion-ai-gd4sx677quejdfkvappv6o.streamlit.app")
+APPLIED_INTELLIGENCE_URL = _deployment_url(
+    "applied_intelligence", "https://applied-mathematical-intelligence-8l8bqrzpp6fghaj7xuig53.streamlit.app"
+)
+FUTURE_LENS_URL = _deployment_url(
+    "future_lens", "https://future-lens-ai-transition-simulator-m6n4kaku28ztzlxfts2xt6.streamlit.app"
+)
 FUTURE_LENS_PRODUCTION_URL = "https://future-lens-ai-transition-simulator-8qfgube5tezjjaxruppnuo.streamlit.app"
 
 HOMEPAGE_PRODUCTION_URL = "https://daniel-ai-command-center-dexxnd7bf8jalxzqbyq55i.streamlit.app"
