@@ -19,6 +19,7 @@ Query params (read by suite_resume_launch in each app):
 
 from __future__ import annotations
 
+import re
 from typing import Any
 from urllib.parse import parse_qs, quote, urlencode, urlparse
 
@@ -519,9 +520,14 @@ def resume_metrics_from_item_key(app: str, item_key: str, *, subtitle: str = "")
                 metrics["draft_id"] = key.split(":", 2)[-1].strip()
             page = "Saved Draft Library"
         elif key.startswith("bb:hof_case:"):
-            # The target comes from the key (Baseball resolves the slug); the card subtitle is prose.
+            slug = key.split(":", 2)[-1].strip()
             metrics["hof_case_mode"] = True
-            metrics["hof_case_target_slug"] = key.split(":", 2)[-1].strip()
+            metrics["hof_case_target_slug"] = slug
+            # The subtitle is the target only when it is exactly the slug's name (a case summary is prose);
+            # otherwise Baseball resolves the target from the slug.
+            name = str(subtitle or "").strip()
+            if name and re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-") == slug.lower():
+                metrics["target_player"] = name
             page = "Career Totals"
         elif key.startswith("historical:"):
             parts = key.split(":", 2)

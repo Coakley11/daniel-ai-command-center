@@ -47,6 +47,10 @@ class BaseballContinueContractTests(unittest.TestCase):
         self.assertEqual(q["suite_hof_case"], "1")
         self.assertNotIn("suite_hof_target", q)  # Baseball resolves the target from the key's slug
 
+    def test_rebuilt_hall_of_fame_card_uses_a_subtitle_that_is_the_targets_name(self) -> None:
+        page, metrics = resume_metrics_from_item_key("baseball", "bb:hof_case:albert-pujols", subtitle="Albert Pujols")
+        self.assertEqual((page, metrics.get("hof_case_mode"), metrics.get("target_player")), ("Career Totals", True, "Albert Pujols"))
+
     def test_draft_lab_card_opens_draft_lab_team_analysis(self) -> None:
         page, metrics = resume_metrics_from_item_key("baseball", "bb:draft_lab:team:QADL01")
         q = _q(build_resume_action_url("baseball", resume_key="bb:draft_lab:team:QADL01", page=page, metrics=metrics, base_url=BASE))
