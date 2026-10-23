@@ -55,6 +55,25 @@ TARGET_REPOS = (
 
 SECRETS_EXAMPLE = ROOT / ".streamlit" / "secrets.toml.example"
 
+# Per-repo app-owned files: the app's copy is newer than Command Center's (Baseball's auth, billing and
+# persistence hardening, 2026-07..10). Never overwrite them until Command Center adopts those versions.
+APP_OWNED_FILES: dict[str, frozenset[str]] = {
+    "baseball-stat-app": frozenset(
+        {
+            "suite_storage_config.py",
+            "suite_storage_supabase.py",
+            "suite_auth_browser.py",
+            "suite_command_center_link.py",
+            "suite_cloud_state.py",
+            "suite_egress_trace.py",
+            "suite_user_persistence.py",
+            "suite_workspace.py",
+            "suite_workspace_registry.py",
+            ".streamlit/secrets.toml.example",
+        }
+    ),
+}
+
 # App-owned suite_auth markers (forms / flat sidebar) — do not clobber.
 _APP_OWNED_AUTH_MARKERS = (
     "flat_sidebar",
@@ -67,6 +86,8 @@ def _should_skip_overwrite(repo: str, name: str, dest: Path) -> str:
     """Avoid wiping app-owned modules that diverge from Command Center."""
     if name in NEVER_OVERWRITE:
         return f"never-overwrite {name}"
+    if name in APP_OWNED_FILES.get(repo, ()):
+        return f"{repo}-owned {name}"
     if name == "suite_analytical_question.py":
         return "app-owned suite_analytical_question.py"
     if name == "suite_auth.py" and dest.is_file():
@@ -97,7 +118,9 @@ def main() -> None:
                 continue
             shutil.copy2(src, dest)
             print(f"copied {name} -> {repo}/")
-        if SECRETS_EXAMPLE.is_file():
+        if ".streamlit/secrets.toml.example" in APP_OWNED_FILES.get(repo, ()):
+            print(f"skip ({repo}-owned .streamlit/secrets.toml.example)")
+        elif SECRETS_EXAMPLE.is_file():
             secrets_dest = dest_dir / ".streamlit"
             secrets_dest.mkdir(parents=True, exist_ok=True)
             shutil.copy2(SECRETS_EXAMPLE, secrets_dest / "secrets.toml.example")
