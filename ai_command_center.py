@@ -594,6 +594,13 @@ def _render_recent_activity_feed() -> None:
     )
     _render_unsafe_html(blocks)
 
+    if dashboard.recent:
+        st.markdown(
+            '<div class="cc-section-sub" style="margin-top:0.8rem;">Recent meaningful activity</div>',
+            unsafe_allow_html=True,
+        )
+        _render_unsafe_html(_render_feed_items(dashboard.recent))
+
     if can_show_developer_tools(st=st) and dashboard.feed_trace:
         with st.expander("Activity feed trace (dev)", expanded=False):
             st.json(dashboard.feed_trace)

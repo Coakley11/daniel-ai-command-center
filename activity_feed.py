@@ -150,6 +150,7 @@ COMPARISON_ROLLUP_EVENTS: frozenset[tuple[str, str]] = frozenset(
 MUSIC_PRACTICE_ROLLUP_EVENTS: frozenset[tuple[str, str]] = frozenset(
     {
         ("music", "song_selected"),
+        ("music", "practice_session_started"),
         ("music", "practice"),
         ("music", "backing_track_completed"),
     }
@@ -203,6 +204,44 @@ def _music_title_artist(metrics: dict[str, Any]) -> str:
 
 def _music_song_only(metrics: dict[str, Any]) -> str:
     return str(metrics.get("song") or metrics.get("last_edited_song") or "").strip()
+
+
+def _music_source_label(metrics: dict[str, Any]) -> str:
+    source = str(metrics.get("source_type") or "").strip().lower()
+    return {
+        "catalog": "Catalog",
+        "custom": "Custom progression",
+        "custom_progression": "Custom progression",
+        "composition": "Composition",
+        "composition_song": "Composition",
+    }.get(source, "")
+
+
+def _music_practice_started_message(metrics: dict[str, Any]) -> str:
+    song = _music_song_only(metrics)
+    instrument = str(metrics.get("instrument") or "").strip()
+    practice_key = str(metrics.get("practice_key") or metrics.get("display_key") or "").strip()
+    line = f"Practiced {song}" if song else "Started a music practice session"
+    if instrument:
+        line += f" on {instrument}"
+    backing = bool(metrics.get("backing_active"))
+    cycling = bool(metrics.get("key_cycling_active"))
+    if backing and cycling:
+        line += " with Backing and Key Cycling"
+    elif backing:
+        line += " with Backing"
+    elif cycling:
+        line += " with Key Cycling"
+    if cycling:
+        start_key = str(metrics.get("key_cycling_start_key") or practice_key).strip()
+        if start_key:
+            line += f", starting in {start_key}"
+    elif practice_key:
+        line += f" in {practice_key}"
+    source = _music_source_label(metrics)
+    if source:
+        line += f" · {source}"
+    return line
 
 
 def _music_edit_headline(event_type: str, metrics: dict[str, Any]) -> str:
@@ -322,6 +361,9 @@ def format_activity_message(event: dict[str, Any], *, for_feed: bool = True) -> 
         if generated:
             return f"{title} — updated {generated[:19].replace('T', ' ')}"
         return title
+
+    if event_type == "practice_session_started" and app == "music":
+        return _music_practice_started_message(m)
 
     if event_type == "practice" and app == "music":
         song = str(m.get("song") or "").strip()
@@ -1410,6 +1452,7 @@ def build_activity_dashboard(
     most_active: tuple[str, ...] = ()
     feed_trace: dict[str, Any] | None = None
     action_rollups: list[ActivityFeedItem] = []
+    grouped_consumed: set[tuple[str, str, str]] = set()
 
     try:
         from activity_grouping import APP_SUMMARY_LABELS, build_action_groups
@@ -1427,6 +1470,7 @@ def build_activity_dashboard(
         most_active = action_groups.most_active
         feed_trace = action_groups.feed_trace
         action_rollups = list(action_groups.rollup_items)
+        grouped_consumed = set(action_groups.consumed_ids)
     except ImportError:
         today_summaries = build_today_summaries(events, now=now)
 
@@ -1446,10 +1490,36 @@ def build_activity_dashboard(
     if not today_summaries:
         today_summaries = build_today_summaries(events, now=now)
 
+    practice_start_items: list[ActivityFeedItem] = []
+    for event in remaining:
+        if _event_key(event) != ("music", "practice_session_started"):
+            continue
+        if _event_identity(event) in grouped_consumed:
+            continue
+        sort_key = _parse_ts(event)
+        if sort_key == datetime.min.replace(tzinfo=timezone.utc):
+            continue
+        message = format_activity_message(event, for_feed=True)
+        if not message:
+            continue
+        practice_start_items.append(
+            _make_feed_item(
+                event,
+                app="music",
+                message=message,
+                sort_key=sort_key,
+            )
+        )
+    recent_items = sorted(
+        action_rollups + practice_start_items,
+        key=lambda item: item.sort_key,
+        reverse=True,
+    )
+
     return ActivityDashboard(
         today_summaries=today_summaries,
         highlights=(),
-        recent=tuple(action_rollups[:recent_limit]),
+        recent=tuple(recent_items[:recent_limit]),
         week_summaries=week_summaries,
         recent_by_app=recent_by_app,
         most_active_workflows=most_active,

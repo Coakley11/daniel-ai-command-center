@@ -34,6 +34,7 @@ MILESTONE_EVENTS: frozenset[tuple[str, str]] = frozenset(
         ("baseball", "roster_built"),
         ("baseball", "roster_build"),
         ("music", "practice"),
+        ("music", "practice_session_started"),
         ("music", "backing_track_completed"),
         ("music", "backing_track"),
         ("nba", "playoff_simulation"),
@@ -114,7 +115,7 @@ def activity_action_id(event: dict[str, Any]) -> str | None:
             return "sleeper_analysis"
 
     if app == "music":
-        if et in ("practice",):
+        if et in ("practice_session_started", "practice"):
             return "practice_session"
         if et in ("backing_track_completed", "backing_track"):
             return "backing_track_studio"
@@ -229,6 +230,15 @@ def milestone_today_line(event: dict[str, Any]) -> str | None:
         if song:
             return _app_line(app, f"Practiced {song}")
         return _app_line(app, "Practice session")
+
+    if app == "music" and et == "practice_session_started":
+        try:
+            from activity_feed import format_activity_message
+
+            detail = format_activity_message(event, for_feed=False)
+        except ImportError:
+            detail = None
+        return _app_line(app, detail or "Started a practice session")
 
     if app == "music" and et in ("backing_track_completed", "backing_track"):
         song = str(m.get("song") or m.get("title") or "").strip()
