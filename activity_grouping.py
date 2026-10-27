@@ -349,14 +349,34 @@ def build_action_groups(
                 handled_today.add(_event_identity(cluster[0]))
                 continue
         msg = _group_message(app, aid, count)
+        feed_message = msg
+        today_message = msg
+        latest_event: dict[str, Any] | None = None
+        if app == "music" and aid == "practice_session" and count >= 2:
+            latest_event = max(cluster, key=lambda event: _parse_ts(event, parse_ts))
+            try:
+                from activity_feed import format_activity_message
+
+                detail = format_activity_message(latest_event, for_feed=True)
+            except ImportError:
+                detail = None
+            if detail:
+                feed_message = detail
+                today_message = _app_line(app, detail)
         latest = max(_parse_ts(e, parse_ts) for e in cluster)
         if count >= 2:
             rollup_items.append(
-                make_feed_item(None, app=app, message=msg, sort_key=latest, is_rollup=True)
+                make_feed_item(
+                    latest_event,
+                    app=app,
+                    message=feed_message,
+                    sort_key=latest,
+                    is_rollup=True,
+                )
             )
             for e in cluster:
                 consumed.add(_event_identity(e))
-        today_lines.append(msg)
+        today_lines.append(today_message)
         for e in cluster:
             handled_today.add(_event_identity(e))
         top_groups.append((count, app, aid, "today"))

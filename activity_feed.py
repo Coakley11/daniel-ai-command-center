@@ -4,6 +4,7 @@ Human-readable activity feed lines from suite event logs.
 
 from __future__ import annotations
 
+import re
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -217,10 +218,25 @@ def _music_source_label(metrics: dict[str, Any]) -> str:
     }.get(source, "")
 
 
+def _human_music_key(value: Any) -> str:
+    """Render the canonical key token naturally without changing its meaning."""
+    raw = str(value or "").strip()
+    if not raw:
+        return ""
+    compact = raw.replace("♯", "#").replace("♭", "b")
+    match = re.fullmatch(r"([A-Ga-g])([#b]?)(?:m|min|minor)", compact, re.I)
+    if not match:
+        return raw
+    tonic = f"{match.group(1).upper()}{match.group(2)}"
+    return f"{tonic} minor"
+
+
 def _music_practice_started_message(metrics: dict[str, Any]) -> str:
     song = _music_song_only(metrics)
     instrument = str(metrics.get("instrument") or "").strip()
-    practice_key = str(metrics.get("practice_key") or metrics.get("display_key") or "").strip()
+    practice_key = _human_music_key(
+        metrics.get("practice_key") or metrics.get("display_key") or ""
+    )
     line = f"Practiced {song}" if song else "Started a music practice session"
     if instrument:
         line += f" on {instrument}"
@@ -233,7 +249,7 @@ def _music_practice_started_message(metrics: dict[str, Any]) -> str:
     elif cycling:
         line += " with Key Cycling"
     if cycling:
-        start_key = str(metrics.get("key_cycling_start_key") or practice_key).strip()
+        start_key = _human_music_key(metrics.get("key_cycling_start_key") or practice_key)
         if start_key:
             line += f", starting in {start_key}"
     elif practice_key:
@@ -1124,6 +1140,18 @@ def _make_feed_item(
     is_rollup: bool = False,
 ) -> ActivityFeedItem:
     ts_iso = utc_iso_from_datetime(sort_key)
+    action_url = ""
+    if event is not None and app == "music" and str(event.get("event") or "") == "practice_session_started":
+        try:
+            from suite_deep_links import build_resume_action_url
+
+            action_url = build_resume_action_url(
+                "music",
+                page=str(event.get("page") or "Practice"),
+                metrics=_metrics(event),
+            )
+        except Exception:
+            action_url = ""
     return ActivityFeedItem(
         app=app,
         app_label=APP_LABELS.get(app, app.replace("_", " ").title()),
@@ -1132,6 +1160,7 @@ def _make_feed_item(
         sort_key=sort_key,
         is_highlight=is_highlight,
         is_rollup=is_rollup,
+        action_url=action_url,
     )
 
 

@@ -21,6 +21,7 @@ class ActivityFeedItem:
     sort_key: datetime
     is_highlight: bool = False
     is_rollup: bool = False
+    action_url: str = ""
 
 
 @dataclass(frozen=True)

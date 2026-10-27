@@ -15,10 +15,24 @@ def _event(**metrics):
         "artist": "Ed Sheeran",
         "source_type": "catalog",
         "source_id": "Pop|Shape of You — Ed Sheeran",
+        "pick_key": "Pop|Shape of You — Ed Sheeran",
         "instrument": "Alto Sax",
         "practice_key": "C minor",
         "key_cycling_active": False,
         "backing_active": False,
+        "resume_payload": {
+            "version": 1,
+            "resume_kind": "practice",
+            "workspace_id": "daniel",
+            "studio_page": "practice",
+            "song": "Shape of You",
+            "artist": "Ed Sheeran",
+            "pick_key": "Pop|Shape of You — Ed Sheeran",
+            "instrument": "Alto Sax",
+            "display_key": "C minor",
+            "practice_focus_section": "Full Song",
+            "bpm": 96,
+        },
     }
     base.update(metrics)
     return {
@@ -34,6 +48,12 @@ class MusicPracticeActivityTests(unittest.TestCase):
     def test_catalog_session_has_human_readable_summary(self) -> None:
         self.assertEqual(
             format_activity_message(_event()),
+            "Practiced Shape of You on Alto Sax in C minor · Catalog",
+        )
+
+    def test_compact_minor_key_is_rendered_naturally(self) -> None:
+        self.assertEqual(
+            format_activity_message(_event(practice_key="Cm")),
             "Practiced Shape of You on Alto Sax in C minor · Catalog",
         )
 
@@ -82,6 +102,7 @@ class MusicPracticeActivityTests(unittest.TestCase):
         self.assertEqual(card.timestamp, "2026-10-26T15:30:00Z")
         self.assertIn("Shape of You", card.message)
         self.assertIn("Catalog", card.message)
+        self.assertIn("suite_resume_payload=", card.action_url)
 
     def test_repeated_starts_roll_up_without_duplicate_cards(self) -> None:
         first = _event()
@@ -93,6 +114,11 @@ class MusicPracticeActivityTests(unittest.TestCase):
         )
         self.assertEqual(len(dashboard.recent), 1)
         self.assertTrue(dashboard.recent[0].is_rollup)
+        self.assertEqual(
+            dashboard.recent[0].message,
+            "Practiced Shape of You on Alto Sax in C minor · Catalog",
+        )
+        self.assertEqual(dashboard.recent[0].timestamp, "2026-10-26T15:40:00Z")
 
 
 if __name__ == "__main__":

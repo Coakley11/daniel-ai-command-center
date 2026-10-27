@@ -220,6 +220,11 @@ st.markdown(
         background: linear-gradient(90deg, #eef2ff 0%, #ffffff 40%);
     }
     .cc-feed-item-rollup { font-style: normal; color: #475569; }
+    .cc-feed-action {
+        display: inline-block; margin-left: 0.55rem; font-size: 0.78rem; font-weight: 750;
+        color: #4f46e5; text-decoration: none; white-space: nowrap;
+    }
+    .cc-feed-action:hover { text-decoration: underline; }
     .cc-today-work {
         background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 50%, #ffffff 100%);
         border: 1px solid #bbf7d0; border-radius: 14px; padding: 0.85rem 1.1rem;
@@ -558,9 +563,15 @@ def _render_feed_items(items: tuple[ActivityFeedItem, ...] | list[ActivityFeedIt
             css_class += " cc-feed-item-highlight"
         if item.is_rollup:
             css_class += " cc-feed-item-rollup"
+        action = ""
+        if item.action_url:
+            action = (
+                f'<a class="cc-feed-action" href="{html.escape(item.action_url, quote=True)}" '
+                'target="_self">Resume</a>'
+            )
         items_html.append(
             f'<li class="{css_class}"><div class="cc-feed-meta">{html.escape(item.app_label)}'
-            f'{f" · {html.escape(when)}" if when else ""}</div>{html.escape(item.message)}</li>'
+            f'{f" · {html.escape(when)}" if when else ""}</div>{html.escape(item.message)}{action}</li>'
         )
     return f'<ul class="cc-feed-list">{"".join(items_html)}</ul>'
 
