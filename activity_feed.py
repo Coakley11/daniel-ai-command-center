@@ -238,16 +238,14 @@ def _music_practice_started_message(metrics: dict[str, Any]) -> str:
         metrics.get("practice_key") or metrics.get("display_key") or ""
     )
     line = f"Practiced {song}" if song else "Started a music practice session"
-    if instrument:
-        line += f" on {instrument}"
     backing = bool(metrics.get("backing_active"))
     cycling = bool(metrics.get("key_cycling_active"))
-    if backing and cycling:
-        line += " with Backing and Key Cycling"
-    elif backing:
-        line += " with Backing"
-    elif cycling:
-        line += " with Key Cycling"
+    if backing:
+        line += " with backing"
+    if cycling:
+        line += " and Key Cycling" if backing else " with Key Cycling"
+    if instrument:
+        line += f" on {instrument}"
     if cycling:
         start_key = _human_music_key(metrics.get("key_cycling_start_key") or practice_key)
         if start_key:
@@ -1463,6 +1461,36 @@ def _build_rollup_items(
     return consumed, rollup_items
 
 
+def collapse_music_practice_contexts(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Newest cumulative snapshot per Music context; legacy events stay intact.
+
+    Workspace + canonical source/key/instrument defend against malformed reuse.
+    Transport state and temporary key are intentionally absent from identity.
+    """
+    def rank(event):
+        try:
+            revision = int(_metrics(event).get("practice_context_revision") or 0)
+        except (TypeError, ValueError):
+            revision = 0
+        return revision, _parse_ts(event)
+
+    contexts = {}
+    out = []
+    for event in events:
+        m = event.get("metrics") or {}
+        cid = m.get("practice_context_id") if isinstance(m, dict) else None
+        if _event_key(event) != ("music", "practice_session_started") or not cid:
+            out.append(event)
+            continue
+        key = tuple(str(m.get(k) or "") for k in (
+            "workspace_id", "source_type", "source_id", "instrument", "practice_key", "practice_context_id"
+        ))
+        previous = contexts.get(key)
+        if previous is None or rank(event) >= rank(previous):
+            contexts[key] = event
+    return out + list(contexts.values())
+
+
 def build_activity_dashboard(
     events: list[dict[str, Any]],
     *,
@@ -1474,6 +1502,7 @@ def build_activity_dashboard(
     if now is None:
         now = datetime.now(timezone.utc)
 
+    events = collapse_music_practice_contexts(events)
     remaining, synthetic_lines = _cluster_investment_setup(events)
     today_summaries: tuple[str, ...] = ()
     week_summaries: tuple[str, ...] = ()

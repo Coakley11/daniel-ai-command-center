@@ -66,7 +66,7 @@ class MusicPracticeActivityTests(unittest.TestCase):
         )
         self.assertEqual(
             format_activity_message(event),
-            "Practiced Shape of You on Alto Sax with Key Cycling, starting in B minor · Catalog",
+            "Practiced Shape of You with Key Cycling on Alto Sax, starting in B minor · Catalog",
         )
         self.assertNotIn("D minor", format_activity_message(event) or "")
 

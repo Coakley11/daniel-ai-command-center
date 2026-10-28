@@ -115,6 +115,8 @@ def activity_action_id(event: dict[str, Any]) -> str | None:
             return "sleeper_analysis"
 
     if app == "music":
+        if et == "practice_session_started" and _metrics(event).get("practice_context_id"):
+            return None  # Preserve the factual context summary, not generic run counts.
         if et in ("practice_session_started", "practice"):
             return "practice_session"
         if et in ("backing_track_completed", "backing_track"):
