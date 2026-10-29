@@ -28,7 +28,7 @@ from activity_store import (
     load_activity_snapshot,
     load_all_events,
 )
-from app_branding import build_app_themes
+from app_branding import app_logo_data_uri, build_app_themes
 from app_registry import APP_DEFINITIONS, AppStatus, get_app_url, verify_connections
 from app_urls import BUILD_VERSION, HOMEPAGE_DEV_URL, HOMEPAGE_PRODUCTION_URL
 from coach_engine import CoachInsight, generate_coach_insights
@@ -170,6 +170,12 @@ st.markdown(
         display: flex; align-items: center; justify-content: center;
         font-size: 2.35rem; line-height: 1; flex-shrink: 0;
     }
+    /* Product logo tile: the mark is its own dark tile, so no tinted frame around it. */
+    .cc-app-icon-wrap.cc-app-logo-wrap {
+        overflow: hidden; background: transparent !important;
+        box-shadow: 0 2px 8px rgba(15, 23, 42, 0.18);
+    }
+    .cc-app-logo { width: 100%; height: 100%; display: block; object-fit: cover; }
     .cc-app-when {
         font-size: 0.72rem; font-weight: 600; color: #94a3b8;
         text-align: right; padding-top: 0.15rem; white-space: nowrap;
@@ -702,11 +708,22 @@ def _build_app_card_html(app_key: str, snapshot: ActivitySnapshot) -> str:
     else:
         top_right = ""
 
+    logo = app_logo_data_uri(app.key)
+    if logo:
+        icon_html = (
+            '<div class="cc-app-icon-wrap cc-app-logo-wrap">'
+            f'<img class="cc-app-logo" src="{logo}" alt="{html.escape(app.name)} logo"></div>'
+        )
+    else:
+        icon_html = (
+            f'<div class="cc-app-icon-wrap" style="background:{theme["bg"]};border:1px solid {theme["border"]};">'
+            f"{theme['emoji']}</div>"
+        )
+
     return (
         f'<div class="cc-app-card" style="border-top-color:{accent};">'
         f'<div class="cc-app-top">'
-        f'<div class="cc-app-icon-wrap" style="background:{theme["bg"]};border:1px solid {theme["border"]};">'
-        f"{theme['emoji']}</div>"
+        f"{icon_html}"
         f"{top_right}</div>"
         f'<div class="cc-app-name">{html.escape(app.name)}</div>'
         f"{_app_highlights_html(card.highlights, accent)}"

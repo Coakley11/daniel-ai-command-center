@@ -31,8 +31,32 @@ _BASE_THEMES: dict[str, dict[str, str]] = {
     "future_lens": {"accent": "#7c3aed", "bg": "#f5f3ff", "border": "#ddd6fe"},
 }
 
+# Music App Directory logo: approved 160px copy of static/branding/mpc_logo.png.
+# Other apps retain their existing icons.
+_LOGO_DIR = _CC_ROOT / "branding" / "logos"
+_APP_LOGO_FILES: dict[str, str] = {
+    "music": "music_mpc_160.png",
+}
+_logo_uri_cache: dict[str, str] = {}
+
 _ami_module: ModuleType | None = None
 _ami_loaded_from: str | None = None
+
+
+def app_logo_data_uri(app_key: str) -> str:
+    """``data:image/png;base64,…`` for the app's product logo, or "" when it has none."""
+    if app_key in _logo_uri_cache:
+        return _logo_uri_cache[app_key]
+    uri = ""
+    name = _APP_LOGO_FILES.get(app_key)
+    if name:
+        path = _LOGO_DIR / name
+        if path.is_file():
+            import base64
+
+            uri = "data:image/png;base64," + base64.b64encode(path.read_bytes()).decode("ascii")
+    _logo_uri_cache[app_key] = uri
+    return uri
 
 
 def _load_module_from_path(path: Path, module_name: str) -> ModuleType | None:
