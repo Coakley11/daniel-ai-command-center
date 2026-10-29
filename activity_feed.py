@@ -195,6 +195,27 @@ def _parse_ts(event: dict[str, Any]) -> datetime:
     return dt
 
 
+MUSIC_PROGRESS_EVENTS = frozenset({'mission_started', 'song_coaching_used', 'composition_saved'})
+
+
+def collapse_music_progress(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """One immutable milestone per workspace/source/id, including duplicate fallback delivery."""
+    chosen = {}
+    result = []
+    for event in events:
+        m = _metrics(event)
+        if _event_key(event)[0] == 'music' and event.get('event') in MUSIC_PROGRESS_EVENTS and m.get('progress_activity_id'):
+            key = (event.get('event'),) + tuple(str(m.get(k) or '') for k in ('workspace_id', 'source_type', 'source_id', 'progress_activity_id'))
+            if key in chosen:
+                index = chosen[key]
+                if m.get('composition_milestone') == 'updated':
+                    result[index] = event
+                continue
+            chosen[key] = len(result)
+        result.append(event)
+    return result
+
+
 def _music_title_artist(metrics: dict[str, Any]) -> str:
     title = str(metrics.get("song") or metrics.get("last_edited_song") or "").strip()
     artist = str(metrics.get("artist") or "").strip()
@@ -375,6 +396,20 @@ def format_activity_message(event: dict[str, Any], *, for_feed: bool = True) -> 
         if generated:
             return f"{title} — updated {generated[:19].replace('T', ' ')}"
         return title
+
+    if app == "music" and event_type in MUSIC_PROGRESS_EVENTS:
+        song = _music_song_only(m)
+        if event_type == 'mission_started':
+            line = 'Started mission: ' + str(m.get('mission') or 'Music mission')
+            if song:
+                line += ' on ' + song
+        elif event_type == 'song_coaching_used':
+            line = 'Used Song-Aware Coaching' + (' for ' + song if song else '')
+        else:
+            verb = 'Updated' if m.get('composition_milestone') == 'updated' else 'Saved'
+            line = verb + ' composition ' + (song or 'Untitled Song')
+        source = _music_source_label(m)
+        return line + (' · ' + source if source else '')
 
     if event_type == "practice_session_started" and app == "music":
         return _music_practice_started_message(m)
@@ -1139,7 +1174,11 @@ def _make_feed_item(
 ) -> ActivityFeedItem:
     ts_iso = utc_iso_from_datetime(sort_key)
     action_url = ""
-    if event is not None and app == "music" and str(event.get("event") or "") == "practice_session_started":
+    event_type = str((event or {}).get("event") or "")
+    progress_resume = bool(event and event_type in {"mission_started", "song_coaching_used"}
+                           and _metrics(event).get("source_type") == "catalog"
+                           and isinstance(_metrics(event).get("resume_payload"), dict))
+    if event is not None and app == "music" and (event_type == "practice_session_started" or progress_resume):
         try:
             from suite_deep_links import build_resume_action_url
 
@@ -1502,7 +1541,7 @@ def build_activity_dashboard(
     if now is None:
         now = datetime.now(timezone.utc)
 
-    events = collapse_music_practice_contexts(events)
+    events = collapse_music_progress(collapse_music_practice_contexts(events))
     remaining, synthetic_lines = _cluster_investment_setup(events)
     today_summaries: tuple[str, ...] = ()
     week_summaries: tuple[str, ...] = ()
@@ -1550,7 +1589,7 @@ def build_activity_dashboard(
 
     practice_start_items: list[ActivityFeedItem] = []
     for event in remaining:
-        if _event_key(event) != ("music", "practice_session_started"):
+        if _event_key(event)[0] != "music" or event.get("event") not in ({"practice_session_started"} | MUSIC_PROGRESS_EVENTS):
             continue
         if _event_identity(event) in grouped_consumed:
             continue
