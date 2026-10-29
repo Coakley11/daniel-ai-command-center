@@ -31,11 +31,11 @@ _BASE_THEMES: dict[str, dict[str, str]] = {
     "future_lens": {"accent": "#7c3aed", "bg": "#f5f3ff", "border": "#ddd6fe"},
 }
 
-# Music App Directory logo: approved 160px copy of static/branding/mpc_logo.png.
-# Other apps retain their existing icons.
+# Approved App Directory product logos. Other apps retain their existing icons.
 _LOGO_DIR = _CC_ROOT / "branding" / "logos"
 _APP_LOGO_FILES: dict[str, str] = {
     "music": "music_mpc_160.png",
+    "baseball": "baseball_dcbe_160.png",
 }
 _logo_uri_cache: dict[str, str] = {}
 
