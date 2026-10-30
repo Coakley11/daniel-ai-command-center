@@ -277,7 +277,8 @@ def fantasy_activity_message(event_type: str, metrics: dict[str, Any] | None = N
     if et == "active_draft_changed" or et == "saved_draft_activated":
         return f"Active League set to {league}" if league else "Changed Active League"
     if et == "draft_saved" or et == "saved_draft_archived":
-        return f"Saved draft: {league}" if league else "Saved a draft"
+        name = str(m.get("draft_name") or league or "").strip()
+        return f"Saved draft: {name}" if name else "Saved a draft"
 
     if et == "lineup_locked":
         return f"Locked {week_label} lineup".strip() if week_label else "Locked weekly lineup"

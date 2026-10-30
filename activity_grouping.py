@@ -83,6 +83,8 @@ def activity_action_id(event: dict[str, Any]) -> str | None:
             return "goal_selected"
 
     if app == "baseball":
+        if et in ("saved_draft_archived", "saved_draft_activated"):
+            return "saved_draft"
         if et in ("comparison", "player_comparison"):
             return "player_comparison"
         if et in (
@@ -106,8 +108,6 @@ def activity_action_id(event: dict[str, Any]) -> str | None:
             "team_claimed",
             "active_draft_changed",
             "draft_saved",
-            "saved_draft_archived",
-            "saved_draft_activated",
         ):
             return "shared_league"
         if et == "draft_prep":
@@ -166,6 +166,7 @@ ACTION_LABELS: dict[tuple[str, str], str] = {
     ("baseball", "waiver_transaction"): "Waiver Wire",
     ("baseball", "lineup_management"): "Fantasy Lineup",
     ("baseball", "shared_league"): "Shared Leagues",
+    ("baseball", "saved_draft"): "Saved Drafts",
     ("baseball", "draft_prep"): "Draft prep",
     ("baseball", "draft_question"): "Draft Recommendations Viewed",
     ("baseball", "sleeper_analysis"): "Sleeper Analysis",
@@ -369,7 +370,10 @@ def build_action_groups(
                 feed_message = detail
                 today_message = _app_line(app, detail)
         latest = max(_parse_ts(e, parse_ts) for e in cluster)
-        if count >= 2:
+        # Keep distinct historical restore targets as individual feed items.
+        # Today/Weekly lines still summarize counts; no newest-event proxy.
+        preserve_targets = app == "baseball" and aid in {"player_comparison", "saved_draft"}
+        if count >= 2 and not preserve_targets:
             rollup_items.append(
                 make_feed_item(
                     latest_event,

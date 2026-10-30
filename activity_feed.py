@@ -571,7 +571,9 @@ def format_activity_message(event: dict[str, Any], *, for_feed: bool = True) -> 
         "comparison",
         "player_comparison",
     }:
-        pair = _player_pair(m)
+        from suite_deep_links import comparison_players
+
+        pair = " vs ".join(comparison_players(m))
         if pair:
             return f"Compared {pair}"
         player = str(m.get("player") or "").strip()
@@ -1175,6 +1177,21 @@ def _make_feed_item(
     ts_iso = utc_iso_from_datetime(sort_key)
     action_url = ""
     event_type = str((event or {}).get("event") or "")
+    if event is not None and app == "baseball":
+        from suite_deep_links import build_resume_action_url, comparison_players, comparison_resume_key
+
+        metrics = _metrics(event)
+        resume_key = ""
+        if event_type in {"comparison", "player_comparison"}:
+            players = comparison_players(metrics)
+            if len(players) >= 2:
+                resume_key = comparison_resume_key(players)
+        elif event_type in {"saved_draft_archived", "saved_draft_activated"}:
+            draft_id = str(metrics.get("draft_id") or "").strip()
+            if draft_id:
+                resume_key = f"bb:saved_draft:{draft_id}"
+        if resume_key:
+            action_url = build_resume_action_url("baseball", resume_key=resume_key, metrics=metrics)
     progress_resume = bool(event and event_type in {"mission_started", "song_coaching_used"}
                            and _metrics(event).get("source_type") == "catalog"
                            and isinstance(_metrics(event).get("resume_payload"), dict))
@@ -1589,7 +1606,12 @@ def build_activity_dashboard(
 
     practice_start_items: list[ActivityFeedItem] = []
     for event in remaining:
-        if _event_key(event)[0] != "music" or event.get("event") not in ({"practice_session_started"} | MUSIC_PROGRESS_EVENTS):
+        app, event_type = _event_key(event)
+        music_item = app == "music" and event_type in ({"practice_session_started"} | MUSIC_PROGRESS_EVENTS)
+        baseball_item = app == "baseball" and event_type in {
+            "comparison", "player_comparison", "saved_draft_archived", "saved_draft_activated"
+        }
+        if not (music_item or baseball_item):
             continue
         if _event_identity(event) in grouped_consumed:
             continue
@@ -1602,7 +1624,7 @@ def build_activity_dashboard(
         practice_start_items.append(
             _make_feed_item(
                 event,
-                app="music",
+                app=app,
                 message=message,
                 sort_key=sort_key,
             )
