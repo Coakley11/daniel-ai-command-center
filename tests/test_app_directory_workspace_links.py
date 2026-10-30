@@ -25,7 +25,9 @@ class TestAppDirectoryWorkspaceLinks(unittest.TestCase):
         st = _fake_st()
         st.session_state[AUTH_SESSION_KEY] = True
         st.session_state[AUTH_EXTERNAL_ID_KEY] = "daniel"
-        set_active_workspace_id(st, "ariel")
+        # This test changes a fake session, never the process-wide workspace file.
+        with unittest.mock.patch("suite_workspace.persist_active_workspace_id",return_value=True):
+            set_active_workspace_id(st, "ariel")
         with unittest.mock.patch("suite_auth.is_auth_enabled", return_value=True):
             with unittest.mock.patch("suite_auth.is_authenticated", return_value=True):
                 enforce_workspace_ownership(st.session_state)
