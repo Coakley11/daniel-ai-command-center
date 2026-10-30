@@ -115,10 +115,16 @@ def _resume_item_to_continue_card(item: Any, *, music_url: str, themes: dict[str
     payload = payload_from_action_url(action_url)
     if payload and not payload_workspace_matches(payload, active_workspace_id()):
         return None
-    title = str(getattr(item, "title", "") or "").strip()
-    subtitle = str(getattr(item, "subtitle", "") or "").strip()
-    if not title:
+    from music_continue_identity import candidate_copy, eligible_payload
+    destination = payload.get("activity_destination")
+    event = ("mission_started" if destination == "missions" else
+             "song_coaching_used" if destination == "coaching" else
+             "backing_track_started" if payload.get("resume_kind") == "backing" else
+             "practice_session_started")
+    payload = eligible_payload(event, {"resume_payload": payload})
+    if not payload:
         return None
+    title, subtitle = candidate_copy(payload)
     metrics: dict[str, Any] = {}
     if payload:
         metrics["resume_payload"] = payload
@@ -196,14 +202,11 @@ def merge_music_continue_cards(
     *,
     limit: int = 6,
 ) -> list[ContinueCard]:
-    """Merge Music resume Continue cards ahead of inferred project cards."""
-    music_cards = music_continue_cards_from_resume_items(limit=limit)
-    if not music_cards:
-        return existing[:limit]
-    music_keys = {c.title.lower() for c in music_cards}
-    rest = [c for c in existing if c.title.lower() not in music_keys]
-    merged = music_cards + rest
-    return merged[:limit]
+    """Preserve the canonical cross-workflow recency ranking."""
+    # project_intelligence ranks exact Music event candidates alongside other
+    # workflows. Prepending unranked legacy rows breaks recency and ownership.
+    return existing[:limit]
+
 
 
 def _payloads_from_snapshot(snapshot: ActivitySnapshot) -> list[dict[str, Any]]:
