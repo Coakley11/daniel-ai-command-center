@@ -738,13 +738,13 @@ def _render_app_card(app_key: str, snapshot: ActivitySnapshot) -> None:
             from music_command_center_dashboard import active_workspace_id
             from suite_deep_links import build_music_workstream_url
 
-            url = build_music_workstream_url("practice", workspace_id=active_workspace_id())
+            url = build_music_workstream_url("picker", workspace_id=active_workspace_id())
         except ImportError:
             url = get_app_url(app.key, workspace_id=get_active_workspace_id(st))
     else:
         url = get_app_url(app.key, workspace_id=get_active_workspace_id(st))
     _render_unsafe_html(_build_app_card_html(app_key, snapshot))
-    _render_go_button("Open", url, f"app_{app.key}")
+    _render_go_button("Open workspace" if app_key == "music" else "Open", url, f"app_{app.key}")
 
 
 def _render_app_directory(snapshot: ActivitySnapshot) -> None:
