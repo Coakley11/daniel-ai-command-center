@@ -4,6 +4,8 @@ Derive active projects, cross-app insights, and accomplishment lines from real e
 
 from __future__ import annotations
 
+from suite_deep_links import comparison_players, comparison_resume_key
+
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Any
@@ -457,13 +459,12 @@ def _raw_event_workflow_candidate(event: dict[str, Any]) -> dict[str, Any] | Non
 
     if app == "baseball":
         if event_name == "player_comparison":
-            pa = str(m.get("player_a") or "").strip()
-            pb = str(m.get("player_b") or "").strip()
-            if not pa or not pb:
+            players = comparison_players(m)
+            if len(players) < 2:
                 return None
-            resume_key = f"compare:{pa}:{pb}"
+            resume_key = comparison_resume_key(players)
             priority = 59
-            title = f"Continue {pa} vs {pb}"
+            title = "Continue " + " vs ".join(players)
         elif event_name == "trend_comparison_viewed":
             pa = str(m.get("player_a") or "").strip()
             pb = str(m.get("player_b") or "").strip()
@@ -1108,17 +1109,17 @@ def _projects_from_events(
 
         elif app == "baseball":
             if event_name == "player_comparison":
-                pa = str(m.get("player_a") or "").strip()
-                pb = str(m.get("player_b") or "").strip()
-                if pa and pb and (baseball_compare is None or ts >= baseball_compare[2]):
+                players = comparison_players(m)
+                if len(players) >= 2 and (baseball_compare is None or ts >= baseball_compare[2]):
+                    pa, pb = players[:2]
                     baseball_compare = (pa, pb, ts, m)
-                    pair = f"{pa} vs {pb}"
+                    pair = " vs ".join(players)
                     cand = (
                         ts,
                         59,
                         f"Continue {pair}",
                         "Comparison Tool",
-                        f"compare:{pa}:{pb}",
+                        comparison_resume_key(players),
                         "Comparison Tool",
                         {"player_a": pa, "player_b": pb, **m},
                     )
