@@ -88,7 +88,7 @@ class TestMusicCommandCenterDashboard(unittest.TestCase):
             self.assertIn("suite_resume_payload=", url)
             self.assertIn("suite_entry_mode=continue", url)
 
-    def test_merge_music_continue_cards_prioritizes_music(self) -> None:
+    def test_merge_music_continue_cards_keeps_ranked_workflows(self) -> None:
         music_card = ContinueCard(
             app_key="music",
             app_name="Music Practice Coach",
@@ -110,8 +110,8 @@ class TestMusicCommandCenterDashboard(unittest.TestCase):
             return_value=[music_card],
         ):
             merged = merge_music_continue_cards([other], limit=6)
-        self.assertEqual(merged[0].app_key, "music")
-        self.assertEqual(len(merged), 2)
+        self.assertEqual(merged, [other])
+        self.assertEqual(len(merged), 1)
 
     def test_workstream_cards_use_soft_urls(self) -> None:
         snap = ActivitySnapshot(last_song="Shape of You")

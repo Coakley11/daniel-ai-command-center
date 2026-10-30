@@ -390,6 +390,16 @@ def format_activity_message(event: dict[str, Any], *, for_feed: bool = True) -> 
     if for_feed and (app, event_type) in FEED_SUPPRESSED:
         return None
 
+    if event_type == "practice_log_saved" and app == "music":
+        title = str(m.get("song") or "Practice session")
+        instrument = str(m.get("instrument") or "")
+        line = "Logged practice: " + title
+        if instrument:
+            line += " on " + instrument
+        if m.get("minutes"):
+            line += f" ({int(m['minutes'])} min)"
+        return line
+
     if event_type == "practice_log_analysis" and app == "music":
         title = str(m.get("handoff_title") or "Music Practice Log Analysis").strip()
         generated = str(m.get("report_generated_at") or m.get("activity_sort_at") or "").strip()
@@ -1607,7 +1617,7 @@ def build_activity_dashboard(
     practice_start_items: list[ActivityFeedItem] = []
     for event in remaining:
         app, event_type = _event_key(event)
-        music_item = app == "music" and event_type in ({"practice_session_started"} | MUSIC_PROGRESS_EVENTS)
+        music_item = app == "music" and event_type in ({"practice_session_started", "practice_log_saved"} | MUSIC_PROGRESS_EVENTS)
         baseball_item = app == "baseball" and event_type in {
             "comparison", "player_comparison", "saved_draft_archived", "saved_draft_activated"
         }

@@ -38,6 +38,9 @@ def build_continue_cards(limit: int = 6, snapshot: ActivitySnapshot | None = Non
 
     themes = suite_app_icons()
     for app_key, state in load_current_states().items():
+        if app_key == "music":
+            # Directory owns generic current state; it is not a Continue task.
+            continue
         if app_key not in meta or not meta[app_key]["url"]:
             continue
         summary = str(state.get("summary") or "").strip()

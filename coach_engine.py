@@ -192,21 +192,16 @@ def generate_coach_insights(snapshot: ActivitySnapshot) -> list[CoachInsight]:
             )
         )
     elif (
-        snapshot.last_music_upload_days_ago is not None
+        snapshot.music_recording_context.get("song")
+        and not snapshot.music_recording_context.get("reviewed")
+        and snapshot.last_music_upload_days_ago is not None
         and snapshot.last_music_upload_days_ago <= 3
-        and snapshot.last_song
-        and (
-            snapshot.last_recording_review_days_ago is None
-            or snapshot.last_recording_review_days_ago > snapshot.last_music_upload_days_ago
-        )
     ):
         candidates.append(
             CoachInsight(
-                key="music",
-                icon="🎵",
-                message=(
-                    f"You uploaded a recording of {snapshot.last_song} but have not reviewed feedback yet."
-                ),
+                key="music", icon="\U0001f3b5",
+                message=(f"You uploaded a recording of {snapshot.music_recording_context['song']} "
+                         "but have not reviewed feedback yet."),
                 priority=7,
             )
         )

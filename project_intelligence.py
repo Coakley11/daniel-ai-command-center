@@ -70,37 +70,6 @@ def _metrics(event: dict[str, Any]) -> dict[str, Any]:
     return raw if isinstance(raw, dict) else {}
 
 
-def _latest_music_metrics_for_song(song: str) -> dict[str, Any]:
-    """Most recent event metrics for a song — used when resume cards need pick_key/display_key."""
-    target = str(song or "").strip()
-    if not target:
-        return {}
-    for event in sorted(
-        load_all_events(),
-        key=lambda e: str(e.get("timestamp") or ""),
-        reverse=True,
-    ):
-        if str(event.get("app") or "").strip() != "music":
-            continue
-        m = _metrics(event)
-        if _song(m) == target:
-            return dict(m)
-    return {"song": target}
-
-
-def _music_resume_metrics(sm: dict[str, Any], song: str) -> dict[str, Any]:
-    return {
-        "song": song,
-        "artist": str(sm.get("artist") or ""),
-        "pick_key": str(sm.get("pick_key") or "").strip(),
-        "display_key": str(sm.get("display_key") or ""),
-        "instrument": str(sm.get("instrument") or ""),
-        "practice_focus_section": str(
-            sm.get("practice_focus_section") or sm.get("focus") or ""
-        ),
-    }
-
-
 def _stale(ts: datetime | None) -> bool:
     if ts is None:
         return True
@@ -171,7 +140,7 @@ def _continue_merge_key(app: str, resume_key: str, metrics: dict[str, Any]) -> s
 def _consolidate_music_continue_rows(
     rows: list[tuple[int, str, str, str, str, str, dict[str, Any]]],
 ) -> list[tuple[int, str, str, str, str, str, dict[str, Any]]]:
-    """Keep the highest-priority Continue row per song."""
+    """Keep the newest Continue row per source; priority breaks timestamp ties."""
     best: dict[str, tuple[int, str, str, str, str, str, dict[str, Any]]] = {}
     other: list[tuple[int, str, str, str, str, str, dict[str, Any]]] = []
     for row in rows:
@@ -446,6 +415,17 @@ def _raw_event_workflow_candidate(event: dict[str, Any]) -> dict[str, Any] | Non
     """Map a single stored event to a Continue-style workflow candidate (if possible)."""
     app = str(event.get("app") or "").strip()
     event_name = str(event.get("event") or "").strip()
+    if app == "music" and event_name not in {"practice_log_analysis", "analytical_question"}:
+        from music_continue_identity import eligible_payload, candidate_copy
+        payload = eligible_payload(event_name, _metrics(event))
+        ts_raw = str(event.get("timestamp") or "")
+        ts = _parse_ts(ts_raw)
+        if not payload or ts is None:
+            return None
+        title, _ = candidate_copy(payload)
+        return dict(timestamp=ts_raw[:19], app=app, event_type=event_name,
+                    resume_key="music:workflow:" + str(payload["pick_key"]),
+                    priority=61, title=title, stale=_stale(ts))
     if event_name not in _MEANINGFUL_WORKFLOW_EVENTS:
         return None
     ts_raw = str(event.get("timestamp") or "")
@@ -710,6 +690,10 @@ def _merged_continue_rank_map(
             merged[resume_key] = priority
 
     for item in load_active_resume_items(limit=30):
+        # Historical Activity Resume remains separate. Global Music Continue is
+        # selected from eligible events, not legacy rows contaminated by logs.
+        if item.app == "music" and not _is_applied_intelligence_resume_key(item.item_key):
+            continue
         if item.app not in meta or not meta[item.app]["url"]:
             continue
         _title, _subtitle, priority = _polish_resume(item)
@@ -834,6 +818,10 @@ def diagnose_baseball_continue(
         diag.latest_trend_event = max(trend_events, key=lambda e: str(e.get("timestamp") or ""))
 
     for item in load_active_resume_items(limit=30):
+        # Historical Activity Resume remains separate. Global Music Continue is
+        # selected from eligible events, not legacy rows contaminated by logs.
+        if item.app == "music" and not _is_applied_intelligence_resume_key(item.item_key):
+            continue
         if item.app == "baseball" and (
             item.item_key.startswith("trend:") or "trend chart" in item.title.lower()
         ):
@@ -926,8 +914,6 @@ def _projects_from_events(
     completed_lineup_weeks = lifecycle["completed_lineups"]
     del TRADE_TERMINAL_EVENTS, proposal_id_from_event  # used only via collect_*
 
-    song_state: dict[str, dict[str, datetime | None]] = {}
-    song_metrics: dict[str, dict[str, Any]] = {}
     inv_health: datetime | None = None
     inv_health_metrics: dict[str, Any] = {}
     inv_scenario: datetime | None = None
@@ -940,7 +926,6 @@ def _projects_from_events(
     baseball_compare: tuple[str, str, datetime, dict[str, Any]] | None = None
     baseball_trend: tuple[str, datetime, dict[str, Any]] | None = None
     latest_baseball_workflow: tuple[datetime, int, str, str, str, str, dict[str, Any]] | None = None
-    latest_music_workflow: tuple[datetime, str, dict[str, Any], str] | None = None
     latest_analytical: tuple[datetime, int, str, str, str, str, dict[str, Any]] | None = None
     latest_nba_workflow: tuple[datetime, int, str, str, str, str, dict[str, Any]] | None = None
     latest_future_lens_workflow: tuple[datetime, int, str, str, str, str, dict[str, Any]] | None = None
@@ -1058,40 +1043,8 @@ def _projects_from_events(
             continue
 
         if app == "music":
-            song = _song(m)
-            if not song:
-                continue
-            if event_name in _CONTINUE_PASSIVE_EVENTS:
-                song_metrics.setdefault(song, m)
-                continue
-            st = song_state.setdefault(song, {"edit": None, "practice": None, "upload": None, "review": None})
-            if event_name in {"verified_chart_saved", "lyrics_saved", "chart_save", "chord_save"}:
-                if st["edit"] is None:
-                    st["edit"] = ts
-                    song_metrics.setdefault(song, m)
-            elif event_name == "practice":
-                if st["practice"] is None:
-                    st["practice"] = ts
-                    song_metrics[song] = m
-            elif event_name in {"video_uploaded", "audio_uploaded"}:
-                if st["upload"] is None:
-                    st["upload"] = ts
-                    song_metrics.setdefault(song, m)
-            elif event_name == "recording_reviewed":
-                if st["review"] is None:
-                    st["review"] = ts
-            elif event_name in _MUSIC_ACTIVE_WORKFLOW_EVENTS:
-                song_metrics[song] = {**song_metrics.get(song, {}), **m}
-                cur = latest_music_workflow
-                if cur is None or ts > cur[0]:
-                    latest_music_workflow = (ts, song, m, event_name)
-            elif event_name == "studio_page_entered":
-                page = str(m.get("studio_page") or m.get("page") or "").lower()
-                if "backing" in page:
-                    song_metrics[song] = {**song_metrics.get(song, {}), **m}
-                    cur = latest_music_workflow
-                    if cur is None or ts > cur[0]:
-                        latest_music_workflow = (ts, song, m, event_name)
+            # Local Continue is built below from exact event-owned envelopes.
+            continue
 
         elif app == "investment":
             if event_name in ("portfolio_health_checked", "portfolio_check") and inv_health is None:
@@ -1389,37 +1342,8 @@ def _projects_from_events(
             if lesson and not ai_lesson:
                 ai_lesson = lesson
 
-    for song, st in song_state.items():
-        edit, practice, upload, review = st["edit"], st["practice"], st["upload"], st["review"]
-        sm = song_metrics.get(song) or {}
-        pick_key = str(sm.get("pick_key") or "").strip()
-        resume_metrics = _music_resume_metrics(sm, song)
-        if edit and (practice is None or (practice and edit > practice)) and not _stale(edit):
-            rk = f"song:{pick_key}" if pick_key else f"music:edit:{song}"
-            out.append(
-                _continue_row(
-                    60, "music", f"Continue {song} chord edits", "Reinforce verified chart work",
-                    rk, "practice", resume_metrics, edit,
-                )
-            )
-        if upload and (review is None or (review and upload > review)) and not _stale(upload):
-            rk = f"song:{pick_key}" if pick_key else f"music:upload:{song}"
-            out.append(
-                _continue_row(
-                    55, "music", f"Review uploaded {song} recording", "Listen back & note improvements",
-                    rk, "recording", resume_metrics, upload,
-                )
-            )
-        if practice and not _stale(practice):
-            if edit is None or (edit and practice >= edit):
-                rk = f"song:{pick_key}" if pick_key else f"music:practice:{song}"
-                subtitle = str(sm.get("focus") or sm.get("artist") or "Build on your last session")
-                out.append(
-                    _continue_row(
-                        42, "music", f"Continue {song} practice plan", subtitle,
-                        rk, "practice", resume_metrics, practice,
-                    )
-                )
+    from music_continue_identity import continue_rows
+    out.extend(continue_rows(events))
 
     if inv_health and (inv_rebalance is None or (inv_rebalance and inv_health > inv_rebalance)) and not _stale(inv_health):
         subtitle = snapshot.last_portfolio_review or str(inv_health_metrics.get("review_type") or "Health & recommendations")
@@ -1435,29 +1359,6 @@ def _projects_from_events(
             _continue_row(
                 50, "investment", title, "Review recommendations next",
                 "inv:scenario", "Efficient Frontier", {}, inv_scenario,
-            )
-        )
-
-    if latest_music_workflow and not _stale(latest_music_workflow[0]):
-        ts, song, wm, ev = latest_music_workflow
-        sm = {**song_metrics.get(song, {}), **wm}
-        resume_metrics = _music_resume_metrics(sm, song)
-        studio = str(sm.get("studio_page") or "").strip()
-        if ev.startswith("backing") or studio == "backing":
-            page = "backing"
-            pick = str(resume_metrics.get("pick_key") or "").strip()
-            rk = f"backing:{pick}" if pick else f"backing:{song}"
-        else:
-            page = "practice"
-            pick = str(resume_metrics.get("pick_key") or "").strip()
-            rk = f"song:{pick}" if pick else f"music:workflow:{song}"
-        inst = str(resume_metrics.get("instrument") or "")
-        dk = str(resume_metrics.get("display_key") or "")
-        subtitle = " · ".join(p for p in [dk, inst, page] if p)
-        out.append(
-            _continue_row(
-                61, "music", f"Continue {song}", subtitle or "Resume your last session",
-                rk, page, resume_metrics, ts,
             )
         )
 
@@ -1507,22 +1408,6 @@ def _projects_from_events(
         out.append(_continue_row(priority, "applied_intelligence", title, subtitle, resume_key, page, metrics, ts))
 
     # Snapshot fallbacks when events are thin
-    if snapshot.last_song and snapshot.last_music_edit_days_ago is not None and snapshot.last_music_edit_days_ago <= 5:
-        sm = _latest_music_metrics_for_song(snapshot.last_song)
-        pick_key = str(sm.get("pick_key") or "").strip()
-        rk = f"song:{pick_key}" if pick_key else f"music:edit:{snapshot.last_song}"
-        if not any(x[4] == rk for x in out):
-            out.append(
-                (
-                    45,
-                    "music",
-                    f"Continue {snapshot.last_song} chord edits",
-                    snapshot.last_music_edit_label,
-                    rk,
-                    "practice",
-                    _music_resume_metrics(sm, snapshot.last_song),
-                )
-            )
     if snapshot.last_nba_team and not any(x[1] == "nba" for x in out):
         out.append(
             (
@@ -1708,6 +1593,10 @@ def build_project_continue_cards(
             merged[merge_key] = (priority, ts, card)
 
     for item in load_active_resume_items(limit=30):
+        # Historical Activity Resume remains separate. Global Music Continue is
+        # selected from eligible events, not legacy rows contaminated by logs.
+        if item.app == "music" and not _is_applied_intelligence_resume_key(item.item_key):
+            continue
         if item.app not in meta or not meta[item.app]["url"]:
             continue
         title, subtitle, priority = _polish_resume(item)

@@ -138,11 +138,13 @@ class ActivitySnapshot:
     music_verified_edits_this_week: int = 0
     music_lyrics_edits_this_week: int = 0
     music_backing_sessions_this_week: int = 0
+    music_recording_context: dict[str, Any] = field(default_factory=dict)
     last_music_upload_days_ago: int | None = None
     last_recording_review_days_ago: int | None = None
     last_music_edit_days_ago: int | None = None
     last_instrument_practice_days_ago: int | None = None
     music_directory_primary: str = ""
+    music_directory_instrument: str = ""
     music_overedited_song: str = ""
 
     # Investment
@@ -805,6 +807,7 @@ MEANINGFUL_WEEK_EVENTS = frozenset(
         "session",
         "analysis",
         "practice",
+        "practice_log_saved",
         "simulation",
         "portfolio_check",
         "portfolio_health_checked",
@@ -1113,6 +1116,7 @@ def _ingest_suite_events(snapshot: ActivitySnapshot) -> None:
                 rank > music_dir_rank or (rank == music_dir_rank and ts > music_dir_ts)
             ):
                 music_dir_rank, music_dir_ts, music_dir_line = rank, ts, msg
+                snapshot.music_directory_instrument = str(metrics.get("instrument") or "")
 
             song_name = str(metrics.get("song") or metrics.get("last_edited_song") or "").strip()
             if event_name in {"verified_chart_saved", "lyrics_saved", "chart_save", "chord_save"}:
@@ -1130,7 +1134,7 @@ def _ingest_suite_events(snapshot: ActivitySnapshot) -> None:
                     artist = str(metrics.get("artist") or "").strip()
                     if artist:
                         snapshot.last_music_artist = artist
-            elif event_name == "practice":
+            elif event_name in {"practice", "practice_log_saved"}:
                 if ts >= week_start_dt:
                     snapshot.music_practice_sessions_this_week += 1
                 if song_name:
@@ -1379,6 +1383,9 @@ def _ingest_suite_events(snapshot: ActivitySnapshot) -> None:
         snapshot.investment_directory_primary = inv_dir_line
     if bb_dir_line:
         snapshot.baseball_directory_primary = bb_dir_line
+    from music_recording_identity import latest_recording_context
+    snapshot.music_recording_context = latest_recording_context(events)
+
     if last_upload_ts:
         snapshot.last_music_upload_days_ago = _days_ago(last_upload_ts.date())
     if last_review_ts:
@@ -1575,8 +1582,10 @@ def get_app_directory_card(snapshot: ActivitySnapshot, app_key: str) -> AppDirec
             lines.append(f"{snapshot.last_music_edit_label}: {snapshot.last_song}{artist_bit}")
         elif snapshot.last_song:
             lines.append(_labeled("Last song", snapshot.last_song))
-        if snapshot.last_instrument:
-            lines.append(_labeled("Instrument", snapshot.last_instrument))
+        instrument = (snapshot.music_directory_instrument if snapshot.music_directory_primary
+                      else snapshot.last_instrument)
+        if instrument:
+            lines.append(_labeled("Instrument", instrument))
         if snapshot.music_streak_days > 0:
             days_word = "day" if snapshot.music_streak_days == 1 else "days"
             lines.append(_labeled("Streak", f"{snapshot.music_streak_days} {days_word}"))

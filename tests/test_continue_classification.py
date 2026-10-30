@@ -15,6 +15,20 @@ from project_intelligence import (
 )
 
 
+def owned_events(events):
+    """Fixtures model current workflow envelopes; logs/passive events stay separate."""
+    for e in events:
+        if e.get("app") != "music" or e.get("event") not in {"practice", "backing_track_started"}:
+            continue
+        m=e["metrics"]
+        kind="backing" if e["event"] == "backing_track_started" else "practice"
+        if e["event"] == "practice":
+            e["event"]="practice_session_started"
+        m["resume_payload"]=dict(version=1,workspace_id="daniel",resume_kind=kind,studio_page=kind,
+            song=m["song"],pick_key=m["pick_key"],instrument=m.get("instrument") or "Guitar",display_key="D")
+    return events
+
+
 class TestContinueClassification(unittest.TestCase):
     def test_song_selected_does_not_emit_continue(self) -> None:
         snap = ActivitySnapshot()
@@ -27,7 +41,7 @@ class TestContinueClassification(unittest.TestCase):
                 "metrics": {"song": "Turn the Lights Back On", "pick_key": "turn_lights"},
             },
         ]
-        with patch("project_intelligence.load_all_events", return_value=events):
+        with patch("project_intelligence.load_all_events", return_value=owned_events(events)):
             cards = _projects_from_events(snap)
         self.assertEqual([c for c in cards if c[1] == "music"], [])
 
@@ -42,7 +56,7 @@ class TestContinueClassification(unittest.TestCase):
                 "metrics": {"holdings": 5},
             },
         ]
-        with patch("project_intelligence.load_all_events", return_value=events):
+        with patch("project_intelligence.load_all_events", return_value=owned_events(events)):
             cards = _projects_from_events(snap)
         self.assertEqual([c for c in cards if c[1] == "investment"], [])
 
@@ -61,7 +75,7 @@ class TestContinueClassification(unittest.TestCase):
                 },
             },
         ]
-        with patch("project_intelligence.load_all_events", return_value=events):
+        with patch("project_intelligence.load_all_events", return_value=owned_events(events)):
             cards = _projects_from_events(snap)
         music = [c for c in cards if c[1] == "music"]
         self.assertEqual(len(music), 1)
@@ -84,7 +98,7 @@ class TestContinueClassification(unittest.TestCase):
                 "metrics": {"song": "Perfect", "pick_key": "perfect", "studio_page": "backing"},
             },
         ]
-        with patch("project_intelligence.load_all_events", return_value=events):
+        with patch("project_intelligence.load_all_events", return_value=owned_events(events)):
             cards = _projects_from_events(snap)
         music = [c for c in cards if c[1] == "music"]
         self.assertEqual(len(music), 1)
@@ -115,7 +129,7 @@ class TestContinueClassification(unittest.TestCase):
                 },
             },
         ]
-        with patch("project_intelligence.load_all_events", return_value=events):
+        with patch("project_intelligence.load_all_events", return_value=owned_events(events)):
             cards = _projects_from_events(snap)
         nba = [c for c in cards if c[1] == "nba"]
         self.assertEqual(len(nba), 1)
@@ -144,7 +158,7 @@ class TestContinueClassification(unittest.TestCase):
                 },
             },
         ]
-        with patch("project_intelligence.load_all_events", return_value=events), patch(
+        with patch("project_intelligence.load_all_events", return_value=owned_events(events)), patch(
             "project_intelligence.load_active_resume_items", return_value=[]
         ):
             cards = build_project_continue_cards(snap, limit=6)
@@ -174,7 +188,7 @@ class TestContinueClassification(unittest.TestCase):
             action_url="https://example.com",
             updated_at=(datetime.now() - timedelta(days=20)).isoformat(timespec="seconds"),
         )
-        with patch("project_intelligence.load_all_events", return_value=events), patch(
+        with patch("project_intelligence.load_all_events", return_value=owned_events(events)), patch(
             "project_intelligence.load_active_resume_items", return_value=[stale_item]
         ):
             cards = build_project_continue_cards(snap, limit=6)
