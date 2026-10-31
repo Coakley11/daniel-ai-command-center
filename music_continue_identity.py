@@ -48,17 +48,54 @@ def eligible_payload(event: str, metrics: dict[str, Any]) -> dict:
     return p
 
 
-def candidate_copy(p: dict) -> tuple[str, str]:
-    song = str(p["song"])
+SOURCE_LABELS = {"catalog": "Catalog", "custom": "Custom", "composition": "Composition"}
+
+
+def source_label(p: dict) -> str:
+    """Catalog / Custom / Composition, derived only from the stable pick key."""
+    pick = str(p.get("pick_key") or "")
+    if pick.startswith(("composition::", "composition")):
+        return SOURCE_LABELS["composition"]
+    if pick.startswith(("custom::", "custom")):
+        return SOURCE_LABELS["custom"]
+    return SOURCE_LABELS["catalog"]
+
+
+def workflow_label(p: dict) -> str:
     destination = p.get("activity_destination")
-    workflow = ("started mission" if destination == "missions" else
-                "Song-Aware Coaching" if destination == "coaching" else
-                "backing" if p.get("resume_kind") == "backing" else "practice")
-    title = f"Continue {song} {workflow}"
-    details = [str(p.get(k) or "") for k in ("display_key", "instrument")]
     if destination == "missions":
-        details.append(str(p.get("mission") or ""))
-    return title, " / ".join(x for x in details if x)
+        return "Mission"
+    if destination == "coaching":
+        return "Song-Aware Coaching"
+    return "Backing" if p.get("resume_kind") == "backing" else "Practice"
+
+
+def _positive_bpm(*values: Any) -> str:
+    for value in values:
+        try:
+            bpm = int(float(value))
+        except (TypeError, ValueError):
+            continue
+        if bpm > 0:
+            return f"{bpm} BPM"
+    return ""
+
+
+def candidate_copy(p: dict) -> tuple[str, str]:
+    """Resource first, workflow second, setup metadata third.
+
+    Only fields present in the restoration payload are shown; nothing is
+    inferred. ``display_key`` is the pick-owned concert Practice Key.
+    """
+    title = f"Continue {str(p['song']).strip()} — {workflow_label(p)}"
+    key = str(p.get("display_key") or "").strip()
+    bpm = (_positive_bpm(p.get("backing_track_bpm"), p.get("bpm"))
+           if p.get("resume_kind") == "backing" else _positive_bpm(p.get("bpm")))
+    details = [source_label(p), str(p.get("instrument") or "").strip(),
+               f"Concert {key}" if key else "", bpm]
+    if p.get("activity_destination") == "missions":
+        details.append(str(p.get("mission") or "").replace("_", " ").strip())
+    return title, " · ".join(x for x in details if x)
 
 
 def continue_rows(events: list[dict]) -> list[tuple]:

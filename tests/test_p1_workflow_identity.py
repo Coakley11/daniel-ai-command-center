@@ -33,7 +33,8 @@ def test_typed_practice_and_backing_eligible():
 def test_mission_started_only_exact_catalog():
     p=payload(kind="creative")|dict(studio_page="creative",activity_destination="missions",mission="guide_tones")
     assert eligible_payload("mission_started",{"resume_payload":p})
-    assert "started mission" in candidate_copy(p)[0]
+    assert candidate_copy(p)[0].endswith("— Mission")
+    assert candidate_copy(p)[1].endswith("guide tones")
     assert not eligible_payload("mission_completed",{"resume_payload":p})
     assert not eligible_payload("mission_started",{"resume_payload":p|dict(source_type="custom")})
 
@@ -54,7 +55,7 @@ def test_continue_label_url_and_newest_workflow_agree():
     with patch("project_intelligence.load_all_events",return_value=events),patch("project_intelligence.load_active_resume_items",return_value=[]):
         cards=build_project_continue_cards(ActivitySnapshot(),meta={"music":{"name":"Music","url":"http://localhost:8580"}})
     assert len(cards)==1
-    assert cards[0].title=="Continue Song C practice"
+    assert cards[0].title=="Continue Song C — Practice"
     p=payload_from_action_url(cards[0].action_url)
     assert (p["song"],p["pick_key"],p["instrument"],p["display_key"]) == ("Song C","catalog-c","Guitar","D")
 
@@ -139,3 +140,23 @@ def test_external_practice_analysis_link_roundtrips_its_run_identity():
     assert qs["suite_practice_analysis_run_id"] == ["run-b"]
     assert "suite_resume_payload" not in qs and "suite_pick_key" not in qs
     assert merge_handoff_metrics_from_action_url({},url)["analysis_run_id"] == "run-b"
+
+
+def test_card_copy_resource_first_with_accurate_metadata():
+    p=payload("Blue Bossa","bb","Tenor Sax","Cm","backing")|dict(backing_track_bpm=120,style="mellow",mood="mellow")
+    title,sub=candidate_copy(p)
+    assert title=="Continue Blue Bossa — Backing"
+    assert sub=="Catalog · Tenor Sax · Concert Cm · 120 BPM"
+    assert "mellow" not in title+sub
+
+
+@pytest.mark.parametrize("pick,label",[("custom::abc","Custom"),("composition::x","Composition"),("cat-1","Catalog")])
+def test_card_source_type_from_pick_identity(pick,label):
+    assert candidate_copy(payload(pick=pick))[1].startswith(label+" ·")
+
+
+def test_card_never_invents_missing_metadata():
+    p=payload()|dict(display_key="",instrument="Guitar",bpm=0)
+    assert candidate_copy(p)[1]=="Catalog · Guitar"
+    coaching=payload(kind="creative")|dict(studio_page="creative",activity_destination="coaching")
+    assert candidate_copy(coaching)[0]=="Continue Song C — Song-Aware Coaching"
