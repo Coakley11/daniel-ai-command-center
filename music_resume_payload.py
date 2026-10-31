@@ -252,14 +252,27 @@ def _tone_bits(session: dict[str, Any]) -> dict[str, Any]:
 
 
 def _upload_bits(session: dict[str, Any]) -> dict[str, Any]:
-    song_bits = _song_bits(session)
+    """An upload is its own resource; never inherit the active song's identity."""
     label = str(session.get("last_analysis_source_label") or "").strip()
-    return {
-        "song": song_bits.get("song") or "",
-        "pick_key": song_bits.get("pick_key") or "",
+    upload_id = ""
+    try:
+        from media_upload_catalog import active_catalog_recording_id
+
+        upload_id = active_catalog_recording_id(session)
+    except Exception:
+        upload_id = ""
+    bits: dict[str, Any] = {
+        # Blank the song-owned fields that build_music_resume_payload seeded.
+        "song": "", "artist": "", "pick_key": "", "instrument": "",
+        "display_key": "", "practice_focus_section": "", "bpm": None,
         "upload_label": label,
         "studio_page": "analysis",
     }
+    if upload_id:
+        bits["upload_id"] = upload_id
+        bits["source_type"] = "upload"
+        bits["source_id"] = upload_id
+    return bits
 
 
 def build_music_resume_payload(
@@ -321,6 +334,10 @@ def build_music_resume_payload(
     else:
         payload["studio_page"] = "practice"
 
+    if payload.get("display_key"):
+        # display_key is the canonical Practice Key, i.e. concert pitch; the
+        # written key for transposing instruments is derived elsewhere.
+        payload["key_kind"] = "concert"
     return payload
 
 
@@ -344,6 +361,13 @@ def resume_key_for_payload(payload: dict[str, Any]) -> str:
     if kind == "backing":
         base = pick or str(payload.get("song") or "backing")
         return f"music:backing:{base}"
+    if kind == "creative" and payload.get("activity_destination") in {"missions", "coaching"} and pick:
+        # Workflow + resource identity (never just "creative"), so a Mission and
+        # Song-Aware Coaching for the same song are separate historical items.
+        if payload.get("activity_destination") == "missions":
+            mission = re.sub(r"[^a-zA-Z0-9]+", "_", str(payload.get("mission") or "")).strip("_")[:48]
+            return f"music:mission:{pick}:{mission}" if mission else f"music:mission:{pick}"
+        return f"music:coaching:{pick}"
     if kind == "creative":
         entry = str(payload.get("improv_entry_mode") or payload.get("backing_source") or "creative")
         style = str(payload.get("improv_style_key") or payload.get("style") or "")
@@ -357,7 +381,8 @@ def resume_key_for_payload(payload: dict[str, Any]) -> str:
         dk = str(payload.get("display_key") or "key")
         return f"music:tone:{inst}:{dk}"
     if kind in {"upload", "analysis"}:
-        base = pick or str(payload.get("upload_label") or payload.get("song") or "upload")
+        base = str(payload.get("upload_id") or "") or pick or str(
+            payload.get("upload_label") or payload.get("song") or "upload")
         return f"music:upload:{base}"
     base = pick or str(payload.get("song") or "practice")
     if ws != "daniel":
@@ -376,88 +401,131 @@ def legacy_resume_key_for_payload(payload: dict[str, Any]) -> str:
     return str(resume_key_for_payload(payload))
 
 
-def continue_card_title(payload: dict[str, Any]) -> str:
-    kind = normalize_resume_kind(str(payload.get("resume_kind") or ""))
-    song = str(payload.get("song") or "").strip()
-    if kind == "backing":
-        style = str(payload.get("style") or payload.get("backing_groove_style") or "Backing").strip()
-        mood = str(payload.get("mood") or "").strip()
-        intensity = str(payload.get("intensity") or "").strip()
-        parts = [p for p in (style, mood, intensity) if p]
-        label = " ".join(parts) if parts else "Backing Track"
-        sections = _section_summary(payload)
-        if sections:
-            return f"Continue Backing Track — {label} — {sections}"
-        return f"Continue Backing Track — {label}"
-    if kind == "multitrack":
-        title = str(payload.get("multitrack_title") or song or "Session").strip()
-        return f"Continue Multitrack Recording — {title}"
-    if kind == "tone":
-        dk = str(payload.get("display_key") or "Concert key").strip()
-        return f"Continue Tone Practice — {dk}"
-    if kind == "creative":
-        style = str(payload.get("improv_style_key") or payload.get("style") or "Creative").strip()
-        prog = str(payload.get("progression_label") or "").strip()
-        if prog:
-            return f"Continue Creative Lab — {style} — {prog}"
-        return f"Continue Creative Lab — {style}"
-    if kind in {"upload", "analysis"}:
-        label = str(payload.get("upload_label") or song or "Upload").strip()
-        return f"Continue Upload — {label}"
+_JAM_ENTRY_LABELS = {
+    "jam session generator": "Jam Session",
+    "style jam mode": "Style Jam",
+    "style jam": "Style Jam",
+}
 
-    inst = str(payload.get("instrument") or "").strip()
-    dk = str(payload.get("display_key") or "").strip()
-    bpm = payload.get("bpm")
-    head = f"Continue {song}" if song else "Continue Practice"
-    bits: list[str] = []
-    if inst:
-        bits.append(inst)
-    if dk:
-        bits.append(f"Key: {dk}")
-    if bpm:
-        bits.append(f"{int(bpm)} BPM")
-    if bits:
-        return f"{head} — {' — '.join(bits)}"
-    return head
+
+def _text(payload: dict[str, Any], *keys: str) -> str:
+    for key in keys:
+        value = str(payload.get(key) or "").strip()
+        if value:
+            return value
+    return ""
+
+
+def _real_style(payload: dict[str, Any]) -> str:
+    """A concrete groove/style name; ``Auto`` is a selector, not a style."""
+    style = _text(payload, "improv_style_key", "backing_groove_style", "style")
+    return "" if style.lower() == "auto" else style
+
+
+def _source_label(payload: dict[str, Any]) -> str:
+    if str(payload.get("source_type") or "") == "upload" and payload.get("upload_id"):
+        return "Upload"
+    pick = str(payload.get("pick_key") or "")
+    if not pick:
+        return ""
+    if pick.startswith(("composition::", "composition")):
+        return "Composition"
+    if pick.startswith(("custom::", "custom")):
+        return "Custom"
+    return "Catalog"
+
+
+def _key_text(payload: dict[str, Any], *keys: str) -> str:
+    key = _text(payload, *keys)
+    if not key:
+        return ""
+    # Only the producer's explicit key_kind may claim "Concert".
+    if str(payload.get("key_kind") or "").strip().lower() == "concert":
+        return f"Concert {key}"
+    return f"Practice Key: {key}"
+
+
+def _bpm_text(*values: Any) -> str:
+    for value in values:
+        try:
+            bpm = int(float(value))
+        except (TypeError, ValueError):
+            continue
+        if bpm > 0:
+            return f"{bpm} BPM"
+    return ""
+
+
+def _jam_label(payload: dict[str, Any]) -> str:
+    return _JAM_ENTRY_LABELS.get(_text(payload, "improv_entry_mode").lower(), "")
+
+
+def _workflow_label(payload: dict[str, Any], kind: str) -> str:
+    destination = payload.get("activity_destination")
+    if destination == "missions":
+        return "Mission"
+    if destination == "coaching":
+        return "Song-Aware Coaching"
+    if str(payload.get("studio_page") or "").strip().lower() in {"composer", "composition"}:
+        return "Composition"
+    return {
+        "backing": "Backing",
+        "creative": "Creative Lab",
+        "multitrack": "Multitrack",
+        "tone": "Tone Practice",
+        "upload": "Upload",
+        "analysis": "Upload",
+    }.get(kind, "Practice")
+
+
+def continue_card_title(payload: dict[str, Any]) -> str:
+    """Resource first, workflow second. Never invents a song for generated contexts."""
+    kind = normalize_resume_kind(str(payload.get("resume_kind") or ""))
+    song = _text(payload, "song")
+    workflow = _workflow_label(payload, kind)
+    if kind == "multitrack":
+        resource = _text(payload, "multitrack_title", "song")
+        return f"Continue {resource} — {workflow}" if resource else "Continue Multitrack Recording"
+    if kind in {"upload", "analysis"}:
+        resource = _text(payload, "upload_label", "song")
+        return f"Continue {resource} — {workflow}" if resource else "Continue Upload"
+    jam = _jam_label(payload) if kind == "creative" and not payload.get("activity_destination") else ""
+    if jam:
+        style = _real_style(payload)
+        return f"Continue {jam} — {style}" if style else f"Continue {jam}"
+    if song:
+        return f"Continue {song} — {workflow}"
+    style = _real_style(payload)
+    generic = {"backing": "Backing Track", "creative": "Creative Lab",
+               "tone": "Tone Practice"}.get(kind, "Practice")
+    return f"Continue {generic} — {style}" if style and kind in {"backing", "creative"} else f"Continue {generic}"
 
 
 def continue_card_subtitle(payload: dict[str, Any]) -> str:
+    """Setup metadata, only from fields present in the payload."""
     kind = normalize_resume_kind(str(payload.get("resume_kind") or ""))
-    page = str(payload.get("studio_page") or "").strip()
-    focus = str(payload.get("practice_focus_section") or "").strip()
+    jam = bool(_jam_label(payload)) and kind == "creative"
+    parts: list[str] = [] if jam else [_source_label(payload)]
+    parts.append(_text(payload, "instrument"))
+    parts.append(_key_text(payload, "display_key", "concert_key"))
     if kind == "backing":
-        scope = str(payload.get("backing_track_scope") or "Full song")
-        loops = payload.get("backing_track_loops")
-        bpm = payload.get("backing_track_bpm") or payload.get("bpm")
-        parts = [scope]
-        sec = _section_summary(payload)
-        if sec:
-            parts.append(sec)
-        if bpm:
-            parts.append(f"{int(bpm)} BPM")
-        if loops:
-            parts.append(f"{int(loops)} loops")
-        if page:
-            parts.append(page)
-        return " · ".join(str(p) for p in parts if p)
-    if kind == "creative":
-        entry = str(payload.get("improv_entry_mode") or "").strip()
-        dk = str(payload.get("display_key") or payload.get("concert_key") or "").strip()
-        parts = [p for p in (entry, dk, page or "creative") if p]
-        return " · ".join(parts) or "Creative Lab"
-    if kind == "multitrack":
-        song = str(payload.get("song") or "").strip()
-        return song or "Multitrack session"
-    if kind == "tone":
-        inst = str(payload.get("instrument") or "").strip()
-        return inst or "Tone / tuner"
-    if kind in {"upload", "analysis"}:
-        return str(payload.get("upload_label") or payload.get("song") or "Upload workflow")
-    parts = [p for p in (focus, page or "practice") if p]
-    artist = str(payload.get("artist") or "").strip()
-    if artist and not parts:
-        return artist
-    return " · ".join(parts) if parts else str(payload.get("artist") or "Practice")
+        parts.append(_bpm_text(payload.get("backing_track_bpm"), payload.get("bpm")))
+        scope = _text(payload, "backing_track_scope")
+        sections = _section_summary(payload)
+        if sections:
+            parts.append(sections)
+        elif scope and scope.lower() != "full song":
+            parts.append(scope)
+    elif kind == "creative":
+        parts.append(_text(payload, "progression_label"))
+        if payload.get("activity_destination") == "missions":
+            parts.append(_text(payload, "mission").replace("_", " "))
+    elif kind in {"upload", "analysis", "multitrack", "tone"}:
+        pass
+    else:
+        parts.append(_bpm_text(payload.get("bpm")))
+        parts.append(_text(payload, "practice_focus_section"))
+    return " · ".join(x for x in parts if x)
 
 
 def _section_summary(payload: dict[str, Any]) -> str:
@@ -517,7 +585,75 @@ def apply_music_resume_payload(
 
     kind = normalize_resume_kind(str(payload.get("resume_kind") or ""))
     pick = str(payload.get("pick_key") or "").strip()
-    if pick and song_picker_catalog:
+    if payload.get("progress_activity_id"):
+        destination = payload.get("activity_destination")
+        if destination not in {"missions", "coaching"}:
+            return False
+
+    strict_source = bool(payload.get("practice_context_id") or payload.get("progress_activity_id")
+                         or pick.startswith(("custom::", "composition::"))
+                         or (pick and kind in {"practice", "backing"}))
+    if strict_source:
+        # Strict activity Resume: activate the document through its owner API.
+        # A missing source must not resurrect whatever song was already open.
+        if not pick:
+            return False
+        named_source = "custom" if pick.startswith("custom::") else "composition" if pick.startswith("composition::") else "catalog"
+        declared_source = str(payload.get("source_type") or "").strip()
+        declared_source = {"custom_progression":"custom", "composition_song":"composition", "catalog_song":"catalog"}.get(declared_source, declared_source)
+        if (declared_source and declared_source != named_source) or (
+            payload.get("source_id") and str(payload["source_id"]) != pick
+        ):
+            session["_suite_resume_failure_reason_music"] = "source_identity_mismatch"
+            return False
+        # Resolve the named resource before its owner may mutate active state.
+        if pick.startswith("custom::"):
+            from songs.music_source import custom_progression_for_pick_key
+            if custom_progression_for_pick_key(session, pick) is None:
+                session["_suite_resume_failure_reason_music"] = "custom_missing"
+                return False
+        elif pick.startswith("composition::"):
+            from composition_songs_bridge import find_composition_document
+            if not find_composition_document(session, pick):
+                session["_suite_resume_failure_reason_music"] = "composition_missing"
+                return False
+        else:
+            from songs.state import resolve_pick_key
+            if resolve_pick_key(pick, song_picker_catalog=song_picker_catalog or {}) != pick:
+                session["_suite_resume_failure_reason_music"] = "catalog_missing"
+                return False
+        try:
+            from types import SimpleNamespace
+            from songs.state import activate_active_song_by_pick_key
+            if not pick.startswith(("custom::", "composition::")):
+                # Resume is an explicit user selection, just like a Catalog pick.
+                # Stamp it before activation so a prior Custom owner yields.
+                from songs.music_source import begin_explicit_catalog_selection
+                begin_explicit_catalog_selection(session)
+            selected = activate_active_song_by_pick_key(
+                st or SimpleNamespace(session_state=session), pick,
+                song_picker_catalog or {}, song_library=song_library, origin="user",
+            )
+            if not selected or str(session.get("active_catalog_pick_key") or "") != pick:
+                return False
+        except Exception:
+            return False
+        from backing_transport_intent import stop_playback
+        stop_playback(session, reason="activity_resume")
+        from backing_key_cycle import clear_key_cycle_prepared_audio
+        clear_key_cycle_prepared_audio(session, stop_player=True)
+        session["_kc_hard_stop"] = True
+        session["_kc_pause_audio"] = True
+        session["_backing_transport_user_stopped"] = True
+        session["_key_cycle_force_ui_off"] = True
+        session["_backing_key_cycle_sessions"] = {}
+        session["backing_key_cycle_enabled"] = False
+        for name in ("_backing_autoplay", "_backing_play_request", "_kc_restart_play",
+                     "_backing_key_cycle_continue_play", "_kc_force_arrangement_replace",
+                     "_kc_arrangement_reload", "_backing_card_transport"):
+            session.pop(name, None)
+        session["_backing_autoplay"] = False
+    elif pick and song_picker_catalog:
         try:
             from songs.state import apply_pick_key
 
@@ -534,7 +670,7 @@ def apply_music_resume_payload(
         session["active_catalog_pick_key"] = pick
 
     song = str(payload.get("song") or "").strip()
-    if song:
+    if song and not payload.get("progress_activity_id"):
         session["song"] = song
 
     display_key = str(payload.get("display_key") or "").strip()
@@ -542,7 +678,11 @@ def apply_music_resume_payload(
         try:
             from songs.key_state import PENDING_DISPLAY_KEY
 
-            session[PENDING_DISPLAY_KEY] = display_key
+            if strict_source:
+                from suite_resume_launch import _queue_music_resume_display_key
+                _queue_music_resume_display_key(session, display_key, pick_key=pick)
+            else:
+                session[PENDING_DISPLAY_KEY] = display_key
         except ImportError:
             session["display_key"] = display_key
 
@@ -578,6 +718,38 @@ def apply_music_resume_payload(
     elif kind in {"upload", "analysis"}:
         pass
 
+    if payload.get("progress_activity_id"):
+        destination = payload.get("activity_destination")
+        if destination in {"coaching", "missions"}:
+            from studio_page_state import request_song_aware_coaching
+            request_song_aware_coaching(session)
+            if destination == "missions":
+                from creative_tab_tool_persistence import commit_creative_selector_to_canonical
+                for field in ("improv_intelligence_tab", "creative_improv_intelligence_tab"):
+                    session[field] = "Missions"
+                    commit_creative_selector_to_canonical(session, field, "Missions", reason="activity_resume")
+                from improvisation_intelligence import PRACTICE_MISSIONS
+                if payload.get("mission") in PRACTICE_MISSIONS:
+                    session["improv_mission_pick"] = payload["mission"]
+                    session["improv_active_mission"] = payload["mission"]
+                    from creative_mission_config_persistence import commit_mission_config_to_canonical
+                    commit_mission_config_to_canonical(
+                        session, reason="activity_resume", values={
+                            "improv_mission_pick": payload["mission"],
+                            "improv_active_mission": payload["mission"],
+                        },
+                    )
+            # Full cold-entry hydration includes the previous Creative session.
+            # Capture the explicit URL destination before page hydration can replay it.
+            from creative_session_state import sync_creative_session_from_session
+            restored = sync_creative_session_from_session(session)
+            if restored is not None:
+                from creative_workspace_state_persistence import write_canonical_creative_workspace
+                workspace = dict(session.get("creative_workspace_state") or {})
+                workspace["creative_session"] = restored.to_dict()
+                write_canonical_creative_workspace(session, workspace, reason="activity_resume")
+            # Existing coaching reconcile owns any saved plan; never import it from a URL.
+
     target = str(payload.get("studio_page") or _page_for_kind(kind, "practice"))
     try:
         from studio_nav_history import navigate_studio_page
@@ -586,6 +758,10 @@ def apply_music_resume_payload(
     except Exception:
         pass
     session["studio_page"] = target
+    if strict_source:
+        # Later page hydration must see the restored, stopped activity context.
+        from studio_page_persistence import save_page_snapshot
+        save_page_snapshot(session, target)
     return True
 
 
