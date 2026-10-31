@@ -2,6 +2,34 @@
 from __future__ import annotations
 
 
+def resource_delivery_key(event: dict) -> tuple | None:
+    """A resource/action identity is independent of delivery time, filename and source title."""
+    app = str(event.get('app') or '')
+    if app.split('__', 1)[0] != 'music':
+        return None
+    kind = event.get('event')
+    m = event.get('metrics') if isinstance(event.get('metrics'), dict) else {}
+    field = ('recording_id' if kind in {'audio_uploaded', 'video_uploaded'}
+             else 'export_id' if kind == 'multitrack_export_saved' else '')
+    resource_id = str(m.get(field) or '').strip() if field else ''
+    if not resource_id:
+        return None  # Legacy events have no evidence for fuzzy resource matching.
+    action = 'recording_uploaded' if kind in {'audio_uploaded', 'video_uploaded'} else kind
+    return ('music-resource', app, str(m.get('workspace_id') or 'daniel'), action, resource_id)
+
+
+def collapse_resource_deliveries(events: list[dict]) -> list[dict]:
+    result, seen = [], set()
+    for event in events:
+        key = resource_delivery_key(event)
+        if key is not None:
+            if key in seen:
+                continue
+            seen.add(key)
+        result.append(event)
+    return result
+
+
 def latest_recording_context(events: list[dict]) -> dict:
     from music_command_center_dashboard import event_matches_active_workspace
     scoped = [e for e in events if e.get("app") == "music" and event_matches_active_workspace(e)]

@@ -38,6 +38,7 @@ MILESTONE_EVENTS: frozenset[tuple[str, str]] = frozenset(
         ("music", "mission_started"),
         ("music", "song_coaching_used"),
         ("music", "composition_saved"),
+        ("music", "multitrack_export_saved"),
         ("music", "backing_track_completed"),
         ("music", "backing_track"),
         ("nba", "playoff_simulation"),
@@ -237,7 +238,7 @@ def milestone_today_line(event: dict[str, Any]) -> str | None:
             return _app_line(app, f"Practiced {song}")
         return _app_line(app, "Practice session")
 
-    if app == "music" and et in {"practice_session_started", "mission_started", "song_coaching_used", "composition_saved"}:
+    if app == "music" and et in {"practice_session_started", "mission_started", "song_coaching_used", "composition_saved", "multitrack_export_saved"}:
         try:
             from activity_feed import format_activity_message
 

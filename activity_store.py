@@ -348,11 +348,13 @@ def load_all_events(limit: int = 500) -> list[dict[str, Any]]:
     db_events = [_normalize_loaded_event(e) for e in _load_db_events(limit=limit)]
     fallbacks = [_normalize_loaded_event(e) for e in _load_fallback_events()]
     if not fallbacks:
-        return db_events
-    seen: set[tuple[str, str, str]] = set()
+        from music_recording_identity import collapse_resource_deliveries
+        return collapse_resource_deliveries(db_events)
+    seen: set[tuple[str, ...]] = set()
     combined: list[dict[str, Any]] = []
     for event in db_events + fallbacks:
-        key = (
+        from music_recording_identity import resource_delivery_key
+        key = resource_delivery_key(event) or (
             str(event.get("app") or ""),
             str(event.get("timestamp") or ""),
             str(event.get("event") or ""),
@@ -924,8 +926,14 @@ def _import_sibling_fallback_events() -> None:
         active_ws = get_active_workspace_id()
     except ImportError:
         active_ws = "daniel"
+    from music_recording_identity import resource_delivery_key
+
+    existing_resources: set[tuple] = set()
     existing: set[tuple[str, str, str]] = set()
     for row in _load_db_events(limit=500):
+        resource_key = resource_delivery_key(_normalize_loaded_event(row))
+        if resource_key is not None:
+            existing_resources.add(resource_key)
         metrics = row.get("metrics") if isinstance(row.get("metrics"), dict) else {}
         song = str(metrics.get("song") or metrics.get("last_edited_song") or "")
         existing.add(
@@ -946,9 +954,12 @@ def _import_sibling_fallback_events() -> None:
                 continue
         song = str(metrics.get("song") or metrics.get("last_edited_song") or "")
         key = (str(event.get("app") or ""), str(event.get("event") or ""), song)
-        if key in existing and song:
+        resource_key = resource_delivery_key(_normalize_loaded_event(event))
+        if resource_key is not None and resource_key in existing_resources:
             continue
-        if not song and (
+        if resource_key is None and key in existing and song:
+            continue
+        if resource_key is None and not song and (
             str(event.get("app") or ""),
             str(event.get("event") or ""),
             str(event.get("timestamp") or ""),
@@ -964,6 +975,8 @@ def _import_sibling_fallback_events() -> None:
                 page=str(event.get("page") or ""),
                 metrics=event.get("metrics") if isinstance(event.get("metrics"), dict) else {},
             )
+            if resource_key is not None:
+                existing_resources.add(resource_key)
         except OSError:
             continue
 
@@ -1047,7 +1060,8 @@ def get_weekly_summary(snapshot: ActivitySnapshot) -> WeeklySummary:
 
 
 def _ingest_suite_events(snapshot: ActivitySnapshot) -> None:
-    events = load_all_events()
+    from music_recording_identity import collapse_resource_deliveries
+    events = collapse_resource_deliveries(load_all_events())
     if not events:
         return
 

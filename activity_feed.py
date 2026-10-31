@@ -195,7 +195,7 @@ def _parse_ts(event: dict[str, Any]) -> datetime:
     return dt
 
 
-MUSIC_PROGRESS_EVENTS = frozenset({'mission_started', 'song_coaching_used', 'composition_saved'})
+MUSIC_PROGRESS_EVENTS = frozenset({'mission_started', 'song_coaching_used', 'composition_saved', 'multitrack_export_saved'})
 
 
 def collapse_music_progress(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -407,7 +407,7 @@ def format_activity_message(event: dict[str, Any], *, for_feed: bool = True) -> 
             return f"{title} — updated {generated[:19].replace('T', ' ')}"
         return title
 
-    if app == "music" and event_type in MUSIC_PROGRESS_EVENTS:
+    if app == "music" and event_type in MUSIC_PROGRESS_EVENTS - {"multitrack_export_saved"}:
         song = _music_song_only(m)
         if event_type == 'mission_started':
             line = 'Started mission: ' + str(m.get('mission') or 'Music mission')
@@ -420,6 +420,13 @@ def format_activity_message(event: dict[str, Any], *, for_feed: bool = True) -> 
             line = verb + ' composition ' + (song or 'Untitled Song')
         source = _music_source_label(m)
         return line + (' · ' + source if source else '')
+
+    if event_type == "multitrack_export_saved" and app == "music":
+        line = "Saved multitrack mix " + str(m.get("export_name") or "Untitled mix")
+        if m.get("song"):
+            line += " for " + str(m["song"])
+        source = _music_source_label(m)
+        return line + (" · " + source if source else "")
 
     if event_type == "practice_session_started" and app == "music":
         return _music_practice_started_message(m)
@@ -1568,7 +1575,8 @@ def build_activity_dashboard(
     if now is None:
         now = datetime.now(timezone.utc)
 
-    events = collapse_music_progress(collapse_music_practice_contexts(events))
+    from music_recording_identity import collapse_resource_deliveries
+    events = collapse_music_progress(collapse_music_practice_contexts(collapse_resource_deliveries(events)))
     remaining, synthetic_lines = _cluster_investment_setup(events)
     today_summaries: tuple[str, ...] = ()
     week_summaries: tuple[str, ...] = ()
