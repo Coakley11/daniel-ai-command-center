@@ -85,14 +85,16 @@ def candidate_copy(p: dict) -> tuple[str, str]:
     """Resource first, workflow second, setup metadata third.
 
     Only fields present in the restoration payload are shown; nothing is
-    inferred. ``display_key`` is the pick-owned concert Practice Key.
+    inferred. ``display_key`` is called "Concert" only when the producer says
+    so with ``key_kind == "concert"``; otherwise it is the neutral Practice Key.
     """
     title = f"Continue {str(p['song']).strip()} — {workflow_label(p)}"
     key = str(p.get("display_key") or "").strip()
     bpm = (_positive_bpm(p.get("backing_track_bpm"), p.get("bpm"))
            if p.get("resume_kind") == "backing" else _positive_bpm(p.get("bpm")))
     details = [source_label(p), str(p.get("instrument") or "").strip(),
-               f"Concert {key}" if key else "", bpm]
+               ((f"Concert {key}" if str(p.get("key_kind") or "").lower() == "concert"
+                 else f"Practice Key: {key}") if key else ""), bpm]
     if p.get("activity_destination") == "missions":
         details.append(str(p.get("mission") or "").replace("_", " ").strip())
     return title, " · ".join(x for x in details if x)

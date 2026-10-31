@@ -143,7 +143,7 @@ def test_external_practice_analysis_link_roundtrips_its_run_identity():
 
 
 def test_card_copy_resource_first_with_accurate_metadata():
-    p=payload("Blue Bossa","bb","Tenor Sax","Cm","backing")|dict(backing_track_bpm=120,style="mellow",mood="mellow")
+    p=payload("Blue Bossa","bb","Tenor Sax","Cm","backing")|dict(backing_track_bpm=120,style="mellow",mood="mellow",key_kind="concert")
     title,sub=candidate_copy(p)
     assert title=="Continue Blue Bossa — Backing"
     assert sub=="Catalog · Tenor Sax · Concert Cm · 120 BPM"
@@ -160,3 +160,8 @@ def test_card_never_invents_missing_metadata():
     assert candidate_copy(p)[1]=="Catalog · Guitar"
     coaching=payload(kind="creative")|dict(studio_page="creative",activity_destination="coaching")
     assert candidate_copy(coaching)[0]=="Continue Song C — Song-Aware Coaching"
+
+
+def test_key_is_only_called_concert_when_producer_says_so():
+    assert "Practice Key: D" in candidate_copy(payload())[1]
+    assert "Concert D" in candidate_copy(payload()|dict(key_kind="concert"))[1]
