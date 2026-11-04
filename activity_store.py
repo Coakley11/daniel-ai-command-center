@@ -347,6 +347,12 @@ def load_all_events(limit: int = 500) -> list[dict[str, Any]]:
     """SQLite history plus per-app fallback files (deduped, chronological)."""
     db_events = [_normalize_loaded_event(e) for e in _load_db_events(limit=limit)]
     fallbacks = [_normalize_loaded_event(e) for e in _load_fallback_events()]
+    # Older versions re-recorded fallback facts at import time. When their
+    # original delivery is available, discard that artificial newer duplicate.
+    def music_fact(e):
+        return (str(e.get("event") or ""), json.dumps(e.get("metrics") or {}, sort_keys=True, default=str))
+    original_music = {music_fact(e) for e in fallbacks if e.get("app") == "music"}
+    db_events = [e for e in db_events if e.get("app") != "music" or music_fact(e) not in original_music]
     if not fallbacks:
         from music_recording_identity import collapse_resource_deliveries
         return collapse_resource_deliveries(db_events)
@@ -945,6 +951,10 @@ def _import_sibling_fallback_events() -> None:
         )
     for event in _load_fallback_events():
         app_key = str(event.get("app") or "")
+        if app_key == "music":
+            # load_all_events already reads these timestamped facts directly.
+            # Re-recording them changes recency to delivery/import time.
+            continue
         metrics = event.get("metrics") if isinstance(event.get("metrics"), dict) else {}
         event_ws = str(metrics.get("workspace_id") or "").strip().lower()
         if app_key in _WORKSPACE_SCOPED_FALLBACK_APPS and active_ws != DEFAULT_WORKSPACE_ID:
@@ -1541,6 +1551,10 @@ def load_activity_snapshot() -> ActivitySnapshot:
     _ingest_music_logs(snapshot)
     _ingest_suite_events(snapshot)
     _ingest_app_state_files(snapshot)
+    # Authoritative meaningful resource facts override legacy global fallbacks
+    # only after every old snapshot/log ingestion path has completed.
+    from music_directory_context import apply_music_directory_context
+    apply_music_directory_context(snapshot, load_all_events())
     return snapshot
 
 

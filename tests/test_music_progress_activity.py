@@ -13,6 +13,10 @@ def event(kind,**changes):
                activity_destination='coaching',progress_activity_id='milestone-1',workspace_id='qa',
                pick_key='Pop\x1fShape of You',song='Shape of You',display_key='Cm',instrument='Saxophone'))
     m.update(changes)
+    if kind == 'mission_started':
+        m['resume_payload'].update(activity_destination='missions', mission=m['mission'], source_type='catalog')
+    elif kind == 'song_coaching_used':
+        m['resume_payload']['source_type'] = 'catalog'
     return dict(app='music',event=kind,timestamp='2026-10-28T15:00:00Z',metrics=m)
 
 

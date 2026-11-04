@@ -76,9 +76,9 @@ def resolve_music_continue_action_url(
     base_url: str,
     stored_action_url: str = "",
 ) -> str:
-    """Prefer stored payload URL; rebuild from resume_payload metrics when needed."""
+    """Build from the card's owned envelope; stale stored URLs cannot override it."""
     stored = str(stored_action_url or "").strip()
-    if stored and "suite_entry_mode=continue" in stored and "suite_resume_payload=" in stored:
+    if not isinstance(metrics.get("resume_payload"), dict) and stored and "suite_entry_mode=continue" in stored and "suite_resume_payload=" in stored:
         payload = payload_from_action_url(stored)
         if payload and payload_workspace_matches(payload, active_workspace_id()):
             return stored

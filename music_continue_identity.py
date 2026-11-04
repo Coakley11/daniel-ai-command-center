@@ -34,6 +34,8 @@ def eligible_payload(event: str, metrics: dict[str, Any]) -> dict:
     if event == "mission_started":
         if destination != "missions" or not p.get("mission") or p.get("source_type") != "catalog":
             return {}
+        if metrics.get("mission") and metrics["mission"] != p["mission"]:
+            return {}
     elif event == "song_coaching_used":
         if destination != "coaching" or p.get("source_type") != "catalog":
             return {}
@@ -44,6 +46,9 @@ def eligible_payload(event: str, metrics: dict[str, Any]) -> dict:
                        ("pick_key", "pick_key"), ("instrument", "instrument"),
                        ("practice_key", "display_key")):
         if metrics.get(field) and str(metrics[field]) != str(p.get(key) or ""):
+            return {}
+    for field in ("progress_activity_id", "practice_context_id"):
+        if metrics.get(field) and p.get(field) != metrics[field]:
             return {}
     return p
 

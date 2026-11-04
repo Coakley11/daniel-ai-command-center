@@ -1209,18 +1209,17 @@ def _make_feed_item(
                 resume_key = f"bb:saved_draft:{draft_id}"
         if resume_key:
             action_url = build_resume_action_url("baseball", resume_key=resume_key, metrics=metrics)
-    progress_resume = bool(event and event_type in {"mission_started", "song_coaching_used"}
-                           and _metrics(event).get("source_type") == "catalog"
-                           and isinstance(_metrics(event).get("resume_payload"), dict))
-    if event is not None and app == "music" and (event_type == "practice_session_started" or progress_resume):
+    if event is not None and app == "music":
         try:
             from suite_deep_links import build_resume_action_url
+            from music_continue_identity import eligible_payload
 
-            action_url = build_resume_action_url(
-                "music",
-                page=str(event.get("page") or "Practice"),
-                metrics=_metrics(event),
-            )
+            # Historical links are detached event facts, never current state.
+            payload = eligible_payload(event_type, _metrics(event))
+            if payload:
+                action_url = build_resume_action_url(
+                    "music", metrics={"resume_payload": payload},
+                )
         except Exception:
             action_url = ""
     return ActivityFeedItem(

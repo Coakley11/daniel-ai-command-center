@@ -270,6 +270,8 @@ def _status_badge_html(status: AppStatus) -> str:
 
 
 def _render_go_button(label: str, url: str, key: str) -> None:
+    if label == "Continue":
+        label = "→ Continue"
     cleaned = url.strip()
     if cleaned:
         try:
