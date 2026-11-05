@@ -1,4 +1,4 @@
-"""App Directory tiles show the approved Music logo; other apps retain their icons."""
+"""Directory tiles use the current approved app assets."""
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ import unittest
 from pathlib import Path
 
 from app_branding import app_logo_data_uri
+import app_branding
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -22,7 +23,7 @@ class AppDirectoryLogoTests(unittest.TestCase):
     def test_logo_files_are_square_and_crisp_at_2x(self) -> None:
         from PIL import Image
 
-        for name in ("music_mpc_160.png", "baseball_dcbe_160.png", "investment_160.png", "command_160.png"):
+        for name in app_branding._APP_LOGO_FILES.values():
             with Image.open(ROOT / "branding" / "logos" / name) as im:
                 self.assertEqual(im.size[0], im.size[1], name)
                 self.assertGreaterEqual(im.size[0], 136, name)  # 4.25rem tile at 2x

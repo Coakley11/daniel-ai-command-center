@@ -30,7 +30,7 @@ from activity_store import (
     load_activity_snapshot,
     load_all_events,
 )
-from app_branding import app_logo_data_uri, build_app_themes
+from app_branding import app_brand_html, app_logo_data_uri, build_app_themes, uses_official_logo
 from app_registry import APP_DEFINITIONS, AppStatus, get_app_url, verify_connections
 from app_urls import BUILD_VERSION, HOMEPAGE_DEV_URL, HOMEPAGE_PRODUCTION_URL
 from coach_engine import CoachInsight, generate_coach_insights
@@ -132,6 +132,9 @@ st.markdown(
     }
     .cc-brand-wordmark { display:block; width:min(100%, 320px); height:auto; background:white; border-radius:12px; margin:0 0 1rem; }
     .cc-directory-brand { width:40px; height:40px; object-fit:contain; background:white; border-radius:8px; vertical-align:middle; margin-right:0.6rem; }
+    .cc-logo-unavailable { font-size:0.75rem; color:inherit; }
+    img[data-app-logo="music"] { background:#130b3a; }
+    .cc-insight-logo { width:40px; height:40px; display:block; object-fit:contain; border-radius:8px; }
     .cc-continue-logo { width:28px; height:28px; object-fit:contain; vertical-align:middle; background:white; border-radius:6px; margin-right:0.4rem; }
     .cc-hero h1 { margin: 0 0 0.35rem 0; font-size: 2.1rem; font-weight: 800; letter-spacing: -0.02em; }
     .cc-hero p { margin: 0; font-size: 1rem; line-height: 1.55; opacity: 0.95; max-width: 720px; }
@@ -431,8 +434,7 @@ def _render_continue_section(snapshot: ActivitySnapshot, cards: list[ContinueCar
         for idx, card in enumerate(chunk):
             theme = APP_THEMES.get(card.app_key, {"accent": "#6366f1", "emoji": card.emoji})
             with cols[idx]:
-                logo = app_logo_data_uri(card.app_key)
-                brand = f'<img class="cc-continue-logo" src="{logo}" alt="">' if logo else ""
+                brand = app_brand_html(card.app_key, "cc-continue-logo", fallback_icon=card.emoji)
                 sub = (
                     f'<p class="cc-continue-sub" style="white-space:pre-line">{html.escape(card.subtitle)}</p>'
                     if card.subtitle
@@ -441,7 +443,7 @@ def _render_continue_section(snapshot: ActivitySnapshot, cards: list[ContinueCar
                 _render_unsafe_html(
                     f'<div class="cc-continue-card" style="border-left:4px solid {theme["accent"]};">'
                     f'<div class="cc-continue-app">{brand}{html.escape(card.app_name)}</div>'
-                    f'<div class="cc-continue-title">{theme.get("emoji", card.emoji)} '
+                    f'<div class="cc-continue-title">'
                     f"{html.escape(card.title)}</div>{sub}</div>"
                 )
                 btn_label = getattr(card, "button_label", None) or "Continue"
@@ -551,7 +553,7 @@ def _render_coach_insights(insights: list[CoachInsight]) -> None:
             st.markdown(
                 f"""
                 <div class="cc-insight-card" style="border-left-color:{theme['accent']};">
-                    <div class="cc-insight-icon">{theme.get('emoji', insight.icon)}</div>
+                    <div class="cc-insight-icon">{app_brand_html(insight.key, "cc-insight-logo", fallback_icon=insight.icon)}</div>
                     <p class="cc-insight-text">{html.escape(insight.message)}</p>
                 </div>
                 """,
@@ -563,7 +565,7 @@ def _render_coach_insights(insights: list[CoachInsight]) -> None:
         st.markdown(
             f"""
             <div class="cc-insight-card" style="border-left-color:{theme['accent']};">
-                <div class="cc-insight-icon">{theme.get('emoji', insight.icon)}</div>
+                <div class="cc-insight-icon">{app_brand_html(insight.key, "cc-insight-logo", fallback_icon=insight.icon)}</div>
                 <p class="cc-insight-text">{html.escape(insight.message)}</p>
             </div>
             """,
@@ -725,8 +727,10 @@ def _build_app_card_html(app_key: str, snapshot: ActivitySnapshot) -> str:
     if logo:
         icon_html = (
             '<div class="cc-app-icon-wrap cc-app-logo-wrap">'
-            f'<img class="cc-app-logo" src="{logo}" alt="{html.escape(app.name)} logo"></div>'
+            f'<img class="cc-app-logo" src="{logo}" alt="{html.escape(app.name)} logo" data-app-logo="{app.key}"></div>'
         )
+    elif uses_official_logo(app.key):
+        icon_html = app_brand_html(app.key, "cc-app-logo")
     else:
         icon_html = (
             f'<div class="cc-app-icon-wrap" style="background:{theme["bg"]};border:1px solid {theme["border"]};">'

@@ -4,6 +4,8 @@ Command Center homepage — Music Continue cards and App Directory workstreams.
 
 from __future__ import annotations
 
+from app_branding import app_brand_html
+
 import html
 from typing import Any
 from urllib.parse import parse_qs, urlparse
@@ -276,8 +278,8 @@ def render_music_workstreams_section(st: Any, snapshot: ActivitySnapshot) -> Non
                 subtitle = html.escape(str(card.get("subtitle") or ""))
                 st.markdown(
                     f'<div class="cc-continue-card" style="border-left:4px solid #6366f1;">'
-                    f'<div class="cc-continue-app">Music</div>'
-                    f'<div class="cc-continue-title">🎵 {title}</div>'
+                    f'<div class="cc-continue-app">{app_brand_html("music", "cc-continue-logo")} Music Practice Coach</div>'
+                    f'<div class="cc-continue-title">{title}</div>'
                     f'<p class="cc-continue-sub">{subtitle}</p></div>',
                     unsafe_allow_html=True,
                 )

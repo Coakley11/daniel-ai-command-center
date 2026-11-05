@@ -1,0 +1,26 @@
+{
+  "music": {
+    "file": "music_official_4050c33c0ac1.png",
+    "sha256": "4050c33c0ac1e6963b2b9ab79f8770f4520af78a6ec30751c7ac61a1d65fe1a7",
+    "source_repository": "ai-music-practice-coach",
+    "source_commit": "c0e0383741a83c7e95bc8b1af8424f45af05ddf2",
+    "source_path": "static/branding/mpc_logo_emblem_256.png",
+    "transformation": "none; exact approved app asset bytes"
+  },
+  "baseball": {
+    "file": "baseball_official_d9f0256884bd.png",
+    "sha256": "d9f0256884bdf43a3469edee95ecb7cb06877938aeb790d5ddf5862662981cf5",
+    "source_repository": "baseball-stat-app",
+    "source_commit": "4d1e0be4f8ae12dab397936aee8132e1e84493e1",
+    "source_path": "static/brand/dcbe_logo_512.png",
+    "transformation": "none; exact approved app asset bytes"
+  },
+  "investment": {
+    "file": "investment_official_885952150f87.png",
+    "sha256": "885952150f87f9002ae9f6e6750fe5a1460b7eb1fc9d6efef8fa0d2f2d0b7633",
+    "source_repository": "investment-portfolio-analyzer",
+    "source_commit": "e68fd3df0adc0272cb617e69b4d83df60e4f2b0a",
+    "source_path": "static/branding/investment_emblem_256.png",
+    "transformation": "none; exact approved app asset bytes"
+  }
+}

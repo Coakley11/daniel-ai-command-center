@@ -8,6 +8,9 @@ synced copy produced by ``scripts/sync_suite_branding.py``.
 from __future__ import annotations
 
 import importlib.util
+import base64
+import html
+from functools import lru_cache
 from pathlib import Path
 from types import ModuleType
 from typing import Any
@@ -34,31 +37,53 @@ _BASE_THEMES: dict[str, dict[str, str]] = {
 # Approved App Directory product logos. Other apps retain their existing icons.
 _LOGO_DIR = _CC_ROOT / "branding" / "logos"
 _APP_LOGO_FILES: dict[str, str] = {
-    "music": "music_mpc_160.png",
+    "music": "music_official_4050c33c0ac1.png",
     "command_center": "command_160.png",
-    "investment": "investment_160.png",
-    "baseball": "baseball_dcbe_160.png",
+    "investment": "investment_official_885952150f87.png",
+    "baseball": "baseball_official_d9f0256884bd.png",
 }
-_logo_uri_cache: dict[str, str] = {}
+
 
 _ami_module: ModuleType | None = None
 _ami_loaded_from: str | None = None
 
 
-def app_logo_data_uri(app_key: str) -> str:
-    """``data:image/png;base64,…`` for the app's product logo, or "" when it has none."""
-    if app_key in _logo_uri_cache:
-        return _logo_uri_cache[app_key]
-    uri = ""
-    name = _APP_LOGO_FILES.get(app_key)
-    if name:
-        path = _LOGO_DIR / name
-        if path.is_file():
-            import base64
+@lru_cache(maxsize=32)
+def _logo_uri_for_revision(path: str, modified_ns: int, size: int) -> str:
+    """File revision participates in the cache key; never cache a missing asset."""
+    return "data:image/png;base64," + base64.b64encode(Path(path).read_bytes()).decode("ascii")
 
-            uri = "data:image/png;base64," + base64.b64encode(path.read_bytes()).decode("ascii")
-    _logo_uri_cache[app_key] = uri
-    return uri
+
+def app_logo_data_uri(app_key: str) -> str:
+    """The locally shipped approved asset, refreshed when its bytes are replaced."""
+    name = _APP_LOGO_FILES.get(app_key)
+    if not name:
+        return ""
+    path = _LOGO_DIR / name
+    try:
+        revision = path.stat()
+        return _logo_uri_for_revision(str(path), revision.st_mtime_ns, revision.st_size)
+    except OSError:
+        return ""
+
+
+def uses_official_logo(app_key: str) -> bool:
+    return app_key in _APP_LOGO_FILES
+
+
+def app_brand_html(app_key: str, css_class: str, *, fallback_icon: str = "") -> str:
+    """One brand renderer for cards and navigation; approved apps never revert to emoji."""
+    uri = app_logo_data_uri(app_key)
+    names = {"music": "Music Practice Coach", "investment": "Investment Portfolio Analyzer",
+             "baseball": "Baseball Explorer", "command_center": "Command Center"}
+    label = names.get(app_key, app_key)
+    if uri:
+        return (f'<img class="{html.escape(css_class, quote=True)}" src="{uri}" '
+                f'data-app-logo="{html.escape(app_key, quote=True)}" '
+                f'alt="{html.escape(label, quote=True)} logo">')
+    if uses_official_logo(app_key):
+        return f'<span class="cc-logo-unavailable">{html.escape(label)} logo unavailable</span>'
+    return html.escape(fallback_icon or app_icon(app_key))
 
 
 def _load_module_from_path(path: Path, module_name: str) -> ModuleType | None:
