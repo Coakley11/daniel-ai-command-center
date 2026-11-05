@@ -11,6 +11,8 @@ Run: streamlit run ai_command_center.py
 
 from __future__ import annotations
 
+from suite_brand_assets import brand_asset_path, brand_data_uri
+
 import html
 import json
 from datetime import datetime
@@ -65,10 +67,13 @@ CC_DEV_MODE_KEY = "cc_developer_mode"
 
 st.set_page_config(
     page_title="Daniel Cohen AI Command Center",
-    page_icon="🏠",
+    page_icon=str(brand_asset_path("command_emblem_96")),
     layout="wide",
     initial_sidebar_state="expanded",
 )
+
+if hasattr(st, "logo"):
+    st.logo(str(brand_asset_path("command_emblem_256")), size="large", icon_image=str(brand_asset_path("command_emblem_96")))
 
 try:
     from suite_workspace import (
@@ -125,6 +130,9 @@ st.markdown(
         border: 1px solid rgba(255,255,255,0.35); border-radius: 999px;
         padding: 0.25rem 0.75rem; font-size: 0.78rem; font-weight: 600; margin-bottom: 0.75rem;
     }
+    .cc-brand-wordmark { display:block; width:min(100%, 320px); height:auto; background:white; border-radius:12px; margin:0 0 1rem; }
+    .cc-directory-brand { width:40px; height:40px; object-fit:contain; background:white; border-radius:8px; vertical-align:middle; margin-right:0.6rem; }
+    .cc-continue-logo { width:28px; height:28px; object-fit:contain; vertical-align:middle; background:white; border-radius:6px; margin-right:0.4rem; }
     .cc-hero h1 { margin: 0 0 0.35rem 0; font-size: 2.1rem; font-weight: 800; letter-spacing: -0.02em; }
     .cc-hero p { margin: 0; font-size: 1rem; line-height: 1.55; opacity: 0.95; max-width: 720px; }
 
@@ -175,7 +183,7 @@ st.markdown(
         overflow: hidden; background: transparent !important;
         box-shadow: 0 2px 8px rgba(15, 23, 42, 0.18);
     }
-    .cc-app-logo { width: 100%; height: 100%; display: block; object-fit: cover; }
+    .cc-app-logo { width: 100%; height: 100%; display: block; object-fit: contain; }
     .cc-app-when {
         font-size: 0.72rem; font-weight: 600; color: #94a3b8;
         text-align: right; padding-top: 0.15rem; white-space: nowrap;
@@ -374,8 +382,9 @@ def _render_hero(snapshot: ActivitySnapshot) -> None:
     st.markdown(
         f"""
         <div class="cc-hero">
+            <img class="cc-brand-wordmark" src="{brand_data_uri('command_full')}" alt="Command Center logo">
             <div class="cc-hero-tag">👋 Welcome back · {profile_tag}</div>
-            <h1>🏠 Daniel Cohen AI Command Center</h1>
+            <h1>Daniel Cohen AI Command Center</h1>
             <p>Your cross-app activity dashboard — continue work, coach insights, and app launchers.{build_note} {activity_tag}.</p>
         </div>
         """,
@@ -422,6 +431,8 @@ def _render_continue_section(snapshot: ActivitySnapshot, cards: list[ContinueCar
         for idx, card in enumerate(chunk):
             theme = APP_THEMES.get(card.app_key, {"accent": "#6366f1", "emoji": card.emoji})
             with cols[idx]:
+                logo = app_logo_data_uri(card.app_key)
+                brand = f'<img class="cc-continue-logo" src="{logo}" alt="">' if logo else ""
                 sub = (
                     f'<p class="cc-continue-sub" style="white-space:pre-line">{html.escape(card.subtitle)}</p>'
                     if card.subtitle
@@ -429,7 +440,7 @@ def _render_continue_section(snapshot: ActivitySnapshot, cards: list[ContinueCar
                 )
                 _render_unsafe_html(
                     f'<div class="cc-continue-card" style="border-left:4px solid {theme["accent"]};">'
-                    f'<div class="cc-continue-app">{html.escape(card.app_name)}</div>'
+                    f'<div class="cc-continue-app">{brand}{html.escape(card.app_name)}</div>'
                     f'<div class="cc-continue-title">{theme.get("emoji", card.emoji)} '
                     f"{html.escape(card.title)}</div>{sub}</div>"
                 )
@@ -755,7 +766,7 @@ def _render_app_directory(snapshot: ActivitySnapshot) -> None:
         unsafe_allow_html=True,
     )
     st.markdown(
-        '<div class="cc-section-sub">Your apps at a glance — pick up where you left off or start fresh.</div>',
+        f'<div class="cc-section-sub"><img class="cc-directory-brand" src="{app_logo_data_uri("command_center")}" alt="Command Center logo">Your apps at a glance — pick up where you left off or start fresh.</div>',
         unsafe_allow_html=True,
     )
 

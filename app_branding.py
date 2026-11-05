@@ -35,6 +35,8 @@ _BASE_THEMES: dict[str, dict[str, str]] = {
 _LOGO_DIR = _CC_ROOT / "branding" / "logos"
 _APP_LOGO_FILES: dict[str, str] = {
     "music": "music_mpc_160.png",
+    "command_center": "command_160.png",
+    "investment": "investment_160.png",
     "baseball": "baseball_dcbe_160.png",
 }
 _logo_uri_cache: dict[str, str] = {}

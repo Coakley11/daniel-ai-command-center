@@ -18,5 +18,5 @@ class BaseballLogoTests(unittest.TestCase):
     def test_other_cards_keep_their_existing_icons(self):
         music = base64.b64decode(app_logo_data_uri('music').split(',', 1)[1])
         self.assertEqual(music, (Path(__file__).resolve().parents[1] / 'branding/logos/music_mpc_160.png').read_bytes())
-        for key in ('investment', 'nba', 'applied_intelligence', 'future_lens'):
+        for key in ('nba', 'applied_intelligence', 'future_lens'):
             self.assertEqual(app_logo_data_uri(key), '')

@@ -25,6 +25,7 @@ MODULE_FILES = (
     "suite_auth.py",
     "suite_auth_browser.py",
     "suite_command_center_link.py",
+    "suite_brand_assets.py",
     # Canonical for every app, Baseball included: these copies own Baseball's Continue contract (Historical stat,
     # Hall of Fame target, Draft Lab route) and the lazy music_resume_payload import. Fix them here, never in an app.
     "suite_deep_links.py",
@@ -118,6 +119,12 @@ def main() -> None:
                 continue
             shutil.copy2(src, dest)
             print(f"copied {name} -> {repo}/")
+        # Presentation dependency of suite_command_center_link; no app-owned branding is replaced.
+        emblem = ROOT / "static" / "branding" / "command_emblem_96.png"
+        if emblem.is_file():
+            brand_dest = dest_dir / "static" / "branding"
+            brand_dest.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(emblem, brand_dest / emblem.name)
         if ".streamlit/secrets.toml.example" in APP_OWNED_FILES.get(repo, ()):
             print(f"skip ({repo}-owned .streamlit/secrets.toml.example)")
         elif SECRETS_EXAMPLE.is_file():

@@ -76,7 +76,7 @@ APP_DEFINITIONS: tuple[AppDefinition, ...] = (
     ),
     AppDefinition(
         key="investment",
-        name="Investment Analytics",
+        name="Investment Portfolio Analyzer",
         icon="📊",
         status="Active",
         branch=APP_BRANCH["investment"],
@@ -89,7 +89,7 @@ APP_DEFINITIONS: tuple[AppDefinition, ...] = (
     ),
     AppDefinition(
         key="baseball",
-        name="Baseball Analytics",
+        name="Baseball Explorer",
         icon="⚾",
         status="Active",
         branch=APP_BRANCH["baseball"],
