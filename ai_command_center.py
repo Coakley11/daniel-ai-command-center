@@ -121,9 +121,9 @@ st.markdown(
     header[data-testid="stHeader"] { background: transparent; }
 
     .cc-hero {
-        background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 45%, #ec4899 100%);
+        background: linear-gradient(180deg, #101e50 0%, #163777 50%, #204da5 100%);
         border-radius: 24px; padding: 2rem 2.2rem; margin-bottom: 1.5rem; color: white;
-        box-shadow: 0 16px 40px rgba(99, 102, 241, 0.25);
+        box-shadow: 0 16px 40px rgba(16, 30, 80, 0.25);
     }
     .cc-hero-tag {
         display: inline-block; background: rgba(255,255,255,0.2);
