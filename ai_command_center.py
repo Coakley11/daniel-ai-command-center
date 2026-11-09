@@ -377,6 +377,9 @@ def _render_workflow_diagnostics_table(snapshot: ActivitySnapshot) -> None:
 
 
 def _render_hero(snapshot: ActivitySnapshot) -> None:
+    from suite_parent_brand import render_suite_logo
+
+    render_suite_logo(st, placement="hub")
     activity_tag = "Live activity" if snapshot.has_real_data else "Waiting for activity data"
     build_note = ""
     if can_show_developer_tools(st=st):
