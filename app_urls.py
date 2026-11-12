@@ -3,6 +3,39 @@
 from __future__ import annotations
 
 import os
+from urllib.parse import urlsplit
+
+
+def _robotics_url_allowed(value: str, *, local: bool = False) -> bool:
+    try:
+        parsed = urlsplit(value)
+        parsed.port  # Reject malformed ports.
+    except ValueError:
+        return False
+    if not parsed.hostname or parsed.username or parsed.fragment or any(c.isspace() for c in value):
+        return False
+    loopback = parsed.hostname.lower() in ("localhost", "127.0.0.1", "::1")
+    return (parsed.scheme == "http" and loopback) if local else (parsed.scheme == "https" and not loopback)
+
+
+def robotics_app_url() -> str:
+    """No invented deployment; loopback is available only in explicit local mode."""
+    configured = (os.environ.get("SUITE_APP_URL_ROBOTICS") or os.environ.get("ROBOTICS_APP_URL", "")).strip()
+    if not configured:
+        try:
+            import streamlit as st
+            configured = str(st.secrets.get("suite_apps", {}).get("robotics_url", "")).strip()
+        except (FileNotFoundError, KeyError):
+            pass
+    if configured:
+        if _robotics_url_allowed(configured):
+            return configured
+        return ""
+    if os.environ.get("ROBOTICS_LOCAL_DEV", "").lower() in ("1", "true"):
+        local = os.environ.get("ROBOTICS_DEV_URL", "http://127.0.0.1:8501/").strip()
+        if _robotics_url_allowed(local, local=True):
+            return local
+    return ""
 
 BUILD_VERSION = "2026-06-03-v31"
 

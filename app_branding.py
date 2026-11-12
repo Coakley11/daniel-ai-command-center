@@ -27,6 +27,7 @@ _BASE_ICONS: dict[str, str] = {
 }
 
 _BASE_THEMES: dict[str, dict[str, str]] = {
+    "robotics": {"accent": "#0066cc", "bg": "#f0f9ff", "border": "#bae6fd"},
     "music": {"accent": "#a855f7", "bg": "#faf5ff", "border": "#e9d5ff"},
     "investment": {"accent": "#0d9488", "bg": "#f0fdfa", "border": "#99f6e4"},
     "baseball": {"accent": "#16a34a", "bg": "#f0fdf4", "border": "#bbf7d0"},
@@ -37,6 +38,7 @@ _BASE_THEMES: dict[str, dict[str, str]] = {
 # Approved App Directory product logos. Other apps retain their existing icons.
 _LOGO_DIR = _CC_ROOT / "branding" / "logos"
 _APP_LOGO_FILES: dict[str, str] = {
+    "robotics": "robotics_official.png",
     "music": "music_official_4050c33c0ac1.png",
     "command_center": "command_160.png",
     "investment": "investment_official_885952150f87.png",
@@ -74,7 +76,7 @@ def uses_official_logo(app_key: str) -> bool:
 def app_brand_html(app_key: str, css_class: str, *, fallback_icon: str = "") -> str:
     """One brand renderer for cards and navigation; approved apps never revert to emoji."""
     uri = app_logo_data_uri(app_key)
-    names = {"music": "Music Practice Coach", "investment": "Investment Portfolio Analyzer",
+    names = {"robotics": "Daniel AI Robotics", "music": "Music Practice Coach", "investment": "Investment Portfolio Analyzer",
              "baseball": "Baseball Explorer", "command_center": "Command Center"}
     label = names.get(app_key, app_key)
     if uri:

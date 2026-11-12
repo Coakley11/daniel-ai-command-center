@@ -22,5 +22,13 @@
     "source_commit": "e68fd3df0adc0272cb617e69b4d83df60e4f2b0a",
     "source_path": "static/branding/investment_emblem_256.png",
     "transformation": "none; exact approved app asset bytes"
+  },
+  "robotics": {
+    "file": "robotics_official.png",
+    "sha256": "d0ad976a8ef14045f75bd7a7ab4813d516a1d63cf3333be9a729edf28e259350",
+    "source_repository": "daniel-ai-robotics",
+    "source_commit": "d7fdde83f6fd1b90d00aecb2c943b84e1e368c94",
+    "source_path": "robotics_lab/assets/robotics_logo.png",
+    "transformation": "none; exact user-approved Robotics asset bytes"
   }
 }

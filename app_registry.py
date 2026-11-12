@@ -32,6 +32,7 @@ from app_urls import (
     MUSIC_GITHUB_URL,
     NBA_APP_URL,
     NBA_GITHUB_URL,
+    robotics_app_url,
 )
 
 AppStatus = Literal["Active", "Prototype", "Needs Connection", "Coming Soon"]
@@ -58,6 +59,8 @@ class AppDefinition:
     description: str
     why_it_matters: str
     button_label: str
+    category: str = ""
+    logo_file: str = ""
 
 
 APP_DEFINITIONS: tuple[AppDefinition, ...] = (
@@ -142,6 +145,21 @@ APP_DEFINITIONS: tuple[AppDefinition, ...] = (
         why_it_matters="Helps you adapt early instead of reacting late.",
         button_label="Go to App",
     ),
+    AppDefinition(
+        key="robotics",
+        name="Daniel AI Robotics",
+        icon="",
+        status="Prototype" if robotics_app_url() else "Needs Connection",
+        branch="FEATURE",
+        github_url="https://github.com/Coakley11/daniel-ai-robotics",
+        streamlit_url=robotics_app_url(),
+        main_file="robotics_lab/dashboard.py",
+        description="Virtual robotics laboratory for designing, simulating, and developing an intelligent physical humanoid robot.",
+        why_it_matters="Develop and verify humanoid robot behavior in simulation before physical hardware.",
+        button_label="Open",
+        category="Robotics / AI",
+        logo_file="robotics_official.png",
+    ),
 )
 
 
@@ -193,7 +211,7 @@ def get_app_url(key: str, connections: list[ConnectionStatus] | None = None, *, 
     """Return the public Streamlit viewer URL for navigation buttons."""
     for app in APP_DEFINITIONS:
         if app.key == key:
-            base = app.streamlit_url.strip()
+            base = robotics_app_url() if key == "robotics" else app.streamlit_url.strip()
             if not base:
                 return ""
             try:

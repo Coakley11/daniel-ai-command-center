@@ -718,6 +718,10 @@ def _build_app_card_html(app_key: str, snapshot: ActivitySnapshot) -> str:
     theme = APP_THEMES[app.key]
     accent = theme["accent"]
     card = get_app_directory_card(snapshot, app.key)
+    details = _app_highlights_html(card.highlights, accent)
+    if app_key == "robotics":
+        from robotics_directory import description_html
+        details = description_html(app)
 
     if card.when:
         top_right = f'<div class="cc-app-when" style="color:{accent};">{html.escape(card.when)}</div>'
@@ -746,7 +750,7 @@ def _build_app_card_html(app_key: str, snapshot: ActivitySnapshot) -> str:
         f"{icon_html}"
         f"{top_right}</div>"
         f'<div class="cc-app-name">{html.escape(app.name)}</div>'
-        f"{_app_highlights_html(card.highlights, accent)}"
+        f"{details}"
         f"</div>"
     )
 
@@ -765,6 +769,10 @@ def _render_app_card(app_key: str, snapshot: ActivitySnapshot) -> None:
         url = get_app_url(app.key, workspace_id=get_active_workspace_id(st))
     _render_unsafe_html(_build_app_card_html(app_key, snapshot))
     _render_go_button("Open workspace" if app_key == "music" else "Open", url, f"app_{app.key}")
+    if app_key == "robotics":
+        from robotics_directory import launch_notice
+        if notice := launch_notice(url):
+            st.caption(notice)
 
 
 def _render_app_directory(snapshot: ActivitySnapshot) -> None:
@@ -778,7 +786,8 @@ def _render_app_directory(snapshot: ActivitySnapshot) -> None:
     )
 
     app_keys = [app.key for app in APP_DEFINITIONS]
-    for row_keys in (app_keys[:3], app_keys[3:]):
+    for offset in range(0, len(app_keys), 3):
+        row_keys = app_keys[offset:offset + 3]
         cols = st.columns(3, gap="medium")
         for col, key in zip(cols, row_keys):
             with col:
