@@ -600,6 +600,46 @@ def _render_feed_items(items: tuple[ActivityFeedItem, ...] | list[ActivityFeedIt
     return f'<ul class="cc-feed-list">{"".join(items_html)}</ul>'
 
 
+EMPTY_ACTIVITY_TEXT = (
+    "No meaningful activity recorded yet. Your completed work across Daniel AI Suite will appear here."
+)
+EMPTY_WEEK_TEXT = (
+    "No accomplishments recorded this week yet. Completed work across Daniel AI Suite will be summarized here."
+)
+LOAD_FAILED_TEXT = "We couldn't load your recent activity right now. Please refresh in a moment."
+
+
+def _activity_load_status() -> dict[str, Any]:
+    try:
+        from suite_storage import LAST_EVENT_LOAD
+
+        return dict(LAST_EVENT_LOAD)
+    except Exception:
+        return {"ok": True}
+
+
+def _render_app_sections(sections: list, *, title: str) -> None:
+    """Accomplishments grouped by app (Activity and Weekly Summary share this layout)."""
+    blocks = []
+    for sec in sections:
+        items = "".join(f'<div class="cc-today-work-item">· {html.escape(line)}</div>' for line in sec.lines)
+        blocks.append(
+            f'<div class="cc-today-work-app" style="margin-top:0.45rem;font-weight:700;color:#334155;">'
+            f"{html.escape(sec.title)}</div>{items}"
+        )
+    _render_unsafe_html(
+        f'<div class="cc-today-work"><div class="cc-today-work-title">{html.escape(title)}</div>{"".join(blocks)}</div>'
+    )
+
+
+def _render_activity_diagnostics(status: dict[str, Any], *, label: str) -> None:
+    """Admin-only: why Activity is empty (load failure vs no recorded events)."""
+    if not can_show_developer_tools(st=st):
+        return
+    with st.expander(f"{label} diagnostics (admin)", expanded=False):
+        st.json(status)
+
+
 def _render_recent_activity_feed() -> None:
     st.markdown(
         f'<div class="cc-section-title">{SECTION_ICONS["feed"]} Activity</div>',
@@ -611,24 +651,22 @@ def _render_recent_activity_feed() -> None:
         unsafe_allow_html=True,
     )
 
-    dashboard = build_activity_dashboard(load_all_events())
-    if not dashboard.today_summaries:
-        st.markdown(
-            '<div class="cc-empty-box">No meaningful actions logged yet. Use your apps locally (sibling repos '
-            "side-by-side) or add a cloud activity backend for Streamlit Cloud sync.</div>",
-            unsafe_allow_html=True,
-        )
+    from meaningful_activity import today_sections
+
+    events = load_all_events()
+    status = _activity_load_status()
+    today = today_sections(events)
+    if not today:
+        text = EMPTY_ACTIVITY_TEXT if status.get("ok", True) else LOAD_FAILED_TEXT
+        st.markdown(f'<div class="cc-empty-box">{html.escape(text)}</div>', unsafe_allow_html=True)
+        _render_activity_diagnostics({**status, "events_loaded": len(events)}, label="Activity")
         return
 
-    summary_lines = "".join(
-        f'<div class="cc-today-work-item">· {html.escape(line)}</div>'
-        for line in dashboard.today_summaries
-    )
-    blocks = (
-        f'<div class="cc-today-work"><div class="cc-today-work-title">Today\'s Work</div>{summary_lines}</div>'
-    )
-    _render_unsafe_html(blocks)
+    _render_app_sections(today, title="Today's Work")
+    if not status.get("ok", True):
+        st.caption("Some recent activity may be missing — please refresh in a moment.")
 
+    dashboard = build_activity_dashboard(events)
     if dashboard.recent:
         st.markdown(
             '<div class="cc-section-sub" style="margin-top:0.8rem;">Recent meaningful activity</div>',
@@ -636,6 +674,7 @@ def _render_recent_activity_feed() -> None:
         )
         _render_unsafe_html(_render_feed_items(dashboard.recent))
 
+    _render_activity_diagnostics({**status, "events_loaded": len(events)}, label="Activity")
     if can_show_developer_tools(st=st) and dashboard.feed_trace:
         with st.expander("Activity feed trace (dev)", expanded=False):
             st.json(dashboard.feed_trace)
@@ -668,28 +707,23 @@ def _render_weekly_summary(snapshot: ActivitySnapshot) -> None:
         unsafe_allow_html=True,
     )
     st.markdown(
-        '<div class="cc-section-sub">Accomplishments this week — meaningful work only.</div>',
+        '<div class="cc-section-sub">What you accomplished this week (since Monday) — meaningful work only.</div>',
         unsafe_allow_html=True,
     )
 
-    summary = get_weekly_summary(snapshot)
-    lines = weekly_accomplishment_lines(summary)
-    if not lines:
-        st.markdown(
-            '<div class="cc-empty-box">No accomplishments logged this week yet. Practice, verify a chart, '
-            "or run an analysis to see your progress here.</div>",
-            unsafe_allow_html=True,
-        )
-        return
+    from meaningful_activity import week_sections
 
-    items_html = "".join(
-        f"<li class='cc-feed-item'>{html.escape(count)} {html.escape(label)}</li>"
-        for count, label in lines
-    )
-    _render_unsafe_html(
-        f"<p style='margin:0 0 0.35rem 0;font-weight:700;color:#334155;'>This week</p>"
-        f"<ul class='cc-feed-list'>{items_html}</ul>"
-    )
+    events = load_all_events()
+    status = _activity_load_status()
+    week = week_sections(events)
+    if not week:
+        text = EMPTY_WEEK_TEXT if status.get("ok", True) else LOAD_FAILED_TEXT
+        st.markdown(f'<div class="cc-empty-box">{html.escape(text)}</div>', unsafe_allow_html=True)
+        _render_activity_diagnostics({**status, "events_loaded": len(events)}, label="Weekly Summary")
+        return
+    _render_app_sections(week, title="This week")
+    if not status.get("ok", True):
+        st.caption("Some recent activity may be missing — please refresh in a moment.")
 
 
 def _app_highlight_line_html(line: str, accent: str) -> str:

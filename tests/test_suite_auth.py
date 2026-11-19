@@ -57,6 +57,8 @@ class TestSuiteAuth(unittest.TestCase):
         session = {
             AUTH_SESSION_KEY: True,
             AUTH_EXTERNAL_ID_KEY: "ariel",
+            "_suite_auth_user_id": "uuid-ariel",
+            "_suite_auth_user_email": "ariel@example.com",
             SESSION_KEY: "daniel",
         }
         with unittest.mock.patch("suite_auth.is_auth_enabled", return_value=True):
@@ -69,6 +71,8 @@ class TestSuiteAuth(unittest.TestCase):
         session = {
             AUTH_SESSION_KEY: True,
             AUTH_EXTERNAL_ID_KEY: "daniel",
+            "_suite_auth_user_id": "uuid-daniel",
+            "_suite_auth_user_email": "daniel.cohen11@example.com",
             SESSION_KEY: "ariel",
         }
         with unittest.mock.patch("suite_auth.is_auth_enabled", return_value=True):
@@ -81,6 +85,8 @@ class TestSuiteAuth(unittest.TestCase):
         session = {
             AUTH_SESSION_KEY: True,
             AUTH_EXTERNAL_ID_KEY: "ariel",
+            "_suite_auth_user_id": "uuid-ariel",
+            "_suite_auth_user_email": "ariel@example.com",
             SESSION_KEY: "daniel",
         }
         with unittest.mock.patch("suite_auth.is_auth_enabled", return_value=True):
@@ -93,9 +99,12 @@ class TestSuiteAuth(unittest.TestCase):
 
         session = {
             AUTH_USER_ID_KEY: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-            AUTH_USER_EMAIL_KEY: "daniel@example.com",
+            AUTH_USER_EMAIL_KEY: "daniel.cohen11@example.com",
         }
         self.assertEqual(resolve_auth_external_id(session), "daniel")
+        session[AUTH_USER_EMAIL_KEY] = "daniel@example.com"
+        session.pop("_suite_auth_external_id", None)
+        self.assertEqual(resolve_auth_external_id(session), "user_daniel")
 
     def test_daniel_email_includes_ariel_in_allowed_workspaces_with_uuid_user_id(self) -> None:
         from suite_auth import AUTH_USER_EMAIL_KEY, AUTH_USER_ID_KEY, allowed_workspaces_for_session
@@ -103,7 +112,7 @@ class TestSuiteAuth(unittest.TestCase):
         session = {
             AUTH_SESSION_KEY: True,
             AUTH_USER_ID_KEY: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-            AUTH_USER_EMAIL_KEY: "daniel@example.com",
+            AUTH_USER_EMAIL_KEY: "daniel.cohen11@example.com",
         }
         with unittest.mock.patch("suite_auth.is_auth_enabled", return_value=True):
             with unittest.mock.patch("suite_auth.is_authenticated", return_value=True):

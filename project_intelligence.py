@@ -177,12 +177,19 @@ def _is_passive_music_resume_item(item: ResumeItem, title: str, priority: int) -
     return item.item_key.startswith("song:") or title.lower().startswith("continue:")
 
 
+INVESTMENT_RESUME_POSITION_KEY = "portfolio:resume"
+
+
 def _polish_resume(item: ResumeItem) -> tuple[str, str, int]:
     """Turn resume rows into project titles; return (title, subtitle, priority)."""
     title = str(item.title or "").strip()
     subtitle = str(item.subtitle or "").strip()
     key = item.item_key.lower()
     blob = f"{key} {title} {subtitle}".lower()
+
+    if item.app == "investment" and key == INVESTMENT_RESUME_POSITION_KEY:
+        # Exact "where you left off": page → subtab, with real/planning context.
+        return title or "Continue in Investment Portfolio Analyzer", subtitle or "Investment Portfolio Analyzer", 62
 
     if title.lower().startswith("continue:"):
         subject = title.split(":", 1)[-1].strip()
@@ -1654,6 +1661,14 @@ def build_project_continue_cards(
                         base_url=meta[item.app]["url"],
                         stored_action_url=str(item.action_url or ""),
                     )
+                elif (
+                    item.app == "investment"
+                    and str(item.item_key or "") == INVESTMENT_RESUME_POSITION_KEY
+                    and str(item.action_url or "").startswith(str(meta[item.app]["url"]).rstrip("/"))
+                ):
+                    # The app wrote the exact page + subtab + workspace; a key-based rebuild
+                    # cannot know them (it fell back to Portfolio Health).
+                    deep = str(item.action_url).strip()
                 else:
                     from suite_deep_links import build_resume_action_url
 

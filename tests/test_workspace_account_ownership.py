@@ -68,9 +68,7 @@ class TestWorkspaceAccountOwnership(unittest.TestCase):
     def test_coakley11_admin_gets_demo_workspaces(self) -> None:
         allowed = allowed_workspaces_for_user("coakley11")
         self.assertIn("coakley11", allowed)
-        self.assertIn("daniel", allowed)
-        self.assertIn("ariel", allowed)
-        self.assertIn("guest", allowed)
+        self.assertNotIn("daniel", allowed)
 
     def test_auto_provision_owned_workspace_on_login(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -264,7 +262,8 @@ class TestWorkspaceAccountOwnership(unittest.TestCase):
             presets = _workspace_presets_for_session(st)
             ids = {p["id"] for p in presets}
             self.assertIn("coakley11", ids)
-            self.assertIn("daniel", ids)
+            self.assertNotIn("daniel", ids)
+            self.assertIn("guest", ids)
             self.assertIn("ariel", ids)
 
     def test_non_admin_workspace_picker_hidden(self) -> None:

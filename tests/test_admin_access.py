@@ -163,6 +163,7 @@ class TestAdminSessionAuth(unittest.TestCase):
             AUTH_SESSION_KEY: True,
             AUTH_EXTERNAL_ID_KEY: "coakley11",
             AUTH_USER_EMAIL_KEY: "coakley11@aol.com",
+            "_suite_auth_user_id": "uuid-coakley",
         }
         with patch("suite_auth.is_auth_enabled", return_value=True), patch(
             "suite_auth.is_authenticated", return_value=True
@@ -175,6 +176,7 @@ class TestAdminSessionAuth(unittest.TestCase):
             AUTH_SESSION_KEY: True,
             AUTH_EXTERNAL_ID_KEY: "daniel",
             AUTH_USER_EMAIL_KEY: "daniel.cohen11@example.com",
+            "_suite_auth_user_id": "uuid-daniel",
         }
         with patch("suite_auth.is_auth_enabled", return_value=True), patch(
             "suite_auth.is_authenticated", return_value=True

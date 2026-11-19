@@ -112,13 +112,25 @@ class TestLogoutPersistence(unittest.TestCase):
 
 class TestApplyAuthenticatedUser(unittest.TestCase):
     def test_apply_sets_external_id_for_ariel(self) -> None:
+        from unittest.mock import patch
+
+        session_state: dict = {}
+        with patch("suite_auth._configured_profile_emails", return_value={"ariel@example.com": "ariel"}):
+            _apply_authenticated_user(
+                session_state,
+                _FakeUser(email="ariel@example.com"),
+                tokens={"access_token": "a", "refresh_token": "r"},
+            )
+        self.assertEqual(session_state["_suite_auth_external_id"], "ariel")
+
+    def test_unconfigured_preset_email_gets_its_own_profile(self) -> None:
         session_state: dict = {}
         _apply_authenticated_user(
             session_state,
             _FakeUser(email="ariel@example.com"),
             tokens={"access_token": "a", "refresh_token": "r"},
         )
-        self.assertEqual(session_state["_suite_auth_external_id"], "ariel")
+        self.assertEqual(session_state["_suite_auth_external_id"], "user_ariel")
 
 
 if __name__ == "__main__":

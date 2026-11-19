@@ -681,15 +681,27 @@ def invalidate_app_resume_items(app: str) -> None:
     _sqlite_invalidate_app_resume_items(app)
 
 
+# Outcome of the last event load, so the UI can tell "nothing recorded" from "could not load".
+# ``source`` is cloud | local; ``ok`` False means the cloud read failed and the (usually empty on
+# Streamlit Cloud) local store was shown instead. ``error`` is for admin diagnostics only.
+LAST_EVENT_LOAD: dict[str, Any] = {"ok": True, "source": "local", "error": "", "count": 0}
+
+
 def load_events(limit: int = MAX_EVENTS) -> list[dict[str, Any]]:
     if _use_cloud():
         import suite_storage_supabase as cloud
 
         try:
-            return cloud.load_events(limit=limit)
-        except Exception:
-            return _sqlite_load_events(limit=limit)
-    return _sqlite_load_events(limit=limit)
+            rows = cloud.load_events(limit=limit)
+            LAST_EVENT_LOAD.update(ok=True, source="cloud", error="", count=len(rows))
+            return rows
+        except Exception as exc:  # noqa: BLE001
+            rows = _sqlite_load_events(limit=limit)
+            LAST_EVENT_LOAD.update(ok=False, source="local", error=f"{type(exc).__name__}: {exc}"[:300], count=len(rows))
+            return rows
+    rows = _sqlite_load_events(limit=limit)
+    LAST_EVENT_LOAD.update(ok=True, source="local", error="", count=len(rows))
+    return rows
 
 
 def load_current_states(*, include_metrics: bool = False) -> dict[str, dict[str, Any]]:

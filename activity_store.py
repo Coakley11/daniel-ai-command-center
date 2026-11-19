@@ -1618,18 +1618,28 @@ def get_app_directory_card(snapshot: ActivitySnapshot, app_key: str) -> AppDirec
             days_word = "day" if snapshot.music_streak_days == 1 else "days"
             lines.append(_labeled("Streak", f"{snapshot.music_streak_days} {days_word}"))
     elif app_key == "investment":
-        if snapshot.investment_directory_primary:
+        # Long-term context, real portfolio and planning portfolio on separate lines.
+        try:
+            from meaningful_activity import investment_directory_lines
+
+            lines.extend(investment_directory_lines(load_all_events()))
+        except Exception:
+            pass
+        if lines:
+            pass
+        elif snapshot.investment_directory_primary:
             lines.append(snapshot.investment_directory_primary)
         elif snapshot.investment_portfolio_preset:
             lines.append(_labeled("Portfolio", snapshot.investment_portfolio_preset))
         elif snapshot.last_portfolio_review:
             lines.append(_labeled("Last review", snapshot.last_portfolio_review))
-        if snapshot.last_investment_goal:
-            lines.append(_labeled("Last goal", snapshot.last_investment_goal))
-        if snapshot.last_investment_holdings_count > 0:
-            lines.append(_labeled("Holdings", str(snapshot.last_investment_holdings_count)))
-        if snapshot.last_investment_risk_profile:
-            lines.append(_labeled("Risk profile", snapshot.last_investment_risk_profile))
+        if not any(line.startswith(("Real portfolio:", "Planning portfolio:")) for line in lines):
+            if snapshot.last_investment_goal:
+                lines.append(_labeled("Last goal", snapshot.last_investment_goal))
+            if snapshot.last_investment_holdings_count > 0:
+                lines.append(_labeled("Holdings", str(snapshot.last_investment_holdings_count)))
+            if snapshot.last_investment_risk_profile:
+                lines.append(_labeled("Risk profile", snapshot.last_investment_risk_profile))
     elif app_key == "baseball":
         if snapshot.baseball_directory_primary:
             lines.append(snapshot.baseball_directory_primary)
